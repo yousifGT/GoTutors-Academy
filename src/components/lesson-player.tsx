@@ -1,0 +1,383 @@
+"use client";
+import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
+type SafeAnswer = { id: string; text: string };
+type SafeQuestion = { id: string; type: "MULTIPLE_CHOICE" | "OPEN_ENDED"; prompt: string; points: number; answers: SafeAnswer[] };
+type SafeQuiz = { id: string; passThreshold: number; retryLimit: number; questions: SafeQuestion[] };
+
+export function LessonPlayer({
+  courseId,
+  lessonId,
+  title,
+  content,
+  video,
+  quiz,
+  initialProgress,
+  attempts,
+  locked,
+  nextLessonId,
+}: {
+  courseId: string;
+  lessonId: string;
+  title: string;
+  content: string;
+  video: { provider: string; url: string } | null;
+  quiz: SafeQuiz | null;
+  initialProgress: { videoWatched: boolean; quizPassed: boolean };
+  attempts: AttemptRow[];
+  locked: boolean;
+  nextLessonId: string | null;
+}) {
+  const router = useRouter();
+  const [videoWatched, setVideoWatched] = useState(initialProgress.videoWatched);
+  const [quizPassed, setQuizPassed] = useState(initialProgress.quizPassed);
+  const [latestAttempts, setLatestAttempts] = useState(attempts);
+  const [latestLocked, setLatestLocked] = useState(locked);
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [answersState, setAnswersState] = useState<Record<string, string>>({});
+
+  const used = latestAttempts.length;
+  const remaining = quiz ? Math.max(0, quiz.retryLimit - used) : 0;
+
+  useEffect(() => {
+    let visible = !document.hidden;
+    const onVis = () => { visible = !document.hidden; };
+    document.addEventListener("visibilitychange", onVis);
+    const id = setInterval(() => {
+      if (!visible) return;
+      fetch("/api/progress", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ lessonId, timeSpent: 60 }),
+        keepalive: true,
+      }).catch(() => {});
+    }, 60_000);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
+  }, [lessonId]);
+
+  async function markVideoWatched() {
+    if (videoWatched) return;
+    setVideoWatched(true);
+    await fetch(`/api/progress`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lessonId, videoWatched: true }),
+    });
+    router.refresh();
+  }
+
+  async function submitQuiz() {
+    if (!quiz) return;
+    setSubmitting(true);
+    setFeedback(null);
+    const res = await fetch(`/api/quiz/${quiz.id}/attempt`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ answers: answersState }),
+    });
+    const data = await res.json();
+    setSubmitting(false);
+    if (!res.ok) {
+      setFeedback(data.error ?? "Could not submit quiz.");
+      return;
+    }
+    setLatestAttempts((a) => [{ id: data.attemptId, score: data.score, passed: data.passed, createdAt: new Date(), locked: data.locked, needsReview: data.needsReview }, ...a]);
+    if (data.needsReview) {
+      setFeedback("Submitted. Your open-ended answers are awaiting instructor review.");
+    } else if (data.passed) {
+      setQuizPassed(true);
+      setFeedback(`Passed! Score: ${data.score}%`);
+    } else if (data.locked) {
+      setLatestLocked(true);
+      setFeedback(`Failed: ${data.score}%. You have used all attempts. A centre admin has been notified.`);
+    } else {
+      setFeedback(`Failed: ${data.score}%. Threshold ${quiz.passThreshold}%.`);
+    }
+    router.refresh();
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Link href={`/trainee/courses/${courseId}`} className="text-sm text-picton">← Back to course</Link>
+        <div className="text-sm text-[var(--muted)]">{title}</div>
+      </div>
+
+      <div className="gt-card p-6">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        {content && <p className="mt-2 text-[var(--muted)] whitespace-pre-line">{content}</p>}
+
+        {video && (
+          <div className="mt-5">
+            <VideoEmbed provider={video.provider} url={video.url} onWatched={markVideoWatched} done={videoWatched} />
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-[var(--muted)]">{videoWatched ? "Video complete." : "Watch the full video to unlock the quiz."}</span>
+              {!videoWatched && (
+                <button onClick={markVideoWatched} className="gt-btn-ghost text-sm">I have watched the full video</button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {quiz && (
+        <div className="gt-card p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-xl font-bold">Quiz</h3>
+            <div className="text-sm text-[var(--muted)]">
+              Pass threshold {quiz.passThreshold}% · attempts used <b>{used}</b>/{quiz.retryLimit} · remaining <b>{remaining}</b>
+            </div>
+          </div>
+
+          {!videoWatched && (
+            <p className="mt-4 text-orange">Quiz locked. Finish the video first.</p>
+          )}
+
+          {videoWatched && (quizPassed ? (
+            <div className="mt-4 rounded-xl bg-mint/10 border border-mint/30 p-4 text-mint">
+              You have passed this quiz.
+              {nextLessonId && (
+                <Link href={`/trainee/courses/${courseId}/lessons/${nextLessonId}`} className="gt-btn-accent ml-3">Next lesson</Link>
+              )}
+            </div>
+          ) : latestLocked ? (
+            <div className="mt-4 rounded-xl bg-orange/10 border border-orange/30 p-4 text-orange">
+              Locked after {quiz.retryLimit} failed attempts. A centre admin has been notified to unlock retries.
+            </div>
+          ) : (
+            <div className="mt-5 space-y-5">
+              {quiz.questions.map((q, i) => (
+                <div key={q.id} className="rounded-xl border border-[var(--border)] p-4">
+                  <div className="font-medium">Q{i + 1}. {q.prompt}</div>
+                  {q.type === "MULTIPLE_CHOICE" ? (
+                    <div className="mt-3 space-y-2">
+                      {q.answers.map((a) => (
+                        <label key={a.id} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name={q.id}
+                            value={a.id}
+                            checked={answersState[q.id] === a.id}
+                            onChange={() => setAnswersState((s) => ({ ...s, [q.id]: a.id }))}
+                          />
+                          <span>{a.text}</span>
+                        </label>
+                      ))}
+                    </div>
+                  ) : (
+                    <textarea
+                      className="gt-input mt-3 min-h-[100px]"
+                      value={answersState[q.id] ?? ""}
+                      onChange={(e) => setAnswersState((s) => ({ ...s, [q.id]: e.target.value }))}
+                      placeholder="Your answer…"
+                    />
+                  )}
+                </div>
+              ))}
+              <button onClick={submitQuiz} disabled={submitting} className="gt-btn-primary">
+                {submitting ? "Submitting…" : "Submit quiz"}
+              </button>
+              {feedback && <p className="text-sm mt-2">{feedback}</p>}
+            </div>
+          ))}
+
+          {latestAttempts.length > 0 && (
+            <details className="mt-6">
+              <summary className="cursor-pointer text-sm text-[var(--muted)]">Attempt history</summary>
+              <ul className="mt-2 text-sm space-y-1">
+                {latestAttempts.map((a) => (
+                  <li key={a.id}>
+                    {a.needsReview ? (
+                      <span className="text-gold">Pending review</span>
+                    ) : (
+                      <span className={a.passed ? "text-mint" : "text-orange"}>
+                        {a.passed ? "Passed" : "Failed"}
+                      </span>
+                    )}
+                    {" "}· {a.needsReview ? "—" : `${a.score}%`} · {new Date(a.createdAt).toLocaleString()}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VideoEmbed({ provider, url, onWatched, done }: { provider: string; url: string; onWatched: () => void; done: boolean }) {
+  if (provider === "UPLOAD") return <UploadedVideo url={url} onWatched={onWatched} done={done} />;
+  if (provider === "YOUTUBE") return <YouTubeEmbed url={url} onWatched={onWatched} done={done} />;
+  if (provider === "VIMEO") return <VimeoEmbed url={url} onWatched={onWatched} done={done} />;
+  return <LoomEmbed url={url} />;
+}
+
+function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+  const ref = useRef<HTMLVideoElement | null>(null);
+  const [progressPct, setProgressPct] = useState(0);
+  function handleTimeUpdate() {
+    const v = ref.current;
+    if (!v) return;
+    const pct = (v.currentTime / Math.max(1, v.duration)) * 100;
+    setProgressPct(pct);
+    if (pct >= 95 && !done) onWatched();
+  }
+  return (
+    <div>
+      <video
+        ref={ref}
+        src={url}
+        controls
+        controlsList="nodownload"
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={onWatched}
+        className="w-full rounded-xl bg-black aspect-video"
+      />
+      <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
+        <div className="h-full bg-picton" style={{ width: `${progressPct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+declare global {
+  interface Window {
+    YT?: any;
+    onYouTubeIframeAPIReady?: () => void;
+  }
+}
+
+function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<any>(null);
+  const [pct, setPct] = useState(0);
+  const id = useMemo(() => url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1], [url]);
+
+  useEffect(() => {
+    if (!id || !containerRef.current) return;
+    let cancelled = false;
+    let pollHandle: number | null = null;
+
+    function init() {
+      if (cancelled || !window.YT || !containerRef.current) return;
+      playerRef.current = new window.YT.Player(containerRef.current, {
+        videoId: id,
+        playerVars: { rel: 0, modestbranding: 1 },
+        events: {
+          onReady: () => {
+            pollHandle = window.setInterval(() => {
+              const p = playerRef.current;
+              if (!p?.getDuration || !p?.getCurrentTime) return;
+              const dur = p.getDuration();
+              const cur = p.getCurrentTime();
+              if (dur > 0) {
+                const next = (cur / dur) * 100;
+                setPct(next);
+                if (next >= 95 && !done) onWatched();
+              }
+            }, 1000);
+          },
+          onStateChange: (e: any) => {
+            // 0 = ENDED
+            if (e.data === 0 && !done) onWatched();
+          },
+        },
+      });
+    }
+
+    if (window.YT?.Player) init();
+    else {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      const prev = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => { prev?.(); init(); };
+      document.head.appendChild(tag);
+    }
+
+    return () => {
+      cancelled = true;
+      if (pollHandle) clearInterval(pollHandle);
+      try { playerRef.current?.destroy?.(); } catch {}
+    };
+  }, [id, done, onWatched]);
+
+  if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
+  return (
+    <div>
+      <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+        <div ref={containerRef} className="h-full w-full" />
+      </div>
+      <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
+        <div className="h-full bg-picton" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [pct, setPct] = useState(0);
+  const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
+
+  useEffect(() => {
+    if (!id) return;
+    function post(msg: any) {
+      iframeRef.current?.contentWindow?.postMessage(JSON.stringify(msg), "*");
+    }
+    function onMessage(ev: MessageEvent) {
+      if (!ev.origin.includes("vimeo.com")) return;
+      try {
+        const data = typeof ev.data === "string" ? JSON.parse(ev.data) : ev.data;
+        if (data?.event === "ready") {
+          post({ method: "addEventListener", value: "timeupdate" });
+          post({ method: "addEventListener", value: "ended" });
+        }
+        if (data?.event === "timeupdate" && data.data?.percent != null) {
+          const p = data.data.percent * 100;
+          setPct(p);
+          if (p >= 95 && !done) onWatched();
+        }
+        if (data?.event === "ended" && !done) onWatched();
+      } catch {}
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [id, done, onWatched]);
+
+  if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
+  return (
+    <div>
+      <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+        <iframe
+          ref={iframeRef}
+          src={`https://player.vimeo.com/video/${id}?api=1&player_id=vimeo`}
+          className="h-full w-full"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
+      <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
+        <div className="h-full bg-picton" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LoomEmbed({ url }: { url: string }) {
+  const id = url.match(/loom\.com\/share\/([a-z0-9]+)/i)?.[1];
+  return (
+    <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+      <iframe
+        src={id ? `https://www.loom.com/embed/${id}` : url}
+        className="h-full w-full"
+        allow="autoplay; fullscreen"
+        allowFullScreen
+      />
+    </div>
+  );
+}

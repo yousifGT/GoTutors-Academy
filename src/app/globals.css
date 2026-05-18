@@ -1,0 +1,58 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #ffffff;
+  --fg: #1C1960;
+  --muted: #6B7280;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --soft: #E9F6FF;
+}
+
+.dark {
+  --bg: #0E0D2A;
+  --fg: #E9F6FF;
+  --muted: #9AA3C2;
+  --card: #161536;
+  --border: #25244B;
+  --soft: #1C1960;
+}
+
+html, body { background: var(--bg); color: var(--fg); }
+body { font-family: var(--font-poppins), system-ui, sans-serif; }
+
+@layer components {
+  .gt-card {
+    @apply rounded-2xl border bg-[var(--card)] border-[var(--border)] shadow-soft;
+  }
+  .gt-btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition-colors;
+  }
+  .gt-btn-primary {
+    @apply gt-btn bg-navy text-white hover:bg-[#171453];
+  }
+  .gt-btn-accent {
+    @apply gt-btn bg-picton text-navy hover:bg-[#3aa6d8];
+  }
+  .gt-btn-ghost {
+    @apply gt-btn border border-[var(--border)] hover:bg-[var(--soft)];
+  }
+  .gt-input {
+    @apply w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 outline-none focus:border-picton focus:ring-2 focus:ring-picton/30;
+  }
+  .gt-label { @apply mb-1 block text-sm font-medium text-[var(--muted)]; }
+  .gt-badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
+  }
+  .gt-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .gt-table th {
+    @apply text-left text-xs uppercase tracking-wide text-[var(--muted)] font-semibold py-3 px-3 border-b border-[var(--border)];
+  }
+  .gt-table td {
+    @apply py-3 px-3 border-b border-[var(--border)];
+  }
+}

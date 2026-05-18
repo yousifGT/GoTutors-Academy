@@ -1,0 +1,286 @@
+// GoTutors Academy — Prisma schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  SUPER_ADMIN
+  CENTRE_ADMIN
+  INSTRUCTOR
+  TRAINEE
+}
+
+enum VideoProvider {
+  UPLOAD
+  YOUTUBE
+  VIMEO
+  LOOM
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  OPEN_ENDED
+}
+
+enum NotificationType {
+  TRAINEE_ENROLLED
+  TRAINEE_PASSED
+  TRAINEE_FAILED
+  RETRY_UNLOCK_NEEDED
+}
+
+model Centre {
+  id        String   @id @default(cuid())
+  name      String
+  location  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model Role {
+  id            String       @id @default(cuid())
+  name          String       @unique
+  type          RoleType
+  description   String?
+  users         User[]
+  permissions   RolePermission[]
+  courses       CourseRoleAssignment[]
+  subPositions  SubPosition[]
+  createdAt     DateTime     @default(now())
+}
+
+model SubPosition {
+  id        String   @id @default(cuid())
+  roleId    String
+  name      String
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@unique([roleId, name])
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String?
+  roles       RolePermission[]
+  userOverrides UserPermissionOverride[]
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  allowed      Boolean    @default(true)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model UserPermissionOverride {
+  userId       String
+  permissionId String
+  allowed      Boolean
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([userId, permissionId])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  password       String
+  name           String
+  position       String?
+  subPosition    String?  @map("sub_position")
+  isTrained      Boolean  @default(false) @map("is_trained")
+  centreId       String?
+  roleId         String
+  supervisorId   String?
+  active         Boolean  @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  centre         Centre?  @relation(fields: [centreId], references: [id])
+  role           Role     @relation(fields: [roleId], references: [id])
+  supervisor     User?    @relation("Supervisor", fields: [supervisorId], references: [id])
+  reports        User[]   @relation("Supervisor")
+
+  enrollments    Enrollment[]
+  progress       Progress[]
+  quizAttempts   QuizAttempt[]
+  certificates   Certificate[]
+  notifications  Notification[]    @relation("UserNotifications")
+  authoredCourses Course[]         @relation("AuthoredCourses")
+  permissionOverrides UserPermissionOverride[]
+}
+
+model Course {
+  id            String   @id @default(cuid())
+  title         String
+  description   String?
+  thumbnail     String?
+  authorId      String
+  passThreshold Int      @default(70)
+  published     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  author        User     @relation("AuthoredCourses", fields: [authorId], references: [id])
+  modules       Module[]
+  enrollments   Enrollment[]
+  certificates  Certificate[]
+  roleAssignments CourseRoleAssignment[]
+}
+
+model CourseRoleAssignment {
+  id          String  @id @default(cuid())
+  courseId    String
+  roleId      String
+  subPosition String? @map("sub_position")
+  course      Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  role        Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@unique([courseId, roleId, subPosition])
+}
+
+model Module {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  order     Int
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons   Lesson[]
+}
+
+model Lesson {
+  id        String   @id @default(cuid())
+  moduleId  String
+  title     String
+  content   String?
+  order     Int
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  video     Video?
+  quiz      Quiz?
+  progress  Progress[]
+}
+
+model Video {
+  id        String        @id @default(cuid())
+  lessonId  String        @unique
+  provider  VideoProvider
+  url       String
+  duration  Int           @default(0)
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+}
+
+model Quiz {
+  id            String   @id @default(cuid())
+  lessonId      String   @unique
+  passThreshold Int      @default(70)
+  retryLimit    Int      @default(3)
+  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  questions     Question[]
+  attempts      QuizAttempt[]
+}
+
+model Question {
+  id       String       @id @default(cuid())
+  quizId   String
+  type     QuestionType
+  prompt   String
+  order    Int
+  points   Int          @default(1)
+  quiz     Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  answers  Answer[]
+}
+
+model Answer {
+  id         String   @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean  @default(false)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+  completed  Boolean  @default(false)
+  completedAt DateTime?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@unique([userId, courseId])
+}
+
+model Progress {
+  id            String   @id @default(cuid())
+  userId        String
+  lessonId      String
+  videoWatched  Boolean  @default(false)
+  quizPassed    Boolean  @default(false)
+  timeSpent     Int      @default(0)
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson        Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  @@unique([userId, lessonId])
+}
+
+model QuizAttempt {
+  id           String   @id @default(cuid())
+  userId       String
+  quizId       String
+  score        Int
+  passed       Boolean
+  locked       Boolean  @default(false)
+  needsReview  Boolean  @default(false)
+  reviewedAt   DateTime?
+  reviewedById String?
+  reviewNote   String?
+  createdAt    DateTime @default(now())
+  answers      Json
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+}
+
+model Certificate {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  issuedAt   DateTime @default(now())
+  serial     String   @unique
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@unique([userId, courseId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  action    String
+  target    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+  @@index([action])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  centreId  String?
+  type      NotificationType
+  title     String
+  body      String?
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+}
