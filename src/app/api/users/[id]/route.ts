@@ -40,7 +40,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   for (const k of ["name", "email", "position", "subPosition", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
     if (k in body) data[k] = body[k];
   }
-  if (body.password) data.password = await bcrypt.hash(body.password, 10);
+  if (body.password) data.password = await bcrypt.hash(body.password, 12);
 
   const updated = await prisma.user.update({ where: { id: params.id }, data });
   return NextResponse.json({ id: updated.id });

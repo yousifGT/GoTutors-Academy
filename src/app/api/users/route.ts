@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     finalCentreId = session.user.centreId;
   }
 
-  const hashed = await bcrypt.hash(password, 10);
+  const hashed = await bcrypt.hash(password, 12);
   try {
     const user = await prisma.user.create({
       data: {
