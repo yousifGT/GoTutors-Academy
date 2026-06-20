@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assertSameOrigin } from "./csrf";
+import { assertSameOrigin, checkOrigin } from "./csrf";
 
 function makeReq(opts: { method?: string; contentType?: string; origin?: string; url?: string }) {
   const headers = new Headers();
@@ -44,6 +44,40 @@ describe("assertSameOrigin", () => {
     const r = assertSameOrigin(
       makeReq({ contentType: "multipart/form-data; boundary=x", origin: "https://app.test", url: "https://app.test/api/x" })
     );
+    expect(r).toBeUndefined();
+  });
+});
+
+describe("checkOrigin (middleware layer)", () => {
+  it("rejects cross-origin mutations", () => {
+    const r = checkOrigin(
+      makeReq({ method: "DELETE", origin: "https://evil.example", url: "https://app.test/api/x" })
+    );
+    expect(r).toBeInstanceOf(Response);
+    expect((r as Response).status).toBe(403);
+  });
+
+  it("allows same-origin mutations", () => {
+    const r = checkOrigin(
+      makeReq({ method: "DELETE", origin: "https://app.test", url: "https://app.test/api/x" })
+    );
+    expect(r).toBeUndefined();
+  });
+
+  it("allows mutations with no content-type (no body)", () => {
+    const r = checkOrigin(
+      makeReq({ method: "POST", origin: "https://app.test", url: "https://app.test/api/x" })
+    );
+    expect(r).toBeUndefined();
+  });
+
+  it("allows requests with no Origin header (same-origin / non-browser)", () => {
+    const r = checkOrigin(makeReq({ method: "DELETE", url: "https://app.test/api/x" }));
+    expect(r).toBeUndefined();
+  });
+
+  it("ignores GET requests", () => {
+    const r = checkOrigin(makeReq({ method: "GET", origin: "https://evil.example" }));
     expect(r).toBeUndefined();
   });
 });
