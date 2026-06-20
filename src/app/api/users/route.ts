@@ -4,6 +4,18 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { z } from "zod";
+import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+
+const CreateUserSchema = z.object({
+  name: zName,
+  email: zEmail,
+  password: zPassword,
+  position: z.string().max(200).nullish(),
+  subPosition: z.string().max(200).nullish(),
+  roleId: zId,
+  centreId: zId.nullish(),
+});
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -11,9 +23,9 @@ export async function POST(req: Request) {
   if (!(await userHasPermission(session.user.id, PERMISSIONS.USER_CREATE)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  const { name, email, password, position, subPosition, roleId, centreId } = body;
-  if (!name || !email || !password || !roleId) return NextResponse.json({ error: "missing fields" }, { status: 400 });
+  const parsed = await parseJson(req, CreateUserSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, email, password, position, subPosition, roleId, centreId } = parsed.data;
 
   // Privilege-escalation guard: a non-super-admin (e.g. centre admin) may only
   // create trainee accounts. Without this, anyone with USER_CREATE could pass

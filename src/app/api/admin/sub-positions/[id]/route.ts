@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const RenameSchema = z.object({ name: z.string().trim().min(1).max(200) });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const csrf = assertSameOrigin(req);
@@ -12,9 +16,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session?.user || session.user.roleType !== "SUPER_ADMIN")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { name } = await req.json();
-  if (!name?.trim()) return NextResponse.json({ error: "name required" }, { status: 400 });
-  const newName = name.trim();
+  const parsed = await parseJson(req, RenameSchema);
+  if (!parsed.ok) return parsed.response;
+  const newName = parsed.data.name;
 
   const existing = await prisma.subPosition.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });

@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const UnlockSchema = z.object({ userId: zId, quizId: zId });
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -10,8 +14,9 @@ export async function POST(req: Request) {
   if (!(await userHasPermission(session.user.id, PERMISSIONS.QUIZ_UNLOCK_RETRY)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { userId, quizId } = await req.json();
-  if (!userId || !quizId) return NextResponse.json({ error: "missing" }, { status: 400 });
+  const parsed = await parseJson(req, UnlockSchema);
+  if (!parsed.ok) return parsed.response;
+  const { userId, quizId } = parsed.data;
 
   const target = await prisma.user.findUnique({ where: { id: userId } });
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });

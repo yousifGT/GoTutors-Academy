@@ -4,6 +4,21 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { z } from "zod";
+import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+
+const UpdateUserSchema = z.object({
+  name: zName.optional(),
+  email: zEmail.optional(),
+  position: z.string().max(200).nullable().optional(),
+  subPosition: z.string().max(200).nullable().optional(),
+  isTrained: z.boolean().optional(),
+  active: z.boolean().optional(),
+  roleId: zId.optional(),
+  centreId: zId.nullable().optional(),
+  supervisorId: zId.nullable().optional(),
+  password: zPassword.optional(),
+});
 
 async function authorize(session: any, target: { centreId: string | null }) {
   if (session.user.roleType === "SUPER_ADMIN") return true;
@@ -21,7 +36,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (!(await authorize(session, target))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json();
+  const parsed = await parseJson(req, UpdateUserSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+
   const desiredRoleId = body.roleId ?? target.roleId;
   if (body.subPosition) {
     const exists = await prisma.subPosition.findFirst({
@@ -37,16 +55,16 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // save any edit, and (without the centre check) could move users between
   // centres or escalate roles.
   const isSuper = session.user.roleType === "SUPER_ADMIN";
-  const changingRole = "roleId" in body && body.roleId !== target.roleId;
-  const changingTrained = "isTrained" in body && !!body.isTrained !== target.isTrained;
-  const changingCentre = "centreId" in body && (body.centreId ?? null) !== target.centreId;
+  const changingRole = body.roleId !== undefined && body.roleId !== target.roleId;
+  const changingTrained = body.isTrained !== undefined && body.isTrained !== target.isTrained;
+  const changingCentre = body.centreId !== undefined && (body.centreId ?? null) !== target.centreId;
   if (!isSuper && (changingRole || changingTrained || changingCentre)) {
     return NextResponse.json({ error: "Only super admins can change role, training status, or centre" }, { status: 403 });
   }
 
-  const data: any = {};
+  const data: Record<string, unknown> = {};
   for (const k of ["name", "email", "position", "subPosition", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
-    if (k in body) data[k] = body[k];
+    if (body[k] !== undefined) data[k] = body[k];
   }
   if (body.password) data.password = await bcrypt.hash(body.password, 12);
 

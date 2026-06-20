@@ -4,6 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const RoleUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(200).optional(),
+    description: z.string().max(1000).optional(),
+  })
+  .refine((d) => d.name !== undefined || d.description !== undefined, {
+    message: "nothing to update",
+  });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const csrf = assertSameOrigin(req);
@@ -12,11 +23,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session?.user || session.user.roleType !== "SUPER_ADMIN")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  const data: any = {};
-  if (typeof body.name === "string" && body.name.trim()) data.name = body.name.trim();
-  if (typeof body.description === "string") data.description = body.description;
-  if (Object.keys(data).length === 0) return NextResponse.json({ error: "nothing to update" }, { status: 400 });
+  const parsed = await parseJson(req, RoleUpdateSchema);
+  if (!parsed.ok) return parsed.response;
+
+  const data: { name?: string; description?: string } = {};
+  if (parsed.data.name !== undefined) data.name = parsed.data.name;
+  if (parsed.data.description !== undefined) data.description = parsed.data.description;
   // `type` is intentionally immutable — it's load-bearing for routing/permissions.
 
   try {

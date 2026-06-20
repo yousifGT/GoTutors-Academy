@@ -5,6 +5,13 @@ import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
 import { recomputeIsTrained } from "@/lib/training";
 import crypto from "crypto";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const ReviewSchema = z.object({
+  grades: z.record(z.string(), z.boolean()).default({}),
+  note: z.string().max(5000).nullish(),
+});
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -31,7 +38,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { grades, note } = (await req.json()) as { grades: Record<string, boolean>; note?: string };
+  const parsedBody = await parseJson(req, ReviewSchema);
+  if (!parsedBody.ok) return parsedBody.response;
+  const { grades, note } = parsedBody.data;
 
   let totalPoints = 0;
   let earned = 0;

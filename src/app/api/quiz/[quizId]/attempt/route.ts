@@ -7,6 +7,10 @@ import { notifyCentreAndInstructor } from "@/lib/notify";
 import { assertSameOrigin } from "@/lib/csrf";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { recomputeIsTrained } from "@/lib/training";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const AttemptSchema = z.object({ answers: z.record(z.string(), z.string()).default({}) });
 
 export async function POST(req: Request, { params }: { params: { quizId: string } }) {
   const csrf = assertSameOrigin(req);
@@ -50,7 +54,9 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
     return NextResponse.json({ error: "Already passed." }, { status: 400 });
   }
 
-  const { answers } = (await req.json()) as { answers: Record<string, string> };
+  const parsedBody = await parseJson(req, AttemptSchema);
+  if (!parsedBody.ok) return parsedBody.response;
+  const { answers } = parsedBody.data;
 
   let totalPoints = 0;
   let earned = 0;

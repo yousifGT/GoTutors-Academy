@@ -2,12 +2,22 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const ProgressSchema = z.object({
+  lessonId: zId,
+  videoWatched: z.boolean().optional(),
+  timeSpent: z.number().int().min(0).max(86400).optional(),
+});
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
-  const { lessonId, videoWatched, timeSpent } = await req.json();
-  if (!lessonId) return NextResponse.json({ error: "lessonId required" }, { status: 400 });
+
+  const parsed = await parseJson(req, ProgressSchema);
+  if (!parsed.ok) return parsed.response;
+  const { lessonId, videoWatched, timeSpent } = parsed.data;
 
   // Integrity: only record progress for a lesson in a course the user is
   // actually enrolled in. Otherwise a trainee could POST videoWatched=true for

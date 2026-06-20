@@ -3,6 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const BulkEnrolSchema = z.object({ userIds: z.array(zId).min(1) });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -17,8 +21,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     session.user.roleType === "CENTRE_ADMIN";
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { userIds } = (await req.json()) as { userIds: string[] };
-  if (!Array.isArray(userIds) || userIds.length === 0) return NextResponse.json({ error: "userIds required" }, { status: 400 });
+  const parsed = await parseJson(req, BulkEnrolSchema);
+  if (!parsed.ok) return parsed.response;
+  const { userIds } = parsed.data;
 
   // centre admins can only enrol users from their own centre
   const targets = await prisma.user.findMany({

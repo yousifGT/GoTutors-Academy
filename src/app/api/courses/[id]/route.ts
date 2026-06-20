@@ -4,6 +4,17 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { assignmentRows } from "@/lib/course-assignments";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const UpdateCourseSchema = z.object({
+  title: z.string().trim().min(1).max(300).optional(),
+  description: z.string().max(5000).nullable().optional(),
+  passThreshold: z.number().int().min(0).max(100).optional(),
+  published: z.boolean().optional(),
+  roleIds: z.array(zId).optional(),
+  subPositions: z.array(z.string().max(200)).optional(),
+});
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -11,14 +22,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const body = await req.json();
-  const data: any = {};
+  const parsed = await parseJson(req, UpdateCourseSchema);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.data;
+
+  const data: Record<string, unknown> = {};
   for (const k of ["title", "description", "passThreshold", "published"] as const) {
-    if (k in body) data[k] = body[k];
+    if (body[k] !== undefined) data[k] = body[k];
   }
-  if (Array.isArray(body.roleIds)) {
+  if (body.roleIds !== undefined) {
     await prisma.courseRoleAssignment.deleteMany({ where: { courseId: params.id } });
-    const subPositions: string[] = Array.isArray(body.subPositions) ? body.subPositions : [];
+    const subPositions = body.subPositions ?? [];
     await prisma.courseRoleAssignment.createMany({
       data: assignmentRows(body.roleIds, subPositions).map((r) => ({ ...r, courseId: params.id })),
     });

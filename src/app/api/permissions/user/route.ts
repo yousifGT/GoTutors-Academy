@@ -4,6 +4,14 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const UserPermSchema = z.object({
+  userId: zId,
+  permissionId: zId,
+  value: z.enum(["allow", "deny", "inherit"]),
+});
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -11,7 +19,9 @@ export async function POST(req: Request) {
   if (!(await userHasPermission(session.user.id, PERMISSIONS.PERMISSIONS_MANAGE)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { userId, permissionId, value } = (await req.json()) as { userId: string; permissionId: string; value: "allow" | "deny" | "inherit" };
+  const parsed = await parseJson(req, UserPermSchema);
+  if (!parsed.ok) return parsed.response;
+  const { userId, permissionId, value } = parsed.data;
 
   if (value === "inherit") {
     await prisma.userPermissionOverride.deleteMany({ where: { userId, permissionId } });
