@@ -53,7 +53,7 @@ npm run test:watch
 Before deploying to a public URL, complete every box:
 
 - [ ] `DATABASE_URL` points at a managed Postgres with backups (Neon, RDS, Supabase, etc.).
-- [ ] `NEXTAUTH_SECRET` and `JWT_SECRET` are fresh 32-byte hex values (`openssl rand -hex 32`).
+- [ ] `NEXTAUTH_SECRET` is a fresh 32-byte hex value (`openssl rand -hex 32`).
 - [ ] `NEXTAUTH_URL` matches the deployed origin (HTTPS).
 - [ ] Seed data is **not** loaded in prod (do not run `npm run db:seed` against a prod DB).
 - [ ] Demo email accounts (`*@gotutors.test`) are deleted or replaced.
@@ -69,7 +69,7 @@ Before deploying to a public URL, complete every box:
 ## Security posture
 
 - **Auth**: NextAuth credentials provider, bcrypt-hashed passwords, JWT sessions, role-based middleware (`src/middleware.ts`). Sign-in attempts are rate-limited (5 / minute / email).
-- **CSRF**: API routes that mutate state require `application/json` content-type and a same-origin `Origin` header. Form-encoded cross-site posts are rejected (`src/lib/csrf.ts`).
+- **CSRF**: every mutating `/api` request is origin-checked in middleware (`src/middleware.ts`) — cross-site requests are rejected by `Origin`/host mismatch. JSON-only routes additionally enforce an `application/json` content-type (`src/lib/csrf.ts`).
 - **Rate limiting**: In-memory sliding window for sign-in, quiz attempts, and uploads (`src/lib/rate-limit.ts`). **Replace with Redis for multi-instance deployments.**
 - **Permissions**: role-level matrix + per-user overrides at `/admin/permissions`. Enforced via `userHasPermission()` server-side on every privileged API.
 - **Headers**: CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy and Permissions-Policy on every response (`next.config.js`).
