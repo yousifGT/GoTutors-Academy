@@ -9,6 +9,21 @@ export async function POST(req: Request) {
   const { lessonId, videoWatched, timeSpent } = await req.json();
   if (!lessonId) return NextResponse.json({ error: "lessonId required" }, { status: 400 });
 
+  // Integrity: only record progress for a lesson in a course the user is
+  // actually enrolled in. Otherwise a trainee could POST videoWatched=true for
+  // any lessonId and bypass the "watch the video first" quiz gate, or forge
+  // completion for courses they were never assigned.
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    select: { module: { select: { courseId: true } } },
+  });
+  if (!lesson) return NextResponse.json({ error: "lesson not found" }, { status: 404 });
+  const enrolled = await prisma.enrollment.findUnique({
+    where: { userId_courseId: { userId: session.user.id, courseId: lesson.module.courseId } },
+    select: { userId: true },
+  });
+  if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+
   const updated = await prisma.progress.upsert({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
     update: {

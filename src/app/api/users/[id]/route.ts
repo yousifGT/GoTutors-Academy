@@ -31,9 +31,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!exists) return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
   }
 
-  // Only super admins may change role or isTrained
-  if ((body.roleId || "isTrained" in body) && session.user.roleType !== "SUPER_ADMIN") {
-    return NextResponse.json({ error: "Only super admins can change role or training status" }, { status: 403 });
+  // Only super admins may change a user's role, training status, or centre.
+  // The edit form always submits these fields, so compare against the current
+  // values and reject only genuine changes — otherwise a centre admin couldn't
+  // save any edit, and (without the centre check) could move users between
+  // centres or escalate roles.
+  const isSuper = session.user.roleType === "SUPER_ADMIN";
+  const changingRole = "roleId" in body && body.roleId !== target.roleId;
+  const changingTrained = "isTrained" in body && !!body.isTrained !== target.isTrained;
+  const changingCentre = "centreId" in body && (body.centreId ?? null) !== target.centreId;
+  if (!isSuper && (changingRole || changingTrained || changingCentre)) {
+    return NextResponse.json({ error: "Only super admins can change role, training status, or centre" }, { status: 403 });
   }
 
   const data: any = {};

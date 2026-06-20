@@ -14,6 +14,16 @@ export async function POST(req: Request) {
   const body = await req.json();
   const { name, email, password, position, subPosition, roleId, centreId } = body;
   if (!name || !email || !password || !roleId) return NextResponse.json({ error: "missing fields" }, { status: 400 });
+
+  // Privilege-escalation guard: a non-super-admin (e.g. centre admin) may only
+  // create trainee accounts. Without this, anyone with USER_CREATE could pass
+  // an admin/instructor roleId and mint a privileged account.
+  const role = await prisma.role.findUnique({ where: { id: roleId }, select: { type: true } });
+  if (!role) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+  if (session.user.roleType !== "SUPER_ADMIN" && role.type !== "TRAINEE") {
+    return NextResponse.json({ error: "You may only create trainee accounts" }, { status: 403 });
+  }
+
   if (subPosition) {
     const exists = await prisma.subPosition.findFirst({ where: { roleId, name: subPosition }, select: { id: true } });
     if (!exists) return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
