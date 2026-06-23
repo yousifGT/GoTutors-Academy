@@ -4,8 +4,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { Prisma, RoleType } from "@prisma/client";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+
+/** Thrown inside the delete transaction to roll back when no other admin remains. */
+class LastSuperAdminError extends Error {}
 
 const UpdateUserSchema = z.object({
   name: zName.optional(),
@@ -78,9 +82,44 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   if (!(await userHasPermission(session.user.id, PERMISSIONS.USER_DELETE)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const target = await prisma.user.findUnique({ where: { id: params.id } });
+  // An admin must not delete their own account mid-session.
+  if (params.id === session.user.id) {
+    return NextResponse.json({ error: "You cannot delete your own account" }, { status: 400 });
+  }
+
+  const target = await prisma.user.findUnique({
+    where: { id: params.id },
+    include: { role: { select: { type: true } } },
+  });
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (!(await authorize(session, target))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
+  // Never delete the last super admin. Count the other super admins and delete
+  // in one serializable transaction so a concurrent delete can't race past the
+  // check and leave the system with zero admins.
+  if (target.role.type === RoleType.SUPER_ADMIN) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const otherSuperAdmins = await tx.user.count({
+            where: { role: { type: RoleType.SUPER_ADMIN }, id: { not: params.id } },
+          });
+          if (otherSuperAdmins === 0) throw new LastSuperAdminError();
+          await tx.user.delete({ where: { id: params.id } });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
+      );
+    } catch (e) {
+      if (e instanceof LastSuperAdminError)
+        return NextResponse.json({ error: "Cannot delete the last super admin" }, { status: 409 });
+      // A serializable conflict means a concurrent delete touched the admin set.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034")
+        return NextResponse.json({ error: "Concurrent update, please retry" }, { status: 409 });
+      throw e;
+    }
+    return NextResponse.json({ ok: true });
+  }
+
   await prisma.user.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
