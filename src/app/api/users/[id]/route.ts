@@ -66,14 +66,40 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Only super admins can change role, training status, or centre" }, { status: 403 });
   }
 
+  // Reject a duplicate email up front so the form can show a field error
+  // (otherwise the unique constraint throws an unhandled 500 on update).
+  if (body.email !== undefined && body.email !== target.email) {
+    const dupe = await prisma.user.findFirst({
+      where: { email: body.email, id: { not: params.id } },
+      select: { id: true },
+    });
+    if (dupe) {
+      return NextResponse.json(
+        { error: "Email already in use", details: { email: ["Email already in use"] } },
+        { status: 409 }
+      );
+    }
+  }
+
   const data: Record<string, unknown> = {};
   for (const k of ["name", "email", "position", "subPosition", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
   }
   if (body.password) data.password = await bcrypt.hash(body.password, 12);
 
-  const updated = await prisma.user.update({ where: { id: params.id }, data });
-  return NextResponse.json({ id: updated.id });
+  try {
+    const updated = await prisma.user.update({ where: { id: params.id }, data });
+    return NextResponse.json({ id: updated.id });
+  } catch (e) {
+    // Safety net for a race between the pre-check above and the write.
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json(
+        { error: "Email already in use", details: { email: ["Email already in use"] } },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 }
 
 export async function DELETE(_: Request, { params }: { params: { id: string } }) {

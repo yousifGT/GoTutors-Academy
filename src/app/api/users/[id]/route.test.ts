@@ -23,13 +23,21 @@ vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
 import { getServerSession } from "next-auth";
 import { userHasPermission } from "@/lib/permissions";
-import { DELETE } from "./route";
+import { Prisma } from "@prisma/client";
+import { DELETE, PATCH } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const hasPerm = userHasPermission as unknown as ReturnType<typeof vi.fn>;
 
 function delReq() {
   return new Request("https://app.test/api/users/u1", { method: "DELETE" });
+}
+function patchReq(body: unknown) {
+  return new Request("https://app.test/api/users/u1", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
 }
 
 beforeEach(() => {
@@ -75,5 +83,40 @@ describe("DELETE /api/users/[id]", () => {
     expect(res.status).toBe(200);
     expect(db.user.count).not.toHaveBeenCalled();
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/users/[id]", () => {
+  const target = { id: "u1", email: "old@x.com", roleId: "r1", isTrained: false, centreId: null };
+
+  it("returns 409 with a field error when changing email to one in use", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue(target);
+    db.user.findFirst.mockResolvedValue({ id: "other" }); // email already taken
+    const res = await PATCH(patchReq({ email: "taken@x.com" }), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
+    expect((await res.json()).details.email).toBeDefined();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("allows changing email to a free address", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue(target);
+    db.user.findFirst.mockResolvedValue(null); // free
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ email: "fresh@x.com" }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+    expect(db.user.update).toHaveBeenCalled();
+  });
+
+  it("maps a P2002 race on update to 409", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue(target);
+    db.user.findFirst.mockResolvedValue(null);
+    db.user.update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("dup", { code: "P2002", clientVersion: "5" })
+    );
+    const res = await PATCH(patchReq({ email: "fresh@x.com" }), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
   });
 });
