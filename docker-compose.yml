@@ -1,0 +1,31 @@
+# Local dev database for GoTutors Academy.
+# Runs Postgres only — the Next.js app runs on your machine with `npm run dev`.
+#
+#   docker compose up -d      # start the database (appears in Docker Desktop)
+#   docker compose down       # stop it (data is kept in the named volume)
+#   docker compose down -v    # stop it AND wipe the data
+#
+# Matches the DATABASE_URL in .env.example's local-dev form:
+#   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/gotutors?schema=public"
+
+services:
+  db:
+    image: postgres:16
+    container_name: gotutors-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: gotutors
+    ports:
+      - "5432:5432"
+    volumes:
+      - gotutors_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gotutors"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gotutors_db:
