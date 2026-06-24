@@ -5,8 +5,8 @@
 #   docker compose down       # stop it (data is kept in the named volume)
 #   docker compose down -v    # stop it AND wipe the data
 #
-# Matches the DATABASE_URL in .env.example's local-dev form:
-#   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/gotutors?schema=public"
+# Matches the DATABASE_URL in your .env:
+#   DATABASE_URL="postgresql://postgres:postgres@localhost:5433/gotutors?schema=public"
 
 services:
   db:
@@ -18,7 +18,9 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: gotutors
     ports:
-      - "5432:5432"
+      # Host port 5433 (not the default 5432) so this DB never collides with or
+      # intercepts anything else on your machine using 5432.
+      - "5433:5432"
     volumes:
       - gotutors_db:/var/lib/postgresql/data
     healthcheck:
