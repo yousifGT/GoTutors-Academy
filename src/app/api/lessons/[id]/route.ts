@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireLessonAccess } from "@/lib/course-access";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 
@@ -44,10 +45,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = parsed.data;
 
   const updated = await prisma.$transaction(async (tx) => {
-    const lesson = await tx.lesson.update({
-      where: { id: params.id },
-      data: { title: body.title, content: body.content ?? null },
-    });
+    // Only touch fields the caller actually sent. `content` may be explicitly
+    // set to null to clear it; omitting it leaves the existing value alone.
+    const lessonData: Prisma.LessonUpdateInput = {};
+    if (body.title !== undefined) lessonData.title = body.title;
+    if (body.content !== undefined) lessonData.content = body.content;
+    const lesson = await tx.lesson.update({ where: { id: params.id }, data: lessonData });
 
     if (body.video === null) {
       await tx.video.deleteMany({ where: { lessonId: lesson.id } });
@@ -60,14 +63,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     if (body.quiz) {
+      // Update only the metadata fields that were sent — don't reset
+      // passThreshold/retryLimit to defaults on a partial edit.
+      const quizUpdate: Prisma.QuizUpdateInput = {};
+      if (body.quiz.passThreshold !== undefined) quizUpdate.passThreshold = body.quiz.passThreshold;
+      if (body.quiz.retryLimit !== undefined) quizUpdate.retryLimit = body.quiz.retryLimit;
       const quiz = await tx.quiz.upsert({
         where: { lessonId: lesson.id },
-        update: { passThreshold: body.quiz.passThreshold ?? 70, retryLimit: body.quiz.retryLimit ?? 3 },
-        create: { lessonId: lesson.id, passThreshold: body.quiz.passThreshold ?? 70, retryLimit: body.quiz.retryLimit ?? 3 },
+        update: quizUpdate,
+        create: {
+          lessonId: lesson.id,
+          passThreshold: body.quiz.passThreshold ?? 70,
+          retryLimit: body.quiz.retryLimit ?? 3,
+        },
       });
-      // Replace questions
-      await tx.question.deleteMany({ where: { quizId: quiz.id } });
-      if (Array.isArray(body.quiz.questions)) {
+      // Only rewrite questions when the caller actually sent a list. Omitting
+      // `questions` preserves the existing ones (a metadata-only edit must not
+      // wipe the quiz); sending an explicit [] clears them.
+      if (body.quiz.questions !== undefined) {
+        await tx.question.deleteMany({ where: { quizId: quiz.id } });
         for (let i = 0; i < body.quiz.questions.length; i++) {
           const q = body.quiz.questions[i];
           await tx.question.create({
