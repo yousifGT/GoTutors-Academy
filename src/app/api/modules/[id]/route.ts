@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { requireModuleAccess } from "@/lib/course-access";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 
@@ -16,6 +17,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_DELETE)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const denied = await requireModuleAccess(session.user, params.id);
+  if (denied) return denied;
   await prisma.module.delete({ where: { id: params.id } });
   return NextResponse.json({ ok: true });
 }
@@ -25,6 +28,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const denied = await requireModuleAccess(session.user, params.id);
+  if (denied) return denied;
 
   const parsed = await parseJson(req, ModulePatchSchema);
   if (!parsed.ok) return parsed.response;

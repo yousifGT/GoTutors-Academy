@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { requireCourseAccess } from "@/lib/course-access";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 
@@ -13,6 +14,8 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const denied = await requireCourseAccess(session.user, params.id);
+  if (denied) return denied;
 
   const parsed = await parseJson(req, ModuleCreateSchema);
   if (!parsed.ok) return parsed.response;
