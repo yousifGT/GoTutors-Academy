@@ -40,6 +40,9 @@ export default withAuth(
         // API routes enforce their own auth in the handler; don't gate them at
         // the edge, so login flows and the origin check above still run.
         if (req.nextUrl.pathname.startsWith("/api/")) return true;
+        // A token marked invalid (user deactivated/deleted) is treated as logged
+        // out so protected pages redirect to login.
+        if (token?.invalid) return false;
         return !!token;
       },
     },
