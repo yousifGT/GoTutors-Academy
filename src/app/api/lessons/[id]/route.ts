@@ -7,6 +7,7 @@ import { requireLessonAccess } from "@/lib/course-access";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
+import { isValidVideoUrl } from "@/lib/video-url";
 
 const AnswerSchema = z.object({ text: z.string().max(2000), isCorrect: z.boolean().optional() });
 const QuestionSchema = z.object({
@@ -15,10 +16,15 @@ const QuestionSchema = z.object({
   points: z.number().int().min(0).max(1000).optional(),
   answers: z.array(AnswerSchema).optional(),
 });
-const VideoSchema = z.object({
-  provider: z.enum(["UPLOAD", "YOUTUBE", "VIMEO", "LOOM"]),
-  url: z.string().min(1).max(2000),
-});
+const VideoSchema = z
+  .object({
+    provider: z.enum(["UPLOAD", "YOUTUBE", "VIMEO", "LOOM"]),
+    url: z.string().min(1).max(2000),
+  })
+  .refine((v) => isValidVideoUrl(v.provider, v.url), {
+    message: "Video URL must be a valid https URL matching the selected provider",
+    path: ["url"],
+  });
 const LessonPatchSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),
   content: z.string().max(50000).nullable().optional(),
