@@ -20,14 +20,17 @@ vi.mock("@/lib/permissions", () => ({
   userHasPermission: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
+vi.mock("@/lib/training", () => ({ recomputeIsTrained: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { userHasPermission } from "@/lib/permissions";
+import { recomputeIsTrained } from "@/lib/training";
 import { Prisma } from "@prisma/client";
 import { DELETE, PATCH } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const hasPerm = userHasPermission as unknown as ReturnType<typeof vi.fn>;
+const recompute = recomputeIsTrained as unknown as ReturnType<typeof vi.fn>;
 
 function delReq() {
   return new Request("https://app.test/api/users/u1", { method: "DELETE" });
@@ -147,5 +150,27 @@ describe("PATCH /api/users/[id] centre-admin scoping", () => {
     const res = await PATCH(patchReq({ name: "New name" }), { params: { id: "u1" } });
     expect(res.status).toBe(200);
     expect(db.user.update).toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/users/[id] recomputes training status", () => {
+  it("recomputes isTrained when the sub-position changes", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, subPosition: "Maths Tutor", role: { type: "TRAINEE" } });
+    db.subPosition.findFirst.mockResolvedValue({ id: "sp1" });
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ subPosition: "Science Tutor" }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+    expect(recompute).toHaveBeenCalledWith("u1");
+  });
+
+  it("does not recompute for an unrelated field change", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "TRAINEE" } });
+    db.user.findFirst.mockResolvedValue(null);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ name: "New" }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+    expect(recompute).not.toHaveBeenCalled();
   });
 });

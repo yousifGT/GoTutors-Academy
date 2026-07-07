@@ -8,6 +8,7 @@ import { Prisma, RoleType } from "@prisma/client";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
 import { canManageUser } from "@/lib/scope";
+import { recomputeIsTrained } from "@/lib/training";
 
 /** Thrown inside the delete transaction to roll back when no other admin remains. */
 class LastSuperAdminError extends Error {}
@@ -88,6 +89,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   try {
     const updated = await prisma.user.update({ where: { id: params.id }, data });
+    // "Trained" is derived from certificates held for the courses assigned to a
+    // trainee's role + sub-position, so it goes stale when those change. Recompute
+    // it — unless the admin explicitly set isTrained here (respect that override).
+    if (body.isTrained === undefined && (body.subPosition !== undefined || body.roleId !== undefined)) {
+      await recomputeIsTrained(params.id);
+    }
     return NextResponse.json({ id: updated.id });
   } catch (e) {
     // Safety net for a race between the pre-check above and the write.
