@@ -119,6 +119,10 @@ model User {
   notifications  Notification[]    @relation("UserNotifications")
   authoredCourses Course[]         @relation("AuthoredCourses")
   permissionOverrides UserPermissionOverride[]
+
+  @@index([centreId])
+  @@index([roleId])
+  @@index([supervisorId])
 }
 
 model Course {
@@ -137,6 +141,8 @@ model Course {
   enrollments   Enrollment[]
   certificates  Certificate[]
   roleAssignments CourseRoleAssignment[]
+
+  @@index([authorId])
 }
 
 model CourseRoleAssignment {
@@ -147,6 +153,7 @@ model CourseRoleAssignment {
   course      Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
   role        Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
   @@unique([courseId, roleId, subPosition])
+  @@index([roleId])
 }
 
 model Module {
@@ -218,6 +225,7 @@ model Enrollment {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   @@unique([userId, courseId])
+  @@index([courseId])
 }
 
 model Progress {
@@ -248,6 +256,7 @@ model QuizAttempt {
   answers      Json
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   quiz         Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  @@index([userId, quizId])
 }
 
 model Certificate {
@@ -283,4 +292,5 @@ model Notification {
   read      Boolean          @default(false)
   createdAt DateTime         @default(now())
   user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, read])
 }
