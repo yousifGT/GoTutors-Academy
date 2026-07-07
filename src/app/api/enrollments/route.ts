@@ -4,12 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
 import { assertSameOrigin } from "@/lib/csrf";
+import { withRoute } from "@/lib/api";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
 const EnrollSchema = z.object({ courseId: zId });
 
-export async function POST(req: Request) {
+export const POST = withRoute(async (req: Request) => {
   const csrf = assertSameOrigin(req);
   if (csrf) return csrf;
 
@@ -43,4 +44,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, courseId });
-}
+});

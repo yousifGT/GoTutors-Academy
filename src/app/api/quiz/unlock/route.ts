@@ -4,12 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { canManageUser } from "@/lib/scope";
+import { withRoute } from "@/lib/api";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
 const UnlockSchema = z.object({ userId: zId, quizId: zId });
 
-export async function POST(req: Request) {
+export const POST = withRoute(async (req: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.QUIZ_UNLOCK_RETRY)))
@@ -31,4 +32,4 @@ export async function POST(req: Request) {
   await prisma.quizAttempt.deleteMany({ where: { userId, quizId } });
 
   return NextResponse.json({ ok: true });
-}
+});

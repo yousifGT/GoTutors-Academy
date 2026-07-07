@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { withRoute } from "@/lib/api";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -11,7 +12,7 @@ const ProgressSchema = z.object({
   timeSpent: z.number().int().min(0).max(86400).optional(),
 });
 
-export async function POST(req: Request) {
+export const POST = withRoute(async (req: Request) => {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
 
@@ -48,4 +49,4 @@ export async function POST(req: Request) {
     },
   });
   return NextResponse.json(updated);
-}
+});
