@@ -4,15 +4,15 @@ import { requireRole } from "@/lib/session";
 import { TraineeRowActions } from "@/components/trainee-row-actions";
 import { ListSearch } from "@/components/list-search";
 import { formatDate } from "@/lib/utils";
+import { centreUserScope } from "@/lib/scope";
 
 export default async function CentreTraineesPage({ searchParams }: { searchParams: { q?: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const centreId = session.user.centreId;
   const q = (searchParams.q ?? "").trim();
 
   const trainees = await prisma.user.findMany({
     where: {
-      ...(centreId ? { centreId } : {}),
+      ...centreUserScope(session.user),
       role: { type: "TRAINEE" },
       ...(q
         ? {

@@ -87,7 +87,7 @@ describe("DELETE /api/users/[id]", () => {
 });
 
 describe("PATCH /api/users/[id]", () => {
-  const target = { id: "u1", email: "old@x.com", roleId: "r1", isTrained: false, centreId: null };
+  const target = { id: "u1", email: "old@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "TRAINEE" } };
 
   it("returns 409 with a field error when changing email to one in use", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
@@ -118,5 +118,34 @@ describe("PATCH /api/users/[id]", () => {
     );
     const res = await PATCH(patchReq({ email: "fresh@x.com" }), { params: { id: "u1" } });
     expect(res.status).toBe(409);
+  });
+});
+
+describe("PATCH /api/users/[id] centre-admin scoping", () => {
+  const londonAdmin = { user: { id: "ca", roleType: "CENTRE_ADMIN", centreId: "london" } };
+
+  it("403s a centre admin editing a trainee in another centre", async () => {
+    session.mockResolvedValue(londonAdmin);
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: "manchester", role: { type: "TRAINEE" } });
+    const res = await PATCH(patchReq({ name: "New" }), { params: { id: "u1" } });
+    expect(res.status).toBe(403);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("403s a centre admin editing a non-trainee in their own centre", async () => {
+    session.mockResolvedValue(londonAdmin);
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "i@x.com", roleId: "r1", isTrained: false, centreId: "london", role: { type: "INSTRUCTOR" } });
+    const res = await PATCH(patchReq({ name: "New" }), { params: { id: "u1" } });
+    expect(res.status).toBe(403);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("lets a centre admin edit a trainee in their own centre", async () => {
+    session.mockResolvedValue(londonAdmin);
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: "london", role: { type: "TRAINEE" } });
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ name: "New name" }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+    expect(db.user.update).toHaveBeenCalled();
   });
 });

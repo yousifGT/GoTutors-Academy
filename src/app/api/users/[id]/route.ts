@@ -7,6 +7,7 @@ import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { Prisma, RoleType } from "@prisma/client";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+import { canManageUser } from "@/lib/scope";
 
 /** Thrown inside the delete transaction to roll back when no other admin remains. */
 class LastSuperAdminError extends Error {}
@@ -24,21 +25,19 @@ const UpdateUserSchema = z.object({
   password: zPassword.optional(),
 });
 
-async function authorize(session: any, target: { centreId: string | null }) {
-  if (session.user.roleType === "SUPER_ADMIN") return true;
-  if (session.user.roleType === "CENTRE_ADMIN" && session.user.centreId === target.centreId) return true;
-  return false;
-}
-
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.USER_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const target = await prisma.user.findUnique({ where: { id: params.id } });
+  const target = await prisma.user.findUnique({
+    where: { id: params.id },
+    include: { role: { select: { type: true } } },
+  });
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!(await authorize(session, target))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!canManageUser(session.user, { roleType: target.role.type, centreId: target.centreId }))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const parsed = await parseJson(req, UpdateUserSchema);
   if (!parsed.ok) return parsed.response;
@@ -118,7 +117,8 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     include: { role: { select: { type: true } } },
   });
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (!(await authorize(session, target))) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!canManageUser(session.user, { roleType: target.role.type, centreId: target.centreId }))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // Never delete the last super admin. Count the other super admins and delete
   // in one serializable transaction so a concurrent delete can't race past the

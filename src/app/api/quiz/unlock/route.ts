@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { canManageUser } from "@/lib/scope";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -18,9 +19,12 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const { userId, quizId } = parsed.data;
 
-  const target = await prisma.user.findUnique({ where: { id: userId } });
+  const target = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { role: { select: { type: true } } },
+  });
   if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (session.user.roleType === "CENTRE_ADMIN" && session.user.centreId !== target.centreId)
+  if (!canManageUser(session.user, { roleType: target.role.type, centreId: target.centreId }))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // Wipe attempts so they get a fresh 3 tries

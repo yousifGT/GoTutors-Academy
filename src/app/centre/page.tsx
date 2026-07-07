@@ -1,15 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { centreUserScope } from "@/lib/scope";
 
 export default async function CentreDashboard() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const centreId = session.user.centreId;
-  const where = centreId ? { centreId } : {};
+  const scope = centreUserScope(session.user);
 
   const [trainees, completed, locked, unread] = await Promise.all([
-    prisma.user.count({ where: { ...where, role: { type: "TRAINEE" } } }),
-    prisma.enrollment.count({ where: { completed: true, user: where } }),
-    prisma.quizAttempt.count({ where: { locked: true, user: where } }),
+    prisma.user.count({ where: { ...scope, role: { type: "TRAINEE" } } }),
+    prisma.enrollment.count({ where: { completed: true, user: scope } }),
+    prisma.quizAttempt.count({ where: { locked: true, user: scope } }),
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
   ]);
 
