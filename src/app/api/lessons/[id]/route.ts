@@ -25,7 +25,7 @@ const LessonPatchSchema = z.object({
   video: z.union([z.null(), VideoSchema]).optional(),
   quiz: z
     .object({
-      passThreshold: z.number().int().min(0).max(100).optional(),
+      passThreshold: z.number().int().min(1).max(100).optional(),
       retryLimit: z.number().int().min(1).max(100).optional(),
       questions: z.array(QuestionSchema).optional(),
     })

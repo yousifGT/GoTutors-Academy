@@ -72,7 +72,12 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
       }
     }
   }
-  const autoScore = totalPoints === 0 ? 0 : Math.round((earned / totalPoints) * 100);
+  // A quiz with no scorable questions must never auto-pass and complete the
+  // lesson — reject the submission instead of silently scoring 0/0.
+  if (totalPoints === 0) {
+    return NextResponse.json({ error: "This quiz has no questions yet." }, { status: 400 });
+  }
+  const autoScore = Math.round((earned / totalPoints) * 100);
 
   // Read prior attempts, enforce the retry / lock / pass gates, and create the
   // new attempt in ONE serializable transaction so concurrent submissions can't

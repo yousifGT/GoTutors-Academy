@@ -98,4 +98,12 @@ describe("POST quiz attempt — gating runs inside the transaction", () => {
     expect(db.$transaction).toHaveBeenCalled();
     expect(award).toHaveBeenCalledWith("u1", "c1");
   });
+
+  it("rejects a quiz with no questions (400) instead of auto-passing", async () => {
+    db.quiz.findUnique.mockResolvedValue({ ...quiz, questions: [] });
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    const res = await POST(req(), { params: { quizId: "q1" } });
+    expect(res.status).toBe(400);
+    expect(db.quizAttempt.create).not.toHaveBeenCalled();
+  });
 });
