@@ -106,4 +106,21 @@ describe("POST quiz attempt — gating runs inside the transaction", () => {
     expect(res.status).toBe(400);
     expect(db.quizAttempt.create).not.toHaveBeenCalled();
   });
+
+  it("sends open-ended answers to review instead of auto-passing on an exact match", async () => {
+    db.quiz.findUnique.mockResolvedValue({
+      ...quiz,
+      questions: [{ id: "qq2", type: "OPEN_ENDED", points: 1, answers: [{ id: "a", text: "ready", isCorrect: true }] }],
+    });
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    // Even submitting the exact expected word must not auto-pass now.
+    const res = await POST(req({ qq2: "ready" }), { params: { quizId: "q1" } });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.needsReview).toBe(true);
+    expect(body.passed).toBe(false);
+    expect(db.quizAttempt.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ needsReview: true, passed: false }) })
+    );
+  });
 });

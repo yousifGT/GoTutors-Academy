@@ -9,7 +9,9 @@ import { parseJson, zId } from "@/lib/validate";
 const ProgressSchema = z.object({
   lessonId: zId,
   videoWatched: z.boolean().optional(),
-  timeSpent: z.number().int().min(0).max(86400).optional(),
+  // Capped per request: the client heartbeats ~60s at a time, so a single call
+  // can't inflate accumulated watch time (which feeds instructor reporting).
+  timeSpent: z.number().int().min(0).max(120).optional(),
 });
 
 export const POST = withRoute(async (req: Request) => {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { isLessonUnlocked } from "@/lib/course-progress";
+import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
 
 export default async function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
@@ -47,18 +48,20 @@ export default async function LessonPage({ params }: { params: { courseId: strin
     locked = attempts.some((a) => a.locked);
   }
 
-  // strip correctness from answers sent to client
+  // Strip correctness from answers sent to the client, and randomise question +
+  // answer order per load so answers can't be shared/eliminated by position.
+  // Grading is by stable id server-side, so display order never affects scoring.
   const safeQuiz = lesson.quiz
     ? {
         id: lesson.quiz.id,
         passThreshold: lesson.quiz.passThreshold,
         retryLimit: lesson.quiz.retryLimit,
-        questions: lesson.quiz.questions.map((q) => ({
+        questions: shuffle(lesson.quiz.questions).map((q) => ({
           id: q.id,
           type: q.type,
           prompt: q.prompt,
           points: q.points,
-          answers: q.answers.map((a) => ({ id: a.id, text: a.text })),
+          answers: shuffle(q.answers).map((a) => ({ id: a.id, text: a.text })),
         })),
       }
     : null;
