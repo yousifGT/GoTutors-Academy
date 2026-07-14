@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { genuinelyWatched, WATCH_COMPLETE_FRACTION } from "@/lib/video-watch";
 
 type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
 type SafeAnswer = { id: string; text: string };
@@ -253,7 +254,8 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
 
   function clampSeek() {
     const v = ref.current;
-    if (!v) return false;
+    // Once the video is complete the gate is passed — allow free scrubbing.
+    if (!v || done) return false;
     if (v.currentTime > maxWatched.current + SEEK_TOLERANCE) {
       v.currentTime = maxWatched.current;
       return true;
@@ -267,7 +269,15 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
     maxWatched.current = Math.max(maxWatched.current, v.currentTime);
     const pct = (v.currentTime / Math.max(1, v.duration)) * 100;
     setProgressPct(pct);
-    if (pct >= 95 && !done) onWatched();
+    if (pct >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
+  }
+  function handleEnded() {
+    const v = ref.current;
+    if (!v || done) return;
+    // Scrubbing to the very end fires "ended" too — only count it when the
+    // video was genuinely played through; otherwise snap back.
+    if (genuinelyWatched(maxWatched.current, v.duration)) onWatched();
+    else v.currentTime = maxWatched.current;
   }
   return (
     <div>
@@ -278,7 +288,7 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
         controlsList="nodownload"
         onSeeking={clampSeek}
         onTimeUpdate={handleTimeUpdate}
-        onEnded={onWatched}
+        onEnded={handleEnded}
         className="w-full rounded-xl bg-black aspect-video"
       />
       <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
@@ -321,19 +331,26 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
               const cur = p.getCurrentTime();
               if (dur <= 0) return;
               // Block skipping ahead: snap back to the furthest watched point.
-              if (cur > maxWatched.current + SEEK_TOLERANCE) {
+              // (Free scrubbing once the gate is already passed.)
+              if (!done && cur > maxWatched.current + SEEK_TOLERANCE) {
                 p.seekTo(maxWatched.current, true);
                 return;
               }
               maxWatched.current = Math.max(maxWatched.current, cur);
               const next = (cur / dur) * 100;
               setPct(next);
-              if (next >= 95 && !done) onWatched();
+              if (next >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
             }, 1000);
           },
           onStateChange: (e: any) => {
-            // 0 = ENDED
-            if (e.data === 0 && !done) onWatched();
+            // 0 = ENDED. Scrubbing to the end fires ENDED too, so only count it
+            // when the video was genuinely played through; otherwise snap back.
+            if (e.data === 0 && !done) {
+              const p = playerRef.current;
+              const dur = p?.getDuration?.() ?? 0;
+              if (genuinelyWatched(maxWatched.current, dur)) onWatched();
+              else if (dur > 0) p?.seekTo?.(maxWatched.current, true);
+            }
           },
         },
       });
@@ -371,6 +388,7 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
 function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const maxWatched = useRef(0);
+  const durationRef = useRef(0);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
 
@@ -389,17 +407,22 @@ function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => vo
         }
         if (data?.event === "timeupdate" && data.data) {
           const secs = data.data.seconds ?? 0;
-          // Block skipping ahead.
-          if (secs > maxWatched.current + SEEK_TOLERANCE) {
+          if (data.data.duration) durationRef.current = data.data.duration;
+          // Block skipping ahead (free scrubbing once the gate is passed).
+          if (!done && secs > maxWatched.current + SEEK_TOLERANCE) {
             post({ method: "setCurrentTime", value: maxWatched.current });
             return;
           }
           maxWatched.current = Math.max(maxWatched.current, secs);
           const p = (data.data.percent ?? 0) * 100;
           setPct(p);
-          if (p >= 95 && !done) onWatched();
+          if (p >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
         }
-        if (data?.event === "ended" && !done) onWatched();
+        if (data?.event === "ended" && !done) {
+          // Scrubbing to the end fires "ended" too — only count a genuine watch.
+          if (genuinelyWatched(maxWatched.current, durationRef.current)) onWatched();
+          else post({ method: "setCurrentTime", value: maxWatched.current });
+        }
       } catch {}
     }
     window.addEventListener("message", onMessage);
