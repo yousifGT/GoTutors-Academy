@@ -56,20 +56,15 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
   let needsReview = false;
   for (const q of quiz.questions) {
     totalPoints += q.points;
-    const submitted = answers?.[q.id];
-    if (!submitted) continue;
     if (q.type === "MULTIPLE_CHOICE") {
+      const submitted = answers?.[q.id];
+      if (!submitted) continue;
       const correct = q.answers.find((a) => a.isCorrect);
       if (correct && correct.id === submitted) earned += q.points;
     } else {
-      const correctTexts = q.answers.filter((a) => a.isCorrect).map((a) => a.text.trim().toLowerCase());
-      const normalized = submitted.trim().toLowerCase();
-      if (correctTexts.length > 0 && correctTexts.some((t) => t === normalized)) {
-        earned += q.points;
-      } else {
-        // open-ended answer doesn't match an accepted answer — flag for manual review
-        needsReview = true;
-      }
+      // Open-ended answers ALWAYS go to a human — no exact-match auto-pass, which
+      // let trainees guess the expected word. They're graded in the review queue.
+      needsReview = true;
     }
   }
   // A quiz with no scorable questions must never auto-pass and complete the
