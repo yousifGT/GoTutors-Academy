@@ -116,9 +116,6 @@ export function LessonPlayer({
             <VideoEmbed provider={video.provider} url={video.url} onWatched={markVideoWatched} done={videoWatched} />
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="text-[var(--muted)]">{videoWatched ? "Video complete." : "Watch the full video to unlock the quiz."}</span>
-              {!videoWatched && (
-                <button onClick={markVideoWatched} className="gt-btn-ghost text-sm">I have watched the full video</button>
-              )}
             </div>
           </div>
         )}
