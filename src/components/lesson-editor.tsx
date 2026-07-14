@@ -7,12 +7,14 @@ type EditAnswer = { id?: string; text: string; isCorrect: boolean };
 type EditQuestion = { id?: string; type: QType; prompt: string; points: number; answers: EditAnswer[] };
 
 export function LessonEditor({
+  courseId,
   lessonId,
   title,
   content,
   video,
   quiz,
 }: {
+  courseId: string;
   lessonId: string;
   title: string;
   content: string;
@@ -34,7 +36,8 @@ export function LessonEditor({
 
   async function saveLesson() {
     setSaving(true);
-    await fetch(`/api/lessons/${lessonId}`, {
+    setMsg(null);
+    const res = await fetch(`/api/lessons/${lessonId}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -45,9 +48,14 @@ export function LessonEditor({
       }),
     });
     setSaving(false);
-    setMsg("Saved.");
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setMsg(data.error ?? "Save failed.");
+      return;
+    }
+    // Return to the course curriculum view instead of leaving the instructor here.
+    router.push(`/instructor/courses/${courseId}`);
     router.refresh();
-    setTimeout(() => setMsg(null), 1500);
   }
 
   function addQuestion(type: QType) {
@@ -90,7 +98,7 @@ export function LessonEditor({
       <div className="gt-card p-6 space-y-4">
         <div className="flex flex-wrap items-end gap-4">
           <h3 className="font-bold mr-auto">Quiz</h3>
-          <div><label className="gt-label">Pass %</label><input type="number" min={0} max={100} className="gt-input w-28" value={pass} onChange={(e) => setPass(Number(e.target.value))} /></div>
+          <div><label className="gt-label">Pass %</label><input type="number" min={1} max={100} className="gt-input w-28" value={pass} onChange={(e) => setPass(Number(e.target.value))} /></div>
           <div><label className="gt-label">Retry limit</label><input type="number" min={1} max={10} className="gt-input w-28" value={retry} onChange={(e) => setRetry(Number(e.target.value))} /></div>
         </div>
 
@@ -159,7 +167,7 @@ export function LessonEditor({
 
       <div className="flex items-center gap-3">
         <button onClick={saveLesson} disabled={saving} className="gt-btn-primary">{saving ? "Saving…" : "Save lesson"}</button>
-        {msg && <span className="text-sm text-mint">{msg}</span>}
+        {msg && <span className="text-sm text-orange">{msg}</span>}
       </div>
     </div>
   );

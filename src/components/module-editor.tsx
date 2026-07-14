@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Lesson = {
   id: string;
@@ -24,6 +24,13 @@ export function ModuleEditor({ courseId, modules: initialModules }: { courseId: 
   const [modules, setModules] = useState<Module[]>(initialModules);
   const [newModule, setNewModule] = useState("");
   const [pending, setPending] = useState(false);
+
+  // Keep local state in sync with fresh server data after router.refresh(), so
+  // added/deleted lessons and modules appear immediately (useState only seeds
+  // from initialModules on first mount, which is why changes needed a reload).
+  useEffect(() => {
+    setModules(initialModules);
+  }, [initialModules]);
 
   async function persistOrder(next: Module[]) {
     setPending(true);
