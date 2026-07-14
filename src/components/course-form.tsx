@@ -80,7 +80,7 @@ export function CourseForm({
       <div><label className="gt-label">Title</label><input className="gt-input" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
       <div><label className="gt-label">Description</label><textarea className="gt-input min-h-[100px]" value={description ?? ""} onChange={(e) => setDescription(e.target.value)} /></div>
       <div className="grid sm:grid-cols-2 gap-4">
-        <div><label className="gt-label">Pass threshold (%)</label><input type="number" min={0} max={100} className="gt-input" value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} /></div>
+        <div><label className="gt-label">Pass threshold (%)</label><input type="number" min={1} max={100} className="gt-input" value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} /></div>
         <div className="flex items-end"><label className="flex items-center gap-2"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />Published</label></div>
       </div>
       <div>

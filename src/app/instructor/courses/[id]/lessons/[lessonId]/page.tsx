@@ -24,6 +24,7 @@ export default async function LessonEditPage({ params }: { params: { id: string;
         <h2 className="text-2xl font-bold mt-1">Lesson: {lesson.title}</h2>
       </div>
       <LessonEditor
+        courseId={params.id}
         lessonId={lesson.id}
         title={lesson.title}
         content={lesson.content ?? ""}
