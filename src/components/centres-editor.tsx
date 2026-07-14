@@ -2,47 +2,153 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function CentresEditor({ centres }: { centres: { id: string; name: string; location: string; users: number }[] }) {
+type Centre = { id: string; name: string; location: string; users: number };
+
+export function CentresEditor({ centres }: { centres: Centre[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editLocation, setEditLocation] = useState("");
+
+  function flash(kind: "ok" | "err", text: string) {
+    setMsg({ kind, text });
+    setTimeout(() => setMsg(null), 4000);
+  }
 
   async function add() {
-    if (!name) return;
-    await fetch("/api/centres", {
-      method: "POST", headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, location }),
+    if (!name.trim()) return;
+    setBusy(true);
+    const res = await fetch("/api/centres", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), location: location.trim() }),
     });
-    setName(""); setLocation("");
+    setBusy(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return flash("err", d.error ?? "Failed to add centre");
+    }
+    setName("");
+    setLocation("");
+    flash("ok", "Centre added");
     router.refresh();
   }
-  async function remove(id: string) {
-    if (!confirm("Delete this centre?")) return;
-    await fetch(`/api/centres/${id}`, { method: "DELETE" });
+
+  function startEdit(c: Centre) {
+    setEditingId(c.id);
+    setEditName(c.name);
+    setEditLocation(c.location);
+  }
+
+  async function saveEdit(id: string) {
+    if (!editName.trim()) return;
+    setBusy(true);
+    const res = await fetch(`/api/centres/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: editName.trim(), location: editLocation.trim() }),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return flash("err", d.error ?? "Failed to save centre");
+    }
+    setEditingId(null);
+    flash("ok", "Centre updated");
+    router.refresh();
+  }
+
+  async function remove(c: Centre) {
+    let prompt = `Delete "${c.name}"?`;
+    if (c.users > 0) {
+      prompt += `\n\n⚠️ ${c.users} user(s) are assigned to this centre. Reassign them first — the server will reject this deletion.`;
+    }
+    if (!confirm(prompt)) return;
+    setBusy(true);
+    const res = await fetch(`/api/centres/${c.id}`, { method: "DELETE" });
+    setBusy(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      return flash("err", d.error ?? "Failed to delete centre");
+    }
+    flash("ok", "Centre deleted");
     router.refresh();
   }
 
   return (
     <div className="space-y-6">
+      {msg && (
+        <div className={`gt-card p-3 text-sm ${msg.kind === "ok" ? "text-mint" : "text-orange"}`}>{msg.text}</div>
+      )}
       <div className="gt-card p-5">
         <h3 className="font-bold mb-2">Add a centre</h3>
         <div className="grid sm:grid-cols-3 gap-3">
           <input className="gt-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="gt-input" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
-          <button onClick={add} className="gt-btn-primary">Add</button>
+          <button onClick={add} disabled={busy || !name.trim()} className="gt-btn-primary">Add</button>
         </div>
       </div>
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
-          <thead><tr><th>Name</th><th>Location</th><th>Users</th><th></th></tr></thead>
+          <thead>
+            <tr><th>Name</th><th>Location</th><th>Users</th><th className="text-right"></th></tr>
+          </thead>
           <tbody>
             {centres.map((c) => (
               <tr key={c.id}>
-                <td>{c.name}</td><td>{c.location || "—"}</td><td>{c.users}</td>
-                <td className="text-right"><button onClick={() => remove(c.id)} className="text-xs text-orange">Delete</button></td>
+                {editingId === c.id ? (
+                  <>
+                    <td>
+                      <input
+                        autoFocus
+                        className="gt-input"
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit(c.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="gt-input"
+                        placeholder="Location"
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") saveEdit(c.id);
+                          if (e.key === "Escape") setEditingId(null);
+                        }}
+                      />
+                    </td>
+                    <td>{c.users}</td>
+                    <td className="text-right">
+                      <button onClick={() => saveEdit(c.id)} disabled={busy} className="text-xs text-mint mr-3">Save</button>
+                      <button onClick={() => setEditingId(null)} className="text-xs text-[var(--muted)]">Cancel</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td>{c.name}</td>
+                    <td>{c.location || "—"}</td>
+                    <td>{c.users}</td>
+                    <td className="text-right">
+                      <button onClick={() => startEdit(c)} className="text-xs text-picton mr-3">Edit</button>
+                      <button onClick={() => remove(c)} disabled={busy} className="text-xs text-orange">Delete</button>
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
-            {centres.length === 0 && <tr><td colSpan={4} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>}
+            {centres.length === 0 && (
+              <tr><td colSpan={4} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>
+            )}
           </tbody>
         </table>
       </div>

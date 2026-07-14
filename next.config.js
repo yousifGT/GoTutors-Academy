@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+// Dev needs 'unsafe-eval' for React Fast Refresh / HMR; production does not.
+const isDev = process.env.NODE_ENV !== "production";
 const securityHeaders = [
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -11,11 +13,15 @@ const securityHeaders = [
   },
   // CSP allows inline styles (Tailwind/next-themes), self scripts, embeds for YT/Vimeo/Loom,
   // and uploaded media. Adjust the connect/media origins for your CDN.
+  // NOTE: 'unsafe-inline' for scripts remains for now — removing it needs a
+  // per-request nonce + 'strict-dynamic' and browser QA of the video embeds
+  // (the player injects the YouTube IFrame API script at runtime). The residual
+  // XSS risk is low: the app has no dangerouslySetInnerHTML/eval sinks.
   {
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://player.vimeo.com https://www.loom.com",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://www.youtube.com https://player.vimeo.com https://www.loom.com`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data: https://fonts.gstatic.com",

@@ -3,16 +3,26 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { requireCourseAccess } from "@/lib/course-access";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const ModuleCreateSchema = z.object({ title: z.string().trim().min(1).max(300) });
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  const { title } = await req.json();
+  const denied = await requireCourseAccess(session.user, params.id);
+  if (denied) return denied;
+
+  const parsed = await parseJson(req, ModuleCreateSchema);
+  if (!parsed.ok) return parsed.response;
+
   const count = await prisma.module.count({ where: { courseId: params.id } });
   const m = await prisma.module.create({
-    data: { title, courseId: params.id, order: count },
+    data: { title: parsed.data.title, courseId: params.id, order: count },
   });
   return NextResponse.json(m);
 }

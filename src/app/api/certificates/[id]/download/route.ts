@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const allowed =
     viewer.id === cert.userId ||
     viewer.roleType === "SUPER_ADMIN" ||
-    (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId === cert.user.centreId) ||
+    (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && viewer.centreId === cert.user.centreId) ||
     (viewer.id === cert.user.supervisorId);
 
   if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });

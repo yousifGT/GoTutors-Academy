@@ -1,38 +1,9 @@
-import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { centreReportRows } from "@/lib/centre-report";
 
 export default async function AdminReportsPage() {
   await requireRole("SUPER_ADMIN");
-  const centres = await prisma.centre.findMany({
-    include: {
-      users: {
-        select: {
-          id: true,
-          enrollments: { select: { id: true, completed: true } },
-          quizAttempts: { select: { passed: true } },
-        },
-      },
-    },
-    orderBy: { name: "asc" },
-  });
-
-  const rows = centres.map((c) => {
-    const enrolments = c.users.flatMap((u) => u.enrollments);
-    const attempts = c.users.flatMap((u) => u.quizAttempts);
-    const completed = enrolments.filter((e) => e.completed).length;
-    const passes = attempts.filter((a) => a.passed).length;
-    const fails = attempts.length - passes;
-    return {
-      id: c.id,
-      name: c.name,
-      users: c.users.length,
-      enrolments: enrolments.length,
-      completed,
-      passes,
-      fails,
-      passRate: attempts.length ? Math.round((passes / attempts.length) * 100) : 0,
-    };
-  });
+  const rows = await centreReportRows();
 
   return (
     <div className="space-y-4">
@@ -54,6 +25,7 @@ export default async function AdminReportsPage() {
               <td className="text-orange">{r.fails}</td>
             </tr>
           ))}
+          {rows.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>}
         </tbody>
       </table>
       </div>

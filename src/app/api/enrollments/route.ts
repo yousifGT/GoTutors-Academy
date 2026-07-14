@@ -4,17 +4,22 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
 import { assertSameOrigin } from "@/lib/csrf";
+import { withRoute } from "@/lib/api";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
 
-export async function POST(req: Request) {
+const EnrollSchema = z.object({ courseId: zId });
+
+export const POST = withRoute(async (req: Request) => {
   const csrf = assertSameOrigin(req);
   if (csrf) return csrf;
 
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
 
-  const body = await req.json().catch(() => null);
-  const courseId: string | undefined = body?.courseId;
-  if (!courseId) return NextResponse.json({ error: "courseId required" }, { status: 400 });
+  const parsed = await parseJson(req, EnrollSchema);
+  if (!parsed.ok) return parsed.response;
+  const { courseId } = parsed.data;
 
   const userId = session.user.id;
 
@@ -39,4 +44,4 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true, courseId });
-}
+});

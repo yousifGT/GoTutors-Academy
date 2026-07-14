@@ -1,10 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { centreUserScope } from "@/lib/scope";
 
 export default async function CentreReportsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const centreId = session.user.centreId;
-  const userWhere = centreId ? { centreId } : {};
+  const userWhere = centreUserScope(session.user);
 
   const [trainees, allAttempts, byCourse] = await Promise.all([
     prisma.user.findMany({ where: { ...userWhere, role: { type: "TRAINEE" } }, select: { id: true } }),

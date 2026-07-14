@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { ownsCourse } from "@/lib/course-access";
 
 export async function POST(_: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -29,6 +30,10 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     },
   });
   if (!src) return NextResponse.json({ error: "not found" }, { status: 404 });
+  // A non-super-admin may only duplicate a course they authored — otherwise an
+  // instructor could clone any course (including its answer keys).
+  if (!ownsCourse(session.user, src.authorId))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const copy = await prisma.course.create({
     data: {

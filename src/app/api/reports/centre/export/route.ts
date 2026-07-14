@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getCourseProgressForUser } from "@/lib/course-progress";
+import { centreUserScope } from "@/lib/scope";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -11,9 +12,8 @@ export async function GET() {
   if (session.user.roleType !== "CENTRE_ADMIN" && session.user.roleType !== "SUPER_ADMIN")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const centreId = session.user.centreId;
   const enrolments = await prisma.enrollment.findMany({
-    where: { user: centreId ? { centreId } : undefined },
+    where: { user: centreUserScope(session.user) },
     include: { user: { include: { centre: true } }, course: true },
     orderBy: { enrolledAt: "desc" },
   });

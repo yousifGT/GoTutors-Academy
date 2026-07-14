@@ -3,11 +3,16 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
-import { RoleType } from "@prisma/client";
 import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
 
-const VALID_TYPES: RoleType[] = ["SUPER_ADMIN", "CENTRE_ADMIN", "INSTRUCTOR", "TRAINEE"];
+const RoleSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  type: z.enum(["SUPER_ADMIN", "CENTRE_ADMIN", "INSTRUCTOR", "TRAINEE"]),
+  description: z.string().max(1000).nullish(),
+});
 
 export async function POST(req: Request) {
   const csrf = assertSameOrigin(req);
@@ -16,9 +21,9 @@ export async function POST(req: Request) {
   if (!session?.user || session.user.roleType !== "SUPER_ADMIN")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { name, type, description } = await req.json();
-  if (!name || !type) return NextResponse.json({ error: "name and type required" }, { status: 400 });
-  if (!VALID_TYPES.includes(type)) return NextResponse.json({ error: "invalid base type" }, { status: 400 });
+  const parsed = await parseJson(req, RoleSchema);
+  if (!parsed.ok) return parsed.response;
+  const { name, type, description } = parsed.data;
 
   try {
     const role = await prisma.role.create({

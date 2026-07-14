@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # Placeholders so `prisma generate` / `next build` have the env they read.
+      # No real database is contacted — lint/test/build don't connect.
+      DATABASE_URL: "postgresql://user:pass@localhost:5432/db?schema=public"
+      NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-at-runtime"
+      NEXTAUTH_URL: "http://localhost:3000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      - run: npm run test
+      - run: npm run build

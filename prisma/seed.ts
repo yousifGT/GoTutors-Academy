@@ -68,7 +68,7 @@ async function main() {
   });
 
   // Users
-  const password = await bcrypt.hash("Password1!", 10);
+  const password = await bcrypt.hash("Password1!", 12);
   const mkUser = (email: string, name: string, roleType: RoleType, centreId: string | null, opts: { position?: string; subPosition?: string } = {}) =>
     prisma.user.upsert({
       where: { email },

@@ -4,6 +4,10 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
+import { z } from "zod";
+import { parseJson, zId } from "@/lib/validate";
+
+const SubPositionSchema = z.object({ roleId: zId, name: z.string().trim().min(1).max(200) });
 
 export async function POST(req: Request) {
   const csrf = assertSameOrigin(req);
@@ -12,14 +16,15 @@ export async function POST(req: Request) {
   if (!session?.user || session.user.roleType !== "SUPER_ADMIN")
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const { roleId, name } = await req.json();
-  if (!roleId || !name?.trim()) return NextResponse.json({ error: "roleId and name required" }, { status: 400 });
+  const parsed = await parseJson(req, SubPositionSchema);
+  if (!parsed.ok) return parsed.response;
+  const { roleId, name } = parsed.data;
 
   const role = await prisma.role.findUnique({ where: { id: roleId }, select: { id: true, name: true } });
   if (!role) return NextResponse.json({ error: "Role not found" }, { status: 404 });
 
   try {
-    const sp = await prisma.subPosition.create({ data: { roleId, name: name.trim() } });
+    const sp = await prisma.subPosition.create({ data: { roleId, name } });
     await audit({
       actorId: session.user.id,
       action: "sub-position.create",

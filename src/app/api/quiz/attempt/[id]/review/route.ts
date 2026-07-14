@@ -3,8 +3,14 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
-import { recomputeIsTrained } from "@/lib/training";
-import crypto from "crypto";
+import { maybeAwardCertificate } from "@/lib/certificate";
+import { z } from "zod";
+import { parseJson } from "@/lib/validate";
+
+const ReviewSchema = z.object({
+  grades: z.record(z.string(), z.boolean()).default({}),
+  note: z.string().max(5000).nullish(),
+});
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -31,7 +37,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const { grades, note } = (await req.json()) as { grades: Record<string, boolean>; note?: string };
+  const parsedBody = await parseJson(req, ReviewSchema);
+  if (!parsedBody.ok) return parsedBody.response;
+  const { grades, note } = parsedBody.data;
 
   let totalPoints = 0;
   let earned = 0;
@@ -100,36 +108,4 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   return NextResponse.json({ ok: true, score, passed, locked });
-}
-
-async function maybeAwardCertificate(userId: string, courseId: string) {
-  const course = await prisma.course.findUnique({
-    where: { id: courseId },
-    include: { modules: { include: { lessons: true } } },
-  });
-  if (!course) return;
-  const lessonIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
-  const progressDone = await prisma.progress.count({
-    where: { userId, lessonId: { in: lessonIds }, videoWatched: true, quizPassed: true },
-  });
-  if (progressDone !== lessonIds.length) return;
-  const existing = await prisma.certificate.findUnique({ where: { userId_courseId: { userId, courseId } } });
-  if (existing) return;
-  const serial = "GT-" + crypto.randomBytes(4).toString("hex").toUpperCase();
-  await prisma.certificate.create({ data: { userId, courseId, serial } });
-  await prisma.enrollment.update({
-    where: { userId_courseId: { userId, courseId } },
-    data: { completed: true, completedAt: new Date() },
-  }).catch(() => {});
-  await recomputeIsTrained(userId);
-  const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, centreId: true } });
-  if (user?.centreId) {
-    await notifyCentreAndInstructor({
-      type: "TRAINEE_PASSED",
-      title: `${user.name} completed ${course.title}`,
-      link: `/centre/trainees/${userId}`,
-      centreId: user.centreId,
-      courseId,
-    });
-  }
 }
