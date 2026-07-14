@@ -39,9 +39,15 @@ export function LessonPlayer({
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [answersState, setAnswersState] = useState<Record<string, string>>({});
+  // The quiz form is only shown for a fresh first attempt or when the trainee
+  // explicitly chooses to retry — never immediately after a submission.
+  const [retryMode, setRetryMode] = useState(false);
 
-  const used = latestAttempts.length;
-  const remaining = quiz ? Math.max(0, quiz.retryLimit - used) : 0;
+  const pendingReview = latestAttempts.some((a) => a.needsReview);
+  const usedCounted = latestAttempts.filter((a) => !a.needsReview).length;
+  const remaining = quiz ? Math.max(0, quiz.retryLimit - usedCounted) : 0;
+  const lastAttempt = latestAttempts[0];
+  const showForm = videoWatched && !quizPassed && !latestLocked && !pendingReview && (usedCounted === 0 || retryMode);
 
   useEffect(() => {
     let visible = !document.hidden;
@@ -81,13 +87,17 @@ export function LessonPlayer({
     });
     const data = await res.json();
     setSubmitting(false);
+    // Collapse the form after any submission; the trainee sees their result and,
+    // if allowed, an explicit "Attempt again" button rather than the live form.
+    setRetryMode(false);
     if (!res.ok) {
       setFeedback(data.error ?? "Could not submit quiz.");
       return;
     }
     setLatestAttempts((a) => [{ id: data.attemptId, score: data.score, passed: data.passed, createdAt: new Date(), locked: data.locked, needsReview: data.needsReview }, ...a]);
+    setAnswersState({});
     if (data.needsReview) {
-      setFeedback("Submitted. Your open-ended answers are awaiting instructor review.");
+      setFeedback("Submitted. Your answers are awaiting instructor review.");
     } else if (data.passed) {
       setQuizPassed(true);
       setFeedback(`Passed! Score: ${data.score}%`);
@@ -126,7 +136,7 @@ export function LessonPlayer({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-xl font-bold">Quiz</h3>
             <div className="text-sm text-[var(--muted)]">
-              Pass threshold {quiz.passThreshold}% · attempts used <b>{used}</b>/{quiz.retryLimit} · remaining <b>{remaining}</b>
+              Pass threshold {quiz.passThreshold}% · attempts used <b>{usedCounted}</b>/{quiz.retryLimit} · remaining <b>{remaining}</b>
             </div>
           </div>
 
@@ -134,53 +144,71 @@ export function LessonPlayer({
             <p className="mt-4 text-orange">Quiz locked. Finish the video first.</p>
           )}
 
-          {videoWatched && (quizPassed ? (
-            <div className="mt-4 rounded-xl bg-mint/10 border border-mint/30 p-4 text-mint">
-              You have passed this quiz.
-              {nextLessonId && (
-                <Link href={`/trainee/courses/${courseId}/lessons/${nextLessonId}`} className="gt-btn-accent ml-3">Next lesson</Link>
-              )}
-            </div>
-          ) : latestLocked ? (
-            <div className="mt-4 rounded-xl bg-orange/10 border border-orange/30 p-4 text-orange">
-              Locked after {quiz.retryLimit} failed attempts. A centre admin has been notified to unlock retries.
-            </div>
-          ) : (
-            <div className="mt-5 space-y-5">
-              {quiz.questions.map((q, i) => (
-                <div key={q.id} className="rounded-xl border border-[var(--border)] p-4">
-                  <div className="font-medium">Q{i + 1}. {q.prompt}</div>
-                  {q.type === "MULTIPLE_CHOICE" ? (
-                    <div className="mt-3 space-y-2">
-                      {q.answers.map((a) => (
-                        <label key={a.id} className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="radio"
-                            name={q.id}
-                            value={a.id}
-                            checked={answersState[q.id] === a.id}
-                            onChange={() => setAnswersState((s) => ({ ...s, [q.id]: a.id }))}
-                          />
-                          <span>{a.text}</span>
-                        </label>
-                      ))}
-                    </div>
-                  ) : (
-                    <textarea
-                      className="gt-input mt-3 min-h-[100px]"
-                      value={answersState[q.id] ?? ""}
-                      onChange={(e) => setAnswersState((s) => ({ ...s, [q.id]: e.target.value }))}
-                      placeholder="Your answer…"
-                    />
-                  )}
-                </div>
-              ))}
-              <button onClick={submitQuiz} disabled={submitting} className="gt-btn-primary">
-                {submitting ? "Submitting…" : "Submit quiz"}
-              </button>
-              {feedback && <p className="text-sm mt-2">{feedback}</p>}
-            </div>
-          ))}
+          {videoWatched && (
+            quizPassed ? (
+              <div className="mt-4 rounded-xl bg-mint/10 border border-mint/30 p-4 text-mint">
+                You have passed this quiz.
+                {nextLessonId && (
+                  <Link href={`/trainee/courses/${courseId}/lessons/${nextLessonId}`} className="gt-btn-accent ml-3">Next lesson</Link>
+                )}
+              </div>
+            ) : latestLocked ? (
+              <div className="mt-4 rounded-xl bg-orange/10 border border-orange/30 p-4 text-orange">
+                Locked after {quiz.retryLimit} failed attempts. A centre admin has been notified to unlock retries.
+              </div>
+            ) : pendingReview ? (
+              <div className="mt-4 rounded-xl bg-gold/10 border border-gold/30 p-4 text-gold">
+                Your answers have been submitted and are awaiting instructor review. Check back once they have been graded — you can&apos;t retake this quiz until then.
+              </div>
+            ) : usedCounted > 0 && !retryMode ? (
+              <div className="mt-4 rounded-xl border border-[var(--border)] p-4">
+                <p className="text-sm">
+                  Your last attempt didn&apos;t pass{lastAttempt && !lastAttempt.needsReview ? ` (${lastAttempt.score}%)` : ""}. You have <b>{remaining}</b> attempt{remaining === 1 ? "" : "s"} remaining.
+                </p>
+                {remaining > 0 && (
+                  <button onClick={() => { setRetryMode(true); setFeedback(null); setAnswersState({}); }} className="gt-btn-primary mt-3">
+                    Attempt again
+                  </button>
+                )}
+                {feedback && <p className="text-sm mt-2">{feedback}</p>}
+              </div>
+            ) : (
+              <div className="mt-5 space-y-5">
+                {quiz.questions.map((q, i) => (
+                  <div key={q.id} className="rounded-xl border border-[var(--border)] p-4">
+                    <div className="font-medium">Q{i + 1}. {q.prompt}</div>
+                    {q.type === "MULTIPLE_CHOICE" ? (
+                      <div className="mt-3 space-y-2">
+                        {q.answers.map((a) => (
+                          <label key={a.id} className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={q.id}
+                              value={a.id}
+                              checked={answersState[q.id] === a.id}
+                              onChange={() => setAnswersState((s) => ({ ...s, [q.id]: a.id }))}
+                            />
+                            <span>{a.text}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : (
+                      <textarea
+                        className="gt-input mt-3 min-h-[100px]"
+                        value={answersState[q.id] ?? ""}
+                        onChange={(e) => setAnswersState((s) => ({ ...s, [q.id]: e.target.value }))}
+                        placeholder="Your answer…"
+                      />
+                    )}
+                  </div>
+                ))}
+                <button onClick={submitQuiz} disabled={submitting} className="gt-btn-primary">
+                  {submitting ? "Submitting…" : "Submit quiz"}
+                </button>
+                {feedback && <p className="text-sm mt-2">{feedback}</p>}
+              </div>
+            )
+          )}
 
           {latestAttempts.length > 0 && (
             <details className="mt-6">
@@ -214,12 +242,29 @@ function VideoEmbed({ provider, url, onWatched, done }: { provider: string; url:
   return <LoomEmbed url={url} />;
 }
 
+// Tolerance (seconds) before a forward jump counts as skipping rather than normal
+// playback drift. Trainees can pause/rewind freely; they just can't jump ahead.
+const SEEK_TOLERANCE = 2;
+
 function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
   const ref = useRef<HTMLVideoElement | null>(null);
+  const maxWatched = useRef(0);
   const [progressPct, setProgressPct] = useState(0);
+
+  function clampSeek() {
+    const v = ref.current;
+    if (!v) return false;
+    if (v.currentTime > maxWatched.current + SEEK_TOLERANCE) {
+      v.currentTime = maxWatched.current;
+      return true;
+    }
+    return false;
+  }
   function handleTimeUpdate() {
     const v = ref.current;
     if (!v) return;
+    if (clampSeek()) return; // snapped back — ignore this tick
+    maxWatched.current = Math.max(maxWatched.current, v.currentTime);
     const pct = (v.currentTime / Math.max(1, v.duration)) * 100;
     setProgressPct(pct);
     if (pct >= 95 && !done) onWatched();
@@ -231,6 +276,7 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
         src={url}
         controls
         controlsList="nodownload"
+        onSeeking={clampSeek}
         onTimeUpdate={handleTimeUpdate}
         onEnded={onWatched}
         className="w-full rounded-xl bg-black aspect-video"
@@ -252,6 +298,7 @@ declare global {
 function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
+  const maxWatched = useRef(0);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1], [url]);
 
@@ -272,11 +319,16 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
               if (!p?.getDuration || !p?.getCurrentTime) return;
               const dur = p.getDuration();
               const cur = p.getCurrentTime();
-              if (dur > 0) {
-                const next = (cur / dur) * 100;
-                setPct(next);
-                if (next >= 95 && !done) onWatched();
+              if (dur <= 0) return;
+              // Block skipping ahead: snap back to the furthest watched point.
+              if (cur > maxWatched.current + SEEK_TOLERANCE) {
+                p.seekTo(maxWatched.current, true);
+                return;
               }
+              maxWatched.current = Math.max(maxWatched.current, cur);
+              const next = (cur / dur) * 100;
+              setPct(next);
+              if (next >= 95 && !done) onWatched();
             }, 1000);
           },
           onStateChange: (e: any) => {
@@ -318,6 +370,7 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
 
 function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const maxWatched = useRef(0);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
 
@@ -334,8 +387,15 @@ function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => vo
           post({ method: "addEventListener", value: "timeupdate" });
           post({ method: "addEventListener", value: "ended" });
         }
-        if (data?.event === "timeupdate" && data.data?.percent != null) {
-          const p = data.data.percent * 100;
+        if (data?.event === "timeupdate" && data.data) {
+          const secs = data.data.seconds ?? 0;
+          // Block skipping ahead.
+          if (secs > maxWatched.current + SEEK_TOLERANCE) {
+            post({ method: "setCurrentTime", value: maxWatched.current });
+            return;
+          }
+          maxWatched.current = Math.max(maxWatched.current, secs);
+          const p = (data.data.percent ?? 0) * 100;
           setPct(p);
           if (p >= 95 && !done) onWatched();
         }
