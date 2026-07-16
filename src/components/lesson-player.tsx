@@ -276,10 +276,14 @@ function VideoEmbed({
   return <LoomEmbed url={url} done={done} onManualComplete={onManualComplete} />;
 }
 
-// Forward-jump tolerance (seconds) before it's treated as skipping. Trainees may
-// pause/rewind freely and watch up to 2x; they just can't jump ahead of what
-// they've actually played.
-const SEEK_TOLERANCE = 2;
+// Forward-jump tolerance (seconds) before it's treated as skipping. This must be
+// comfortably larger than how far the video advances between samples at the
+// fastest supported speed — YouTube is polled once/second, so at 2x it advances
+// ~2s per sample; a too-tight tolerance would snap 2x playback back every second
+// and the video could never progress. The server's 2x-of-real-time cap
+// (computeWatchState) is the authoritative anti-skip guard; this is just the
+// client-side snap-back for genuine large jumps.
+const SEEK_TOLERANCE = 6;
 
 function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const ref = useRef<HTMLVideoElement | null>(null);
