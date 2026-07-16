@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { CoursePublishToggle } from "@/components/course-publish-toggle";
 
 export default async function InstructorDashboard() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -30,7 +31,12 @@ export default async function InstructorDashboard() {
                   <td>{c._count.modules}</td>
                   <td>{c._count.enrollments}</td>
                   <td>{c.published ? <span className="gt-badge bg-mint/20 text-mint">Published</span> : <span className="gt-badge bg-gold/20 text-gold">Draft</span>}</td>
-                  <td className="text-right"><Link href={`/instructor/courses/${c.id}`} className="gt-btn-ghost text-sm">Manage</Link></td>
+                  <td className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <CoursePublishToggle courseId={c.id} published={c.published} />
+                      <Link href={`/instructor/courses/${c.id}`} className="gt-btn-ghost text-sm">Manage</Link>
+                    </div>
+                  </td>
                 </tr>
               ))}
               {courses.length === 0 && <tr><td colSpan={5} className="text-center text-[var(--muted)] py-8">No courses yet.</td></tr>}
