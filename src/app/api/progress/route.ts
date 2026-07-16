@@ -36,11 +36,15 @@ export const POST = withRoute(async (req: Request) => {
     select: { module: { select: { courseId: true } }, video: { select: { provider: true } } },
   });
   if (!lesson) return NextResponse.json({ error: "lesson not found" }, { status: 404 });
-  const enrolled = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.user.id, courseId: lesson.module.courseId } },
-    select: { userId: true },
-  });
-  if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  // Super admins may preview any course (mirrors the lesson page), so their
+  // preview progress is recorded like a trainee's; everyone else must be enrolled.
+  if (session.user.roleType !== "SUPER_ADMIN") {
+    const enrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId: session.user.id, courseId: lesson.module.courseId } },
+      select: { userId: true },
+    });
+    if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  }
   // Can't record progress for a lesson whose predecessors aren't done — stops
   // out-of-order completion via direct API calls.
   if (!(await isLessonUnlocked(session.user.id, lessonId)))
