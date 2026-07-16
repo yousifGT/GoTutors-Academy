@@ -77,6 +77,16 @@ describe("POST quiz attempt — access gates", () => {
     expect(res.status).toBe(403);
     expect(db.quizAttempt.create).not.toHaveBeenCalled();
   });
+
+  it("lets a super admin preview (attempt without enrollment)", async () => {
+    session.mockResolvedValue({ user: { id: "sa", roleType: "SUPER_ADMIN" } });
+    db.enrollment.findUnique.mockResolvedValue(null); // not enrolled
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    const res = await POST(req({ qq1: "a1" }), { params: { quizId: "q1" } });
+    expect(res.status).toBe(200);
+    expect(db.enrollment.findUnique).not.toHaveBeenCalled();
+    expect(db.quizAttempt.create).toHaveBeenCalled();
+  });
 });
 
 describe("POST quiz attempt — gating runs inside the transaction", () => {

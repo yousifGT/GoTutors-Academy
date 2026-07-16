@@ -44,11 +44,15 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
   // can't be bypassed by calling the API directly for an unassigned course or an
   // out-of-order lesson.
   const courseId = quiz.lesson.module.courseId;
-  const enrolled = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId, courseId } },
-    select: { userId: true },
-  });
-  if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  // Super admins may preview any course (mirrors the lesson page); everyone else
+  // must be enrolled to attempt its quizzes.
+  if (session.user.roleType !== "SUPER_ADMIN") {
+    const enrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId } },
+      select: { userId: true },
+    });
+    if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  }
   if (!(await isLessonUnlocked(userId, quiz.lessonId)))
     return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 

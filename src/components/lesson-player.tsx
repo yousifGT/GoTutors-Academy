@@ -40,9 +40,6 @@ export function LessonPlayer({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [answersState, setAnswersState] = useState<Record<string, string>>({});
   const [retryMode, setRetryMode] = useState(false);
-  // TEMPORARY diagnostic: shows what the last /api/progress call reported so we
-  // can pinpoint why a watched video isn't unlocking. Remove once resolved.
-  const [dbg, setDbg] = useState<{ ts: number; d: number; sw: boolean } | null>(null);
 
   // Reported playback position + duration; the server bounds these by real time.
   const watchedRef = useRef(0);
@@ -77,12 +74,8 @@ export function LessonPlayer({
         }),
         keepalive: true,
       });
-      if (!res.ok) {
-        setDbg({ ts: -res.status, d: Math.round(durationRef.current), sw: false });
-        return;
-      }
+      if (!res.ok) return;
       const data = await res.json().catch(() => null);
-      if (data) setDbg({ ts: data.timeSpent ?? 0, d: Math.round(durationRef.current), sw: !!data.videoWatched });
       // The server is authoritative; reflect its decision immediately. The quiz
       // is already in props, so revealing it needs no page refresh (which would
       // otherwise churn the video player).
@@ -157,11 +150,6 @@ export function LessonPlayer({
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="text-[var(--muted)]">{videoWatched ? "Video complete." : "Watch the full video to unlock the quiz."}</span>
             </div>
-            {dbg && (
-              <p className="mt-1 text-xs text-[var(--muted)]">
-                diagnostic — server counted {dbg.ts}s of ~{dbg.d}s · watched={String(dbg.sw)}
-              </p>
-            )}
           </div>
         )}
       </div>
