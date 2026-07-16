@@ -4,15 +4,19 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRoute } from "@/lib/api";
 import { isLessonUnlocked } from "@/lib/course-progress";
+import { computeWatchState } from "@/lib/watch-progress";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
 const ProgressSchema = z.object({
   lessonId: zId,
+  // Furthest playback position reached, and the video's length (both from the
+  // player). The server bounds the position by real elapsed time, so neither can
+  // be used to fake completion — see computeWatchState.
+  watchedSeconds: z.number().int().min(0).max(86400).optional(),
+  duration: z.number().int().min(0).max(86400).optional(),
+  // Only honored for providers we can't measure (e.g. Loom).
   videoWatched: z.boolean().optional(),
-  // Capped per request: the client heartbeats ~60s at a time, so a single call
-  // can't inflate accumulated watch time (which feeds instructor reporting).
-  timeSpent: z.number().int().min(0).max(120).optional(),
 });
 
 export const POST = withRoute(async (req: Request) => {
@@ -21,7 +25,7 @@ export const POST = withRoute(async (req: Request) => {
 
   const parsed = await parseJson(req, ProgressSchema);
   if (!parsed.ok) return parsed.response;
-  const { lessonId, videoWatched, timeSpent } = parsed.data;
+  const { lessonId, watchedSeconds, duration, videoWatched } = parsed.data;
 
   // Integrity: only record progress for a lesson in a course the user is
   // actually enrolled in. Otherwise a trainee could POST videoWatched=true for
@@ -42,18 +46,26 @@ export const POST = withRoute(async (req: Request) => {
   if (!(await isLessonUnlocked(session.user.id, lessonId)))
     return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 
-  const updated = await prisma.progress.upsert({
+  // Ensure a progress row exists; its createdAt anchors the elapsed-time cap.
+  const existing = await prisma.progress.upsert({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
-    update: {
-      videoWatched: videoWatched ?? undefined,
-      timeSpent: typeof timeSpent === "number" ? { increment: timeSpent } : undefined,
-    },
-    create: {
-      userId: session.user.id,
-      lessonId,
-      videoWatched: !!videoWatched,
-      timeSpent: typeof timeSpent === "number" ? timeSpent : 0,
-    },
+    update: {},
+    create: { userId: session.user.id, lessonId },
+  });
+
+  const elapsedRealSeconds = (Date.now() - existing.createdAt.getTime()) / 1000;
+  const state = computeWatchState({
+    previousTimeSpent: existing.timeSpent,
+    reportedWatchedSeconds: watchedSeconds ?? 0,
+    elapsedRealSeconds,
+    durationSeconds: duration ?? 0,
+    clientClaimsWatched: videoWatched ?? false,
+    alreadyWatched: existing.videoWatched,
+  });
+
+  const updated = await prisma.progress.update({
+    where: { userId_lessonId: { userId: session.user.id, lessonId } },
+    data: { timeSpent: state.timeSpent, videoWatched: state.videoWatched },
   });
   return NextResponse.json(updated);
 });
