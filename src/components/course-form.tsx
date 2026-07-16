@@ -25,7 +25,6 @@ export function CourseForm({
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
   const [passThreshold, setPassThreshold] = useState(initial?.passThreshold ?? 70);
-  const [published, setPublished] = useState(initial?.published ?? false);
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roleIds ?? []);
   const [subPositions, setSubPositions] = useState<string[]>(initial?.subPositions ?? []);
   const [saving, setSaving] = useState(false);
@@ -64,7 +63,7 @@ export function CourseForm({
       method,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        title, description, passThreshold: Number(passThreshold), published, roleIds,
+        title, description, passThreshold: Number(passThreshold), roleIds,
         subPositions: traineeRoleSelected ? subPositions : [],
       }),
     });
@@ -79,9 +78,10 @@ export function CourseForm({
     <form onSubmit={submit} className="gt-card p-6 space-y-4">
       <div><label className="gt-label">Title</label><input className="gt-input" value={title} onChange={(e) => setTitle(e.target.value)} required /></div>
       <div><label className="gt-label">Description</label><textarea className="gt-input min-h-[100px]" value={description ?? ""} onChange={(e) => setDescription(e.target.value)} /></div>
-      <div className="grid sm:grid-cols-2 gap-4">
-        <div><label className="gt-label">Pass threshold (%)</label><input type="number" min={1} max={100} className="gt-input" value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} /></div>
-        <div className="flex items-end"><label className="flex items-center gap-2"><input type="checkbox" checked={published} onChange={(e) => setPublished(e.target.checked)} />Published</label></div>
+      <div>
+        <label className="gt-label">Pass threshold (%)</label>
+        <input type="number" min={1} max={100} className="gt-input max-w-[12rem]" value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} />
+        <p className="text-xs text-[var(--muted)] mt-1">New courses start as a draft. Publish them from the course list when they&apos;re ready.</p>
       </div>
       <div>
         <label className="gt-label">Assigned roles</label>
