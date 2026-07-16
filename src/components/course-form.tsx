@@ -27,6 +27,7 @@ export function CourseForm({
   const [passThreshold, setPassThreshold] = useState(initial?.passThreshold ?? 70);
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roleIds ?? []);
   const [subPositions, setSubPositions] = useState<string[]>(initial?.subPositions ?? []);
+  const [published, setPublished] = useState(initial?.published ?? false);
   const [saving, setSaving] = useState(false);
 
   const traineeRoleIds = useMemo(
@@ -63,7 +64,7 @@ export function CourseForm({
       method,
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        title, description, passThreshold: Number(passThreshold), roleIds,
+        title, description, passThreshold: Number(passThreshold), published, roleIds,
         subPositions: traineeRoleSelected ? subPositions : [],
       }),
     });
@@ -81,7 +82,20 @@ export function CourseForm({
       <div>
         <label className="gt-label">Pass threshold (%)</label>
         <input type="number" min={1} max={100} className="gt-input max-w-[12rem]" value={passThreshold} onChange={(e) => setPassThreshold(Number(e.target.value))} />
-        <p className="text-xs text-[var(--muted)] mt-1">New courses start as a draft. Publish them from the course list when they&apos;re ready.</p>
+      </div>
+      <div>
+        <label className="gt-label">Status</label>
+        <div className="flex flex-wrap gap-2">
+          <label className={`gt-badge cursor-pointer ${!published ? "bg-navy text-white" : "bg-[var(--soft)]"}`}>
+            <input type="radio" name="course-status" className="mr-1" checked={!published} onChange={() => setPublished(false)} />
+            Draft
+          </label>
+          <label className={`gt-badge cursor-pointer ${published ? "bg-navy text-white" : "bg-[var(--soft)]"}`}>
+            <input type="radio" name="course-status" className="mr-1" checked={published} onChange={() => setPublished(true)} />
+            Published
+          </label>
+        </div>
+        <p className="text-xs text-[var(--muted)] mt-1">Drafts are hidden from trainees until published.</p>
       </div>
       <div>
         <label className="gt-label">Assigned roles</label>
@@ -108,7 +122,7 @@ export function CourseForm({
           <p className="text-xs text-[var(--muted)] mt-1">Only trainees with these sub-positions will see this course.</p>
         </div>
       )}
-      <button disabled={saving} className="gt-btn-primary">{saving ? "Saving…" : initial ? "Save changes" : "Create course"}</button>
+      <button disabled={saving} className="gt-btn-primary">{saving ? "Saving…" : initial ? "Save changes" : published ? "Create & publish" : "Save as draft"}</button>
     </form>
   );
 }
