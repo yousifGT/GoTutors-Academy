@@ -4,6 +4,7 @@ const db = vi.hoisted(() => ({
   quiz: { findUnique: vi.fn() },
   progress: { findUnique: vi.fn(), upsert: vi.fn() },
   quizAttempt: { findMany: vi.fn(), create: vi.fn() },
+  enrollment: { findUnique: vi.fn() },
   user: { findUnique: vi.fn() },
   $transaction: vi.fn(),
 }));
@@ -17,13 +18,16 @@ vi.mock("@/lib/rate-limit", () => ({
 }));
 vi.mock("@/lib/notify", () => ({ notifyCentreAndInstructor: vi.fn() }));
 vi.mock("@/lib/certificate", () => ({ maybeAwardCertificate: vi.fn() }));
+vi.mock("@/lib/course-progress", () => ({ isLessonUnlocked: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { maybeAwardCertificate } from "@/lib/certificate";
+import { isLessonUnlocked } from "@/lib/course-progress";
 import { POST } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const award = maybeAwardCertificate as unknown as ReturnType<typeof vi.fn>;
+const unlocked = isLessonUnlocked as unknown as ReturnType<typeof vi.fn>;
 
 const quiz = {
   id: "q1",
@@ -52,7 +56,27 @@ beforeEach(() => {
   db.quizAttempt.create.mockResolvedValue({ id: "att1" });
   db.progress.upsert.mockResolvedValue({});
   db.user.findUnique.mockResolvedValue({ name: "T", centreId: null });
+  db.enrollment.findUnique.mockResolvedValue({ userId: "u1" });
+  unlocked.mockResolvedValue(true);
   db.$transaction.mockImplementation(async (cb: any) => cb(db));
+});
+
+describe("POST quiz attempt — access gates", () => {
+  it("403s when the trainee isn't enrolled in the course", async () => {
+    db.enrollment.findUnique.mockResolvedValue(null);
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    const res = await POST(req({ qq1: "a1" }), { params: { quizId: "q1" } });
+    expect(res.status).toBe(403);
+    expect(db.quizAttempt.create).not.toHaveBeenCalled();
+  });
+
+  it("403s when the lesson is still locked (previous lessons incomplete)", async () => {
+    unlocked.mockResolvedValue(false);
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    const res = await POST(req({ qq1: "a1" }), { params: { quizId: "q1" } });
+    expect(res.status).toBe(403);
+    expect(db.quizAttempt.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST quiz attempt — gating runs inside the transaction", () => {

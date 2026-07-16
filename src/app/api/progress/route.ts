@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { withRoute } from "@/lib/api";
+import { isLessonUnlocked } from "@/lib/course-progress";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -36,6 +37,10 @@ export const POST = withRoute(async (req: Request) => {
     select: { userId: true },
   });
   if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  // Can't record progress for a lesson whose predecessors aren't done — stops
+  // out-of-order completion via direct API calls.
+  if (!(await isLessonUnlocked(session.user.id, lessonId)))
+    return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 
   const updated = await prisma.progress.upsert({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
