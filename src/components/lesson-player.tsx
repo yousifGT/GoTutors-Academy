@@ -44,8 +44,12 @@ export function LessonPlayer({
   // Reported playback position + duration; the server bounds these by real time.
   const watchedRef = useRef(0);
   const durationRef = useRef(0);
-  const watchedNowRef = useRef(videoWatched);
-  watchedNowRef.current = videoWatched;
+
+  // Reflect the video-watched flag whenever the server (via a refreshed page)
+  // says it's watched — covers reloads and any router.refresh elsewhere.
+  useEffect(() => {
+    if (initialProgress.videoWatched) setVideoWatched(true);
+  }, [initialProgress.videoWatched]);
 
   const pendingReview = latestAttempts.some((a) => a.needsReview);
   const usedCounted = latestAttempts.filter((a) => !a.needsReview).length;
@@ -71,12 +75,11 @@ export function LessonPlayer({
         keepalive: true,
       });
       if (!res.ok) return;
-      const data = await res.json();
-      // The server is authoritative on whether the video counts as watched.
-      if (data?.videoWatched && !watchedNowRef.current) {
-        setVideoWatched(true);
-        router.refresh();
-      }
+      const data = await res.json().catch(() => null);
+      // The server is authoritative; reflect its decision immediately. The quiz
+      // is already in props, so revealing it needs no page refresh (which would
+      // otherwise churn the video player).
+      if (data?.videoWatched) setVideoWatched(true);
     } catch {
       /* best-effort */
     }
@@ -86,7 +89,7 @@ export function LessonPlayer({
     let visible = !document.hidden;
     const onVis = () => { visible = !document.hidden; };
     document.addEventListener("visibilitychange", onVis);
-    const id = setInterval(() => { if (visible) postProgress(); }, 20_000);
+    const id = setInterval(() => { if (visible) postProgress(); }, 10_000);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
@@ -343,6 +346,11 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1], [url]);
+  // Hold latest props in refs so the player initializes once per video and isn't
+  // torn down/recreated when a callback identity or `done` changes.
+  const doneRef = useRef(done); doneRef.current = done;
+  const reportRef = useRef(onReport); reportRef.current = onReport;
+  const reachedEndRef = useRef(onReachedEnd); reachedEndRef.current = onReachedEnd;
 
   useEffect(() => {
     if (!id || !containerRef.current) return;
@@ -362,19 +370,19 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
               const dur = p.getDuration();
               const cur = p.getCurrentTime();
               if (dur <= 0) return;
-              if (!done && cur > maxWatched.current + SEEK_TOLERANCE) {
+              if (!doneRef.current && cur > maxWatched.current + SEEK_TOLERANCE) {
                 p.seekTo(maxWatched.current, true);
                 return;
               }
               maxWatched.current = Math.max(maxWatched.current, cur);
-              onReport(maxWatched.current, dur);
+              reportRef.current(maxWatched.current, dur);
               const next = (cur / dur) * 100;
               setPct(next);
-              if (next >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
+              if (next >= 95 && !reached.current) { reached.current = true; reachedEndRef.current(); }
             }, 1000);
           },
           onStateChange: (e: any) => {
-            if (e.data === 0) onReachedEnd(); // 0 = ENDED
+            if (e.data === 0) reachedEndRef.current(); // 0 = ENDED
           },
         },
       });
@@ -394,7 +402,8 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
       if (pollHandle) clearInterval(pollHandle);
       try { playerRef.current?.destroy?.(); } catch {}
     };
-  }, [id, done, onReport, onReachedEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
   return (
@@ -415,6 +424,9 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
+  const doneRef = useRef(done); doneRef.current = done;
+  const reportRef = useRef(onReport); reportRef.current = onReport;
+  const reachedEndRef = useRef(onReachedEnd); reachedEndRef.current = onReachedEnd;
 
   useEffect(() => {
     if (!id) return;
@@ -432,22 +444,23 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
         if (data?.event === "timeupdate" && data.data) {
           const secs = data.data.seconds ?? 0;
           const dur = data.data.duration ?? 0;
-          if (!done && secs > maxWatched.current + SEEK_TOLERANCE) {
+          if (!doneRef.current && secs > maxWatched.current + SEEK_TOLERANCE) {
             post({ method: "setCurrentTime", value: maxWatched.current });
             return;
           }
           maxWatched.current = Math.max(maxWatched.current, secs);
-          onReport(maxWatched.current, dur);
+          reportRef.current(maxWatched.current, dur);
           const p = (data.data.percent ?? 0) * 100;
           setPct(p);
-          if (p >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
+          if (p >= 95 && !reached.current) { reached.current = true; reachedEndRef.current(); }
         }
-        if (data?.event === "ended") onReachedEnd();
+        if (data?.event === "ended") reachedEndRef.current();
       } catch {}
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [id, done, onReport, onReachedEnd]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
   return (
