@@ -51,13 +51,25 @@ export const POST = withRoute(async (req: Request) => {
     return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 
   // Ensure a progress row exists; its createdAt anchors the elapsed-time cap.
+  // Write the anchor from THIS process's clock (not the DB's @default(now())) so
+  // the elapsed calc below compares two readings of the same clock — otherwise a
+  // DB/app clock skew (common with Dockerised Postgres) can make elapsed tiny or
+  // negative and permanently lock a fully-watched video.
   const existing = await prisma.progress.upsert({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
     update: {},
-    create: { userId: session.user.id, lessonId },
+    create: { userId: session.user.id, lessonId, createdAt: new Date() },
   });
 
-  const elapsedRealSeconds = (Date.now() - existing.createdAt.getTime()) / 1000;
+  const now = Date.now();
+  let anchorMs = existing.createdAt.getTime();
+  // Self-heal a bad anchor: a value in the future (or unparseable) can only come
+  // from a different/skewed clock. Re-anchor to now so a genuine watcher isn't
+  // locked out — they just resume the watch-time count from this moment.
+  const reanchor = !(anchorMs <= now);
+  if (reanchor) anchorMs = now;
+  const elapsedRealSeconds = (now - anchorMs) / 1000;
+
   const state = computeWatchState({
     previousTimeSpent: existing.timeSpent,
     reportedWatchedSeconds: watchedSeconds ?? 0,
@@ -69,9 +81,26 @@ export const POST = withRoute(async (req: Request) => {
     alreadyWatched: existing.videoWatched,
   });
 
+  // TEMP debug (remove once the watch gate is confirmed): shows the server's
+  // decision inputs/outputs in the `npm run dev` terminal.
+  console.log("[watch-debug]", {
+    provider: lesson.video?.provider,
+    watchedSeconds: watchedSeconds ?? 0,
+    duration: duration ?? 0,
+    elapsedRealSeconds: Math.round(elapsedRealSeconds),
+    prevTimeSpent: existing.timeSpent,
+    timeSpent: state.timeSpent,
+    videoWatched: state.videoWatched,
+    reanchor,
+  });
+
   const updated = await prisma.progress.update({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
-    data: { timeSpent: state.timeSpent, videoWatched: state.videoWatched },
+    data: {
+      timeSpent: state.timeSpent,
+      videoWatched: state.videoWatched,
+      ...(reanchor ? { createdAt: new Date(now) } : {}),
+    },
   });
   return NextResponse.json(updated);
 });
