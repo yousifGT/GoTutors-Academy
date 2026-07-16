@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { genuinelyWatched, WATCH_COMPLETE_FRACTION } from "@/lib/video-watch";
 
 type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
 type SafeAnswer = { id: string; text: string };
@@ -40,42 +39,57 @@ export function LessonPlayer({
   const [submitting, setSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [answersState, setAnswersState] = useState<Record<string, string>>({});
-  // The quiz form is only shown for a fresh first attempt or when the trainee
-  // explicitly chooses to retry — never immediately after a submission.
   const [retryMode, setRetryMode] = useState(false);
+
+  // Reported playback position + duration; the server bounds these by real time.
+  const watchedRef = useRef(0);
+  const durationRef = useRef(0);
+  const watchedNowRef = useRef(videoWatched);
+  watchedNowRef.current = videoWatched;
 
   const pendingReview = latestAttempts.some((a) => a.needsReview);
   const usedCounted = latestAttempts.filter((a) => !a.needsReview).length;
   const remaining = quiz ? Math.max(0, quiz.retryLimit - usedCounted) : 0;
   const lastAttempt = latestAttempts[0];
-  const showForm = videoWatched && !quizPassed && !latestLocked && !pendingReview && (usedCounted === 0 || retryMode);
+
+  function reportPlayback(watchedSeconds: number, duration: number) {
+    if (watchedSeconds > watchedRef.current) watchedRef.current = watchedSeconds;
+    if (duration > 0) durationRef.current = duration;
+  }
+
+  async function postProgress(claimWatched = false) {
+    try {
+      const res = await fetch("/api/progress", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          lessonId,
+          watchedSeconds: Math.round(watchedRef.current),
+          duration: Math.round(durationRef.current),
+          ...(claimWatched ? { videoWatched: true } : {}),
+        }),
+        keepalive: true,
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      // The server is authoritative on whether the video counts as watched.
+      if (data?.videoWatched && !watchedNowRef.current) {
+        setVideoWatched(true);
+        router.refresh();
+      }
+    } catch {
+      /* best-effort */
+    }
+  }
 
   useEffect(() => {
     let visible = !document.hidden;
     const onVis = () => { visible = !document.hidden; };
     document.addEventListener("visibilitychange", onVis);
-    const id = setInterval(() => {
-      if (!visible) return;
-      fetch("/api/progress", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ lessonId, timeSpent: 60 }),
-        keepalive: true,
-      }).catch(() => {});
-    }, 60_000);
+    const id = setInterval(() => { if (visible) postProgress(); }, 20_000);
     return () => { clearInterval(id); document.removeEventListener("visibilitychange", onVis); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessonId]);
-
-  async function markVideoWatched() {
-    if (videoWatched) return;
-    setVideoWatched(true);
-    await fetch(`/api/progress`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ lessonId, videoWatched: true }),
-    });
-    router.refresh();
-  }
 
   async function submitQuiz() {
     if (!quiz) return;
@@ -88,8 +102,6 @@ export function LessonPlayer({
     });
     const data = await res.json();
     setSubmitting(false);
-    // Collapse the form after any submission; the trainee sees their result and,
-    // if allowed, an explicit "Attempt again" button rather than the live form.
     setRetryMode(false);
     if (!res.ok) {
       setFeedback(data.error ?? "Could not submit quiz.");
@@ -124,7 +136,14 @@ export function LessonPlayer({
 
         {video && (
           <div className="mt-5">
-            <VideoEmbed provider={video.provider} url={video.url} onWatched={markVideoWatched} done={videoWatched} />
+            <VideoEmbed
+              provider={video.provider}
+              url={video.url}
+              done={videoWatched}
+              onReport={reportPlayback}
+              onReachedEnd={() => postProgress()}
+              onManualComplete={() => postProgress(true)}
+            />
             <div className="mt-3 flex items-center justify-between text-sm">
               <span className="text-[var(--muted)]">{videoWatched ? "Video complete." : "Watch the full video to unlock the quiz."}</span>
             </div>
@@ -236,25 +255,40 @@ export function LessonPlayer({
   );
 }
 
-function VideoEmbed({ provider, url, onWatched, done }: { provider: string; url: string; onWatched: () => void; done: boolean }) {
-  if (provider === "UPLOAD") return <UploadedVideo url={url} onWatched={onWatched} done={done} />;
-  if (provider === "YOUTUBE") return <YouTubeEmbed url={url} onWatched={onWatched} done={done} />;
-  if (provider === "VIMEO") return <VimeoEmbed url={url} onWatched={onWatched} done={done} />;
-  return <LoomEmbed url={url} />;
+type PlayerProps = {
+  url: string;
+  done: boolean;
+  onReport: (watchedSeconds: number, duration: number) => void;
+  onReachedEnd: () => void;
+};
+
+function VideoEmbed({
+  provider,
+  url,
+  done,
+  onReport,
+  onReachedEnd,
+  onManualComplete,
+}: PlayerProps & { provider: string; onManualComplete: () => void }) {
+  if (provider === "UPLOAD") return <UploadedVideo url={url} done={done} onReport={onReport} onReachedEnd={onReachedEnd} />;
+  if (provider === "YOUTUBE") return <YouTubeEmbed url={url} done={done} onReport={onReport} onReachedEnd={onReachedEnd} />;
+  if (provider === "VIMEO") return <VimeoEmbed url={url} done={done} onReport={onReport} onReachedEnd={onReachedEnd} />;
+  return <LoomEmbed url={url} done={done} onManualComplete={onManualComplete} />;
 }
 
-// Tolerance (seconds) before a forward jump counts as skipping rather than normal
-// playback drift. Trainees can pause/rewind freely; they just can't jump ahead.
+// Forward-jump tolerance (seconds) before it's treated as skipping. Trainees may
+// pause/rewind freely and watch up to 2x; they just can't jump ahead of what
+// they've actually played.
 const SEEK_TOLERANCE = 2;
 
-function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const maxWatched = useRef(0);
+  const reached = useRef(false);
   const [progressPct, setProgressPct] = useState(0);
 
   function clampSeek() {
     const v = ref.current;
-    // Once the video is complete the gate is passed — allow free scrubbing.
     if (!v || done) return false;
     if (v.currentTime > maxWatched.current + SEEK_TOLERANCE) {
       v.currentTime = maxWatched.current;
@@ -265,19 +299,12 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
   function handleTimeUpdate() {
     const v = ref.current;
     if (!v) return;
-    if (clampSeek()) return; // snapped back — ignore this tick
+    if (clampSeek()) return;
     maxWatched.current = Math.max(maxWatched.current, v.currentTime);
+    onReport(maxWatched.current, v.duration || 0);
     const pct = (v.currentTime / Math.max(1, v.duration)) * 100;
     setProgressPct(pct);
-    if (pct >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
-  }
-  function handleEnded() {
-    const v = ref.current;
-    if (!v || done) return;
-    // Scrubbing to the very end fires "ended" too — only count it when the
-    // video was genuinely played through; otherwise snap back.
-    if (genuinelyWatched(maxWatched.current, v.duration)) onWatched();
-    else v.currentTime = maxWatched.current;
+    if (pct >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
   }
   return (
     <div>
@@ -288,7 +315,7 @@ function UploadedVideo({ url, onWatched, done }: { url: string; onWatched: () =>
         controlsList="nodownload"
         onSeeking={clampSeek}
         onTimeUpdate={handleTimeUpdate}
-        onEnded={handleEnded}
+        onEnded={onReachedEnd}
         className="w-full rounded-xl bg-black aspect-video"
       />
       <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
@@ -305,10 +332,11 @@ declare global {
   }
 }
 
-function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const maxWatched = useRef(0);
+  const reached = useRef(false);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1], [url]);
 
@@ -330,27 +358,19 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
               const dur = p.getDuration();
               const cur = p.getCurrentTime();
               if (dur <= 0) return;
-              // Block skipping ahead: snap back to the furthest watched point.
-              // (Free scrubbing once the gate is already passed.)
               if (!done && cur > maxWatched.current + SEEK_TOLERANCE) {
                 p.seekTo(maxWatched.current, true);
                 return;
               }
               maxWatched.current = Math.max(maxWatched.current, cur);
+              onReport(maxWatched.current, dur);
               const next = (cur / dur) * 100;
               setPct(next);
-              if (next >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
+              if (next >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
             }, 1000);
           },
           onStateChange: (e: any) => {
-            // 0 = ENDED. Scrubbing to the end fires ENDED too, so only count it
-            // when the video was genuinely played through; otherwise snap back.
-            if (e.data === 0 && !done) {
-              const p = playerRef.current;
-              const dur = p?.getDuration?.() ?? 0;
-              if (genuinelyWatched(maxWatched.current, dur)) onWatched();
-              else if (dur > 0) p?.seekTo?.(maxWatched.current, true);
-            }
+            if (e.data === 0) onReachedEnd(); // 0 = ENDED
           },
         },
       });
@@ -370,7 +390,7 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
       if (pollHandle) clearInterval(pollHandle);
       try { playerRef.current?.destroy?.(); } catch {}
     };
-  }, [id, done, onWatched]);
+  }, [id, done, onReport, onReachedEnd]);
 
   if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
   return (
@@ -385,10 +405,10 @@ function YouTubeEmbed({ url, onWatched, done }: { url: string; onWatched: () => 
   );
 }
 
-function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => void; done: boolean }) {
+function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const maxWatched = useRef(0);
-  const durationRef = useRef(0);
+  const reached = useRef(false);
   const [pct, setPct] = useState(0);
   const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
 
@@ -407,27 +427,23 @@ function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => vo
         }
         if (data?.event === "timeupdate" && data.data) {
           const secs = data.data.seconds ?? 0;
-          if (data.data.duration) durationRef.current = data.data.duration;
-          // Block skipping ahead (free scrubbing once the gate is passed).
+          const dur = data.data.duration ?? 0;
           if (!done && secs > maxWatched.current + SEEK_TOLERANCE) {
             post({ method: "setCurrentTime", value: maxWatched.current });
             return;
           }
           maxWatched.current = Math.max(maxWatched.current, secs);
+          onReport(maxWatched.current, dur);
           const p = (data.data.percent ?? 0) * 100;
           setPct(p);
-          if (p >= WATCH_COMPLETE_FRACTION * 100 && !done) onWatched();
+          if (p >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
         }
-        if (data?.event === "ended" && !done) {
-          // Scrubbing to the end fires "ended" too — only count a genuine watch.
-          if (genuinelyWatched(maxWatched.current, durationRef.current)) onWatched();
-          else post({ method: "setCurrentTime", value: maxWatched.current });
-        }
+        if (data?.event === "ended") onReachedEnd();
       } catch {}
     }
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
-  }, [id, done, onWatched]);
+  }, [id, done, onReport, onReachedEnd]);
 
   if (!id) return <iframe src={url} className="aspect-video w-full rounded-xl bg-black" />;
   return (
@@ -448,16 +464,24 @@ function VimeoEmbed({ url, onWatched, done }: { url: string; onWatched: () => vo
   );
 }
 
-function LoomEmbed({ url }: { url: string }) {
+function LoomEmbed({ url, done, onManualComplete }: { url: string; done: boolean; onManualComplete: () => void }) {
   const id = url.match(/loom\.com\/share\/([a-z0-9]+)/i)?.[1];
   return (
-    <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
-      <iframe
-        src={id ? `https://www.loom.com/embed/${id}` : url}
-        className="h-full w-full"
-        allow="autoplay; fullscreen"
-        allowFullScreen
-      />
+    <div>
+      <div className="aspect-video w-full rounded-xl overflow-hidden bg-black">
+        <iframe
+          src={id ? `https://www.loom.com/embed/${id}` : url}
+          className="h-full w-full"
+          allow="autoplay; fullscreen"
+          allowFullScreen
+        />
+      </div>
+      {!done && (
+        <div className="mt-3">
+          <button onClick={onManualComplete} className="gt-btn-ghost text-sm">I have watched this video</button>
+          <p className="text-xs text-[var(--muted)] mt-1">Loom playback can&apos;t be measured automatically — confirm once you&apos;ve watched it fully.</p>
+        </div>
+      )}
     </div>
   );
 }
