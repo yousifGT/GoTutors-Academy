@@ -33,7 +33,7 @@ export const POST = withRoute(async (req: Request) => {
   // completion for courses they were never assigned.
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
-    select: { module: { select: { courseId: true } } },
+    select: { module: { select: { courseId: true } }, video: { select: { provider: true } } },
   });
   if (!lesson) return NextResponse.json({ error: "lesson not found" }, { status: 404 });
   const enrolled = await prisma.enrollment.findUnique({
@@ -60,6 +60,8 @@ export const POST = withRoute(async (req: Request) => {
     elapsedRealSeconds,
     durationSeconds: duration ?? 0,
     clientClaimsWatched: videoWatched ?? false,
+    // Manual "I watched it" is only trusted for providers we can't measure (Loom).
+    manualAllowed: lesson.video?.provider === "LOOM",
     alreadyWatched: existing.videoWatched,
   });
 

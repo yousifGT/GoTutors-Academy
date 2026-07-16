@@ -32,6 +32,10 @@ export function computeWatchState(opts: {
   elapsedRealSeconds: number;
   durationSeconds: number;
   clientClaimsWatched: boolean;
+  /** True only for providers we genuinely can't measure (Loom). Gates the manual
+   *  confirmation so a trackable lesson can't be completed by simply omitting the
+   *  duration and claiming videoWatched. */
+  manualAllowed: boolean;
   alreadyWatched: boolean;
 }): { timeSpent: number; videoWatched: boolean } {
   const claimed = Math.max(0, Math.floor(opts.reportedWatchedSeconds || 0));
@@ -41,8 +45,13 @@ export function computeWatchState(opts: {
   let videoWatched: boolean;
   if (opts.durationSeconds > 0) {
     videoWatched = timeSpent >= opts.durationSeconds * SERVER_WATCH_FRACTION;
-  } else {
+  } else if (opts.manualAllowed) {
+    // Untrackable provider (Loom): a manual confirm counts after a small real-time floor.
     videoWatched = opts.clientClaimsWatched && opts.elapsedRealSeconds >= UNKNOWN_DURATION_FLOOR_SECONDS;
+  } else {
+    // Trackable provider with no measured duration yet → not watched. A bare
+    // videoWatched:true claim can never complete it.
+    videoWatched = false;
   }
   return { timeSpent, videoWatched: opts.alreadyWatched || videoWatched };
 }
