@@ -20,6 +20,15 @@ export default async function LessonPage({ params }: { params: { courseId: strin
   });
   if (!lesson || lesson.module.courseId !== params.courseId) notFound();
 
+  // Must be enrolled to open a lesson (super admins may preview any course).
+  if (session.user.roleType !== "SUPER_ADMIN") {
+    const enrolled = await prisma.enrollment.findUnique({
+      where: { userId_courseId: { userId, courseId: lesson.module.courseId } },
+      select: { userId: true },
+    });
+    if (!enrolled) notFound();
+  }
+
   const unlocked = await isLessonUnlocked(userId, lesson.id);
   if (!unlocked) {
     return (

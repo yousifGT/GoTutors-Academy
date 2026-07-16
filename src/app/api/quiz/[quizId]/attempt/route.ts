@@ -7,6 +7,7 @@ import { notifyCentreAndInstructor } from "@/lib/notify";
 import { assertSameOrigin } from "@/lib/csrf";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { maybeAwardCertificate } from "@/lib/certificate";
+import { isLessonUnlocked } from "@/lib/course-progress";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 
@@ -38,6 +39,18 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
     },
   });
   if (!quiz) return NextResponse.json({ error: "quiz not found" }, { status: 404 });
+
+  // Enforce enrollment + sequential unlock HERE, not just in the UI, so the gate
+  // can't be bypassed by calling the API directly for an unassigned course or an
+  // out-of-order lesson.
+  const courseId = quiz.lesson.module.courseId;
+  const enrolled = await prisma.enrollment.findUnique({
+    where: { userId_courseId: { userId, courseId } },
+    select: { userId: true },
+  });
+  if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
+  if (!(await isLessonUnlocked(userId, quiz.lessonId)))
+    return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 
   const lessonProgress = await prisma.progress.findUnique({
     where: { userId_lessonId: { userId, lessonId: quiz.lessonId } },
