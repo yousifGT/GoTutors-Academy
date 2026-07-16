@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+import { syncUserEnrollments } from "@/lib/auto-enrol";
 
 const CreateUserSchema = z.object({
   name: zName,
@@ -13,6 +14,7 @@ const CreateUserSchema = z.object({
   password: zPassword,
   position: z.string().max(200).nullish(),
   subPosition: z.string().max(200).nullish(),
+  subPositions: z.array(z.string().max(200)).max(50).optional(),
   roleId: zId,
   centreId: zId.nullish(),
 });
@@ -26,6 +28,9 @@ export async function POST(req: Request) {
   const parsed = await parseJson(req, CreateUserSchema);
   if (!parsed.ok) return parsed.response;
   const { name, email, password, position, subPosition, roleId, centreId } = parsed.data;
+  // Accept both shapes: the multi-select form sends subPositions[]; older
+  // clients may still send the single subPosition.
+  const subs = [...new Set(parsed.data.subPositions ?? (subPosition ? [subPosition] : []))];
 
   // Privilege-escalation guard: a non-super-admin (e.g. centre admin) may only
   // create trainee accounts. Without this, anyone with USER_CREATE could pass
@@ -36,9 +41,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "You may only create trainee accounts" }, { status: 403 });
   }
 
-  if (subPosition) {
-    const exists = await prisma.subPosition.findFirst({ where: { roleId, name: subPosition }, select: { id: true } });
-    if (!exists) return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
+  if (subs.length > 0) {
+    const found = await prisma.subPosition.count({ where: { roleId, name: { in: subs } } });
+    if (found !== subs.length)
+      return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
   }
 
   // centre admins can only create users in their own centre
@@ -55,11 +61,14 @@ export async function POST(req: Request) {
         email: email.toLowerCase(),
         password: hashed,
         position: position || null,
-        subPosition: subPosition || null,
+        subPosition: subs[0] ?? null,
+        subPositions: subs,
         roleId,
         centreId: finalCentreId,
       },
     });
+    // New trainees receive every published course matching their sub-positions.
+    await syncUserEnrollments(user.id);
     return NextResponse.json({ id: user.id });
   } catch (e: any) {
     if (e?.code === "P2002") return NextResponse.json({ error: "Email already in use" }, { status: 409 });

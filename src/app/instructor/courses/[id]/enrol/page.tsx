@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { BulkEnrol } from "@/components/bulk-enrol";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function BulkEnrolPage({ params }: { params: { id: string } }) {
   await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -22,7 +23,9 @@ export default async function BulkEnrolPage({ params }: { params: { id: string }
         ? [{ role: { type: "TRAINEE" } }]
         : course.roleAssignments.map((ra) => ({
             roleId: ra.roleId,
-            ...(ra.subPosition ? { subPosition: ra.subPosition } : {}),
+            ...(ra.subPosition
+              ? { OR: [{ subPosition: ra.subPosition }, { subPositions: { has: ra.subPosition } }] }
+              : {}),
           })),
     },
     include: { centre: true, role: true },
@@ -34,7 +37,7 @@ export default async function BulkEnrolPage({ params }: { params: { id: string }
     name: t.name,
     email: t.email,
     centre: t.centre?.name ?? "—",
-    position: t.subPosition ?? t.position,
+    position: effectiveSubPositions(t).join(", ") || t.position,
     alreadyEnrolled: enrolledIds.has(t.id),
   }));
 

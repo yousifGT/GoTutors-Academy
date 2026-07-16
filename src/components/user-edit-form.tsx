@@ -18,7 +18,7 @@ export function UserEditForm({
     name: string;
     email: string;
     position: string | null;
-    subPosition: string | null;
+    subPositions: string[];
     isTrained: boolean;
     active: boolean;
     roleId: string;
@@ -41,6 +41,15 @@ export function UserEditForm({
   const isTrainee = role?.type === "TRAINEE";
   const subsForRole = useMemo(() => subPositions.filter((s) => s.roleId === form.roleId), [subPositions, form.roleId]);
 
+  function toggleSub(name: string) {
+    setForm((f) => ({
+      ...f,
+      subPositions: f.subPositions.includes(name)
+        ? f.subPositions.filter((x) => x !== name)
+        : [...f.subPositions, name],
+    }));
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -52,7 +61,7 @@ export function UserEditForm({
         name: form.name,
         email: form.email,
         position: isTrainee ? null : (form.position || null),
-        subPosition: isTrainee ? (form.subPosition || null) : null,
+        subPositions: isTrainee ? form.subPositions : [],
         isTrained: form.isTrained,
         active: form.active,
         roleId: form.roleId,
@@ -76,7 +85,7 @@ export function UserEditForm({
       <div><label className="gt-label">Email</label><input type="email" className="gt-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
       <div>
         <label className="gt-label">Role</label>
-        <select className="gt-input" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })}>
+        <select className="gt-input" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value, subPositions: [] })}>
           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
         {scope === "admin" && (
@@ -86,11 +95,16 @@ export function UserEditForm({
       {isTrainee ? (
         <>
           <div>
-            <label className="gt-label">Sub-position</label>
-            <select className="gt-input" value={form.subPosition ?? ""} onChange={(e) => setForm({ ...form, subPosition: e.target.value || null })}>
-              <option value="">— none —</option>
-              {subsForRole.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-            </select>
+            <label className="gt-label">Sub-positions</label>
+            <div className="flex flex-wrap gap-2">
+              {subsForRole.map((s) => (
+                <label key={s.id} className={`gt-badge cursor-pointer ${form.subPositions.includes(s.name) ? "bg-magenta text-white" : "bg-lavender text-magenta"}`}>
+                  <input type="checkbox" className="mr-1" checked={form.subPositions.includes(s.name)} onChange={() => toggleSub(s.name)} />
+                  {s.name}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--muted)] mt-1">The trainee is automatically enrolled in every published course assigned to any of these sub-positions.</p>
           </div>
           <label className="flex items-center gap-2 text-sm">
             <input

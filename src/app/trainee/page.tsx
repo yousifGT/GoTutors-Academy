@@ -2,35 +2,22 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { ProgressBar } from "@/components/progress-bar";
-import { EnrolButton } from "@/components/enrol-button";
 import { getCourseProgressForUser } from "@/lib/course-progress";
+import { syncUserEnrollments } from "@/lib/auto-enrol";
 
 export default async function TraineeDashboard() {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
   const userId = session.user.id;
 
+  // Self-healing: pick up any published course matching this trainee's
+  // sub-positions that a sync hook missed (e.g. accounts predating
+  // auto-enrolment). Idempotent and only ever adds.
+  await syncUserEnrollments(userId);
+
   const enrollments = await prisma.enrollment.findMany({
     where: { userId },
     include: { course: { include: { modules: { include: { lessons: true } } } } },
     orderBy: { enrolledAt: "desc" },
-  });
-
-  const me = await prisma.user.findUnique({ where: { id: userId }, select: { subPosition: true } });
-  const availableCourses = await prisma.course.findMany({
-    where: {
-      published: true,
-      enrollments: { none: { userId } },
-      roleAssignments: {
-        some: {
-          roleId: session.user.roleId,
-          OR: [
-            { subPosition: null },
-            ...(me?.subPosition ? [{ subPosition: me.subPosition }] : []),
-          ],
-        },
-      },
-    },
-    take: 6,
   });
 
   const certificates = await prisma.certificate.count({ where: { userId } });
@@ -54,15 +41,15 @@ export default async function TraineeDashboard() {
           <div className="mt-2 text-3xl font-bold text-mint">{certificates}</div>
         </div>
         <div className="gt-card p-5">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Available to you</div>
-          <div className="mt-2 text-3xl font-bold text-picton">{availableCourses.length}</div>
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Completed</div>
+          <div className="mt-2 text-3xl font-bold text-picton">{enrollments.filter((e) => e.completed).length}</div>
         </div>
       </section>
 
       <section>
         <h2 className="text-lg font-bold mb-3">My courses</h2>
         {progressByCourse.length === 0 ? (
-          <div className="gt-card p-6 text-[var(--muted)]">No enrolments yet. Browse available courses below.</div>
+          <div className="gt-card p-6 text-[var(--muted)]">No courses assigned to your position yet — they appear here automatically once published.</div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {progressByCourse.map(({ enrollment, progress }) => (
@@ -78,22 +65,6 @@ export default async function TraineeDashboard() {
         )}
       </section>
 
-      <section>
-        <h2 className="text-lg font-bold mb-3">Available for your position</h2>
-        {availableCourses.length === 0 ? (
-          <div className="gt-card p-6 text-[var(--muted)]">No new courses available right now.</div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {availableCourses.map((course) => (
-              <div key={course.id} className="gt-card p-5">
-                <div className="text-lg font-bold">{course.title}</div>
-                <p className="mt-1 text-sm text-[var(--muted)] line-clamp-2">{course.description}</p>
-                <div className="mt-4"><EnrolButton courseId={course.id} /></div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
     </div>
   );
 }

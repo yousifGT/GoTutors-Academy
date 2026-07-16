@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { UserEditForm } from "@/components/user-edit-form";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function AdminUserEditPage({ params }: { params: { id: string } }) {
   await requireRole("SUPER_ADMIN");
@@ -26,7 +27,7 @@ export default async function AdminUserEditPage({ params }: { params: { id: stri
         userId={user.id}
         initial={{
           name: user.name, email: user.email,
-          position: user.position, subPosition: user.subPosition, isTrained: user.isTrained,
+          position: user.position, subPositions: effectiveSubPositions(user), isTrained: user.isTrained,
           active: user.active,
           roleId: user.roleId, centreId: user.centreId, supervisorId: user.supervisorId,
         }}

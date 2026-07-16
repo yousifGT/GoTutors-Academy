@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { RolesManager } from "@/components/roles-manager";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function RolesPage() {
   await requireRole("SUPER_ADMIN");
@@ -15,14 +16,19 @@ export default async function RolesPage() {
   ]);
 
   const userCountByRole = new Map(userCountsRaw.map((g) => [g.roleId, g._count._all]));
-  const userCountsBySubPosition = await prisma.user.groupBy({
-    by: ["roleId", "subPosition"],
-    where: { subPosition: { not: null } },
-    _count: { _all: true },
+  // Sub-positions are multi-valued (plus the legacy single column), so count
+  // holders in app code rather than with a column groupBy.
+  const usersWithSubs = await prisma.user.findMany({
+    where: { OR: [{ subPosition: { not: null } }, { subPositions: { isEmpty: false } }] },
+    select: { roleId: true, subPosition: true, subPositions: true },
   });
-  const usageBySub = new Map(
-    userCountsBySubPosition.map((g) => [`${g.roleId}:${g.subPosition}`, g._count._all])
-  );
+  const usageBySub = new Map<string, number>();
+  for (const u of usersWithSubs) {
+    for (const name of effectiveSubPositions(u)) {
+      const key = `${u.roleId}:${name}`;
+      usageBySub.set(key, (usageBySub.get(key) ?? 0) + 1);
+    }
+  }
 
   return (
     <RolesManager

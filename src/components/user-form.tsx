@@ -25,7 +25,7 @@ export function UserForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [position, setPosition] = useState("");
-  const [subPosition, setSubPosition] = useState("");
+  const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
   const [roleId, setRoleId] = useState(initialRole?.id ?? "");
   const [centreId, setCentreId] = useState(fixedCentreId ?? centres[0]?.id ?? "");
   const [saving, setSaving] = useState(false);
@@ -33,6 +33,10 @@ export function UserForm({
   const role = useMemo(() => roles.find((r) => r.id === roleId), [roles, roleId]);
   const isTrainee = role?.type === "TRAINEE";
   const subsForRole = useMemo(() => subPositions.filter((s) => s.roleId === roleId), [subPositions, roleId]);
+
+  function toggleSub(name: string) {
+    setSelectedSubs((s) => (s.includes(name) ? s.filter((x) => x !== name) : [...s, name]));
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +47,7 @@ export function UserForm({
       body: JSON.stringify({
         name, email, password,
         position: isTrainee ? null : position || null,
-        subPosition: isTrainee ? subPosition || null : null,
+        subPositions: isTrainee ? selectedSubs : [],
         roleId,
         centreId: centreId || null,
       }),
@@ -62,18 +66,22 @@ export function UserForm({
       <div><label className="gt-label">Temporary password</label><input className="gt-input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div>
       <div>
         <label className="gt-label">Role</label>
-        <select className="gt-input" value={roleId} onChange={(e) => { setRoleId(e.target.value); setSubPosition(""); }}>
+        <select className="gt-input" value={roleId} onChange={(e) => { setRoleId(e.target.value); setSelectedSubs([]); }}>
           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
       </div>
       {isTrainee ? (
         <div>
-          <label className="gt-label">Sub-position</label>
-          <select className="gt-input" value={subPosition} onChange={(e) => setSubPosition(e.target.value)}>
-            <option value="">— none —</option>
-            {subsForRole.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-          </select>
-          <p className="text-xs text-[var(--muted)] mt-1">Only courses assigned to this sub-position will appear on their dashboard.</p>
+          <label className="gt-label">Sub-positions</label>
+          <div className="flex flex-wrap gap-2">
+            {subsForRole.map((s) => (
+              <label key={s.id} className={`gt-badge cursor-pointer ${selectedSubs.includes(s.name) ? "bg-magenta text-white" : "bg-lavender text-magenta"}`}>
+                <input type="checkbox" className="mr-1" checked={selectedSubs.includes(s.name)} onChange={() => toggleSub(s.name)} />
+                {s.name}
+              </label>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--muted)] mt-1">The trainee is automatically enrolled in every published course assigned to any of these sub-positions.</p>
         </div>
       ) : (
         <div><label className="gt-label">Position</label><input className="gt-input" value={position} onChange={(e) => setPosition(e.target.value)} /></div>

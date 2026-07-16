@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 /**
- * Recompute whether a trainee has completed every course assigned to their sub-position
+ * Recompute whether a trainee has completed every course assigned to their sub-positions
  * and set User.isTrained accordingly. Idempotent.
  *
  * Trainees remain on the TRAINEE role after being trained; a Super Admin can manually
@@ -12,13 +13,15 @@ export async function recomputeIsTrained(userId: string): Promise<boolean> {
     where: { id: userId },
     include: { role: true },
   });
-  if (!user || user.role.type !== "TRAINEE" || !user.subPosition) return user?.isTrained ?? false;
+  if (!user || user.role.type !== "TRAINEE") return user?.isTrained ?? false;
+  const subPositions = effectiveSubPositions(user);
+  if (subPositions.length === 0) return user.isTrained;
 
-  // Every published course assigned to this trainee's role AND sub-position
+  // Every published course assigned to this trainee's role AND any of their sub-positions
   const required = await prisma.course.findMany({
     where: {
       published: true,
-      roleAssignments: { some: { roleId: user.roleId, subPosition: user.subPosition } },
+      roleAssignments: { some: { roleId: user.roleId, subPosition: { in: subPositions } } },
     },
     select: { id: true },
   });

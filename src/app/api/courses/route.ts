@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { assignmentRows } from "@/lib/course-assignments";
+import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -36,5 +37,6 @@ export async function POST(req: Request) {
       roleAssignments: { create: assignmentRows(roleIds, subPositions) },
     },
   });
+  if (course.published) await syncCourseEnrollments(course.id);
   return NextResponse.json(course);
 }

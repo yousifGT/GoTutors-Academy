@@ -72,8 +72,8 @@ async function main() {
   const mkUser = (email: string, name: string, roleType: RoleType, centreId: string | null, opts: { position?: string; subPosition?: string } = {}) =>
     prisma.user.upsert({
       where: { email },
-      update: { name, roleId: roles[roleType].id, centreId, position: opts.position ?? null, subPosition: opts.subPosition ?? null },
-      create: { email, name, password, roleId: roles[roleType].id, centreId, position: opts.position ?? null, subPosition: opts.subPosition ?? null },
+      update: { name, roleId: roles[roleType].id, centreId, position: opts.position ?? null, subPosition: opts.subPosition ?? null, subPositions: opts.subPosition ? [opts.subPosition] : [] },
+      create: { email, name, password, roleId: roles[roleType].id, centreId, position: opts.position ?? null, subPosition: opts.subPosition ?? null, subPositions: opts.subPosition ? [opts.subPosition] : [] },
     });
 
   const superAdmin = await mkUser("super@gotutors.test", "Sam Admin", "SUPER_ADMIN", null);

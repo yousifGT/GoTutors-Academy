@@ -30,10 +30,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   });
   if (dupe) return NextResponse.json({ error: "Another sub-position with that name already exists for this role" }, { status: 409 });
 
-  // Rename and cascade-update denormalized strings on User + CourseRoleAssignment
+  // Rename and cascade-update denormalized strings on User + CourseRoleAssignment.
+  // Array entries can't be rewritten with updateMany, so rewrite each holder's
+  // array individually inside the same transaction.
+  const arrayHolders = await prisma.user.findMany({
+    where: { subPositions: { has: existing.name } },
+    select: { id: true, subPositions: true },
+  });
   await prisma.$transaction([
     prisma.subPosition.update({ where: { id: existing.id }, data: { name: newName } }),
     prisma.user.updateMany({ where: { subPosition: existing.name }, data: { subPosition: newName } }),
+    ...arrayHolders.map((u) =>
+      prisma.user.update({
+        where: { id: u.id },
+        data: { subPositions: [...new Set(u.subPositions.map((n) => (n === existing.name ? newName : n)))] },
+      })
+    ),
     prisma.courseRoleAssignment.updateMany({
       where: { roleId: existing.roleId, subPosition: existing.name },
       data: { subPosition: newName },
@@ -58,7 +70,9 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const sp = await prisma.subPosition.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!sp) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const userCount = await prisma.user.count({ where: { roleId: sp.roleId, subPosition: sp.name } });
+  const userCount = await prisma.user.count({
+    where: { roleId: sp.roleId, OR: [{ subPosition: sp.name }, { subPositions: { has: sp.name } }] },
+  });
   if (userCount > 0) {
     return NextResponse.json(
       { error: `Cannot delete: ${userCount} user(s) currently have this sub-position.`, userCount },

@@ -6,6 +6,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { UnlockButton } from "@/components/unlock-button";
 import { formatDate } from "@/lib/utils";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function TraineeDetailPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -57,7 +58,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
             <h2 className="text-2xl font-bold">{user.name}</h2>
             <p className="text-sm text-[var(--muted)]">
               {user.email} · {user.role.name}
-              {user.subPosition ? ` · ${user.subPosition}` : user.position ? ` · ${user.position}` : ""}
+              {effectiveSubPositions(user).length ? ` · ${effectiveSubPositions(user).join(", ")}` : user.position ? ` · ${user.position}` : ""}
               {" "}· {user.centre?.name ?? "no centre"}
             </p>
             <p className="text-xs text-[var(--muted)] mt-1">Last login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</p>

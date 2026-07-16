@@ -9,6 +9,7 @@ import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
 import { canManageUser } from "@/lib/scope";
 import { recomputeIsTrained } from "@/lib/training";
+import { syncUserEnrollments } from "@/lib/auto-enrol";
 
 /** Thrown inside the delete transaction to roll back when no other admin remains. */
 class LastSuperAdminError extends Error {}
@@ -18,6 +19,7 @@ const UpdateUserSchema = z.object({
   email: zEmail.optional(),
   position: z.string().max(200).nullable().optional(),
   subPosition: z.string().max(200).nullable().optional(),
+  subPositions: z.array(z.string().max(200)).max(50).optional(),
   isTrained: z.boolean().optional(),
   active: z.boolean().optional(),
   roleId: zId.optional(),
@@ -45,12 +47,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const body = parsed.data;
 
   const desiredRoleId = body.roleId ?? target.roleId;
-  if (body.subPosition) {
-    const exists = await prisma.subPosition.findFirst({
-      where: { roleId: desiredRoleId, name: body.subPosition },
-      select: { id: true },
-    });
-    if (!exists) return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
+  // The multi-select form sends subPositions[]; older clients may still send
+  // the single subPosition. Validate whichever names are being set.
+  const subs =
+    body.subPositions !== undefined
+      ? [...new Set(body.subPositions)]
+      : body.subPosition !== undefined
+        ? body.subPosition
+          ? [body.subPosition]
+          : []
+        : undefined;
+  if (subs && subs.length > 0) {
+    const found = await prisma.subPosition.count({ where: { roleId: desiredRoleId, name: { in: subs } } });
+    if (found !== subs.length)
+      return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
   }
 
   // Only super admins may change a user's role, training status, or centre.
@@ -82,17 +92,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const data: Record<string, unknown> = {};
-  for (const k of ["name", "email", "position", "subPosition", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
+  for (const k of ["name", "email", "position", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
+  }
+  if (subs !== undefined) {
+    // Keep the legacy single column mirroring the array so unmigrated readers
+    // (and the effectiveSubPositions fallback) stay consistent.
+    data.subPositions = subs;
+    data.subPosition = subs[0] ?? null;
   }
   if (body.password) data.password = await bcrypt.hash(body.password, 12);
 
   try {
     const updated = await prisma.user.update({ where: { id: params.id }, data });
+    const membershipChanged = subs !== undefined || body.roleId !== undefined || body.active === true;
+    // Sub-position / role changes hand the trainee whatever published courses
+    // now match (auto-enrolment only ever adds — existing enrolments are kept).
+    if (membershipChanged) await syncUserEnrollments(params.id);
     // "Trained" is derived from certificates held for the courses assigned to a
-    // trainee's role + sub-position, so it goes stale when those change. Recompute
+    // trainee's role + sub-positions, so it goes stale when those change. Recompute
     // it — unless the admin explicitly set isTrained here (respect that override).
-    if (body.isTrained === undefined && (body.subPosition !== undefined || body.roleId !== undefined)) {
+    if (body.isTrained === undefined && (subs !== undefined || body.roleId !== undefined)) {
       await recomputeIsTrained(params.id);
     }
     return NextResponse.json({ id: updated.id });

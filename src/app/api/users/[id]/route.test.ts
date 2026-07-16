@@ -9,7 +9,7 @@ const db = vi.hoisted(() => ({
     delete: vi.fn(),
     update: vi.fn(),
   },
-  subPosition: { findFirst: vi.fn() },
+  subPosition: { findFirst: vi.fn(), count: vi.fn() },
   $transaction: vi.fn(),
 }));
 
@@ -21,16 +21,19 @@ vi.mock("@/lib/permissions", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/training", () => ({ recomputeIsTrained: vi.fn() }));
+vi.mock("@/lib/auto-enrol", () => ({ syncUserEnrollments: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { userHasPermission } from "@/lib/permissions";
 import { recomputeIsTrained } from "@/lib/training";
+import { syncUserEnrollments } from "@/lib/auto-enrol";
 import { Prisma } from "@prisma/client";
 import { DELETE, PATCH } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const hasPerm = userHasPermission as unknown as ReturnType<typeof vi.fn>;
 const recompute = recomputeIsTrained as unknown as ReturnType<typeof vi.fn>;
+const syncEnrol = syncUserEnrollments as unknown as ReturnType<typeof vi.fn>;
 
 function delReq() {
   return new Request("https://app.test/api/users/u1", { method: "DELETE" });
@@ -154,17 +157,40 @@ describe("PATCH /api/users/[id] centre-admin scoping", () => {
 });
 
 describe("PATCH /api/users/[id] recomputes training status", () => {
-  it("recomputes isTrained when the sub-position changes", async () => {
+  it("recomputes isTrained and syncs enrolments when the sub-positions change", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
     db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, subPosition: "Maths Tutor", role: { type: "TRAINEE" } });
-    db.subPosition.findFirst.mockResolvedValue({ id: "sp1" });
+    db.subPosition.count.mockResolvedValue(1);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ subPositions: ["Science Tutor"] }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+    expect(recompute).toHaveBeenCalledWith("u1");
+    expect(syncEnrol).toHaveBeenCalledWith("u1");
+  });
+
+  it("accepts the legacy single subPosition field and mirrors it into the array", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, subPosition: "Maths Tutor", role: { type: "TRAINEE" } });
+    db.subPosition.count.mockResolvedValue(1);
     db.user.update.mockResolvedValue({ id: "u1" });
     const res = await PATCH(patchReq({ subPosition: "Science Tutor" }), { params: { id: "u1" } });
     expect(res.status).toBe(200);
-    expect(recompute).toHaveBeenCalledWith("u1");
+    expect(db.user.update).toHaveBeenCalledWith({
+      where: { id: "u1" },
+      data: { subPositions: ["Science Tutor"], subPosition: "Science Tutor" },
+    });
   });
 
-  it("does not recompute for an unrelated field change", async () => {
+  it("400s when a sub-position does not exist for the role", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "TRAINEE" } });
+    db.subPosition.count.mockResolvedValue(1); // only 1 of the 2 names exists
+    const res = await PATCH(patchReq({ subPositions: ["Science Tutor", "Nope"] }), { params: { id: "u1" } });
+    expect(res.status).toBe(400);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("does not recompute or sync for an unrelated field change", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
     db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "TRAINEE" } });
     db.user.findFirst.mockResolvedValue(null);
@@ -172,5 +198,6 @@ describe("PATCH /api/users/[id] recomputes training status", () => {
     const res = await PATCH(patchReq({ name: "New" }), { params: { id: "u1" } });
     expect(res.status).toBe(200);
     expect(recompute).not.toHaveBeenCalled();
+    expect(syncEnrol).not.toHaveBeenCalled();
   });
 });

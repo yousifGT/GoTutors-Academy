@@ -95,7 +95,7 @@ export function CourseForm({
             Published
           </label>
         </div>
-        <p className="text-xs text-[var(--muted)] mt-1">Drafts are hidden from trainees until published.</p>
+        <p className="text-xs text-[var(--muted)] mt-1">Drafts are hidden from trainees. Publishing automatically enrols every trainee matching the assigned sub-positions.</p>
       </div>
       <div>
         <label className="gt-label">Assigned roles</label>
@@ -119,7 +119,7 @@ export function CourseForm({
               </label>
             ))}
           </div>
-          <p className="text-xs text-[var(--muted)] mt-1">Only trainees with these sub-positions will see this course.</p>
+          <p className="text-xs text-[var(--muted)] mt-1">Trainees with any of these sub-positions are enrolled automatically once the course is published.</p>
         </div>
       )}
       <button disabled={saving} className="gt-btn-primary">{saving ? "Saving…" : initial ? "Save changes" : published ? "Create & publish" : "Save as draft"}</button>

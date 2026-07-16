@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireCourseAccess } from "@/lib/course-access";
 import { assignmentRows } from "@/lib/course-assignments";
+import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -41,6 +42,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     });
   }
   const updated = await prisma.course.update({ where: { id: params.id }, data });
+  // Publishing (or re-targeting a published course) enrols matching trainees.
+  if (updated.published && (body.published !== undefined || body.roleIds !== undefined)) {
+    await syncCourseEnrollments(updated.id);
+  }
   return NextResponse.json(updated);
 }
 

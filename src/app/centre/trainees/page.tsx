@@ -5,6 +5,7 @@ import { TraineeRowActions } from "@/components/trainee-row-actions";
 import { ListSearch } from "@/components/list-search";
 import { formatDate } from "@/lib/utils";
 import { centreUserScope } from "@/lib/scope";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function CentreTraineesPage({ searchParams }: { searchParams: { q?: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -42,12 +43,12 @@ export default async function CentreTraineesPage({ searchParams }: { searchParam
       </div>
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
-          <thead><tr><th>Name</th><th>Sub-position</th><th>Trained</th><th>Enrolments</th><th>Last login</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Name</th><th>Sub-positions</th><th>Trained</th><th>Enrolments</th><th>Last login</th><th>Status</th><th></th></tr></thead>
           <tbody>
             {trainees.map((u) => (
               <tr key={u.id}>
                 <td><Link href={`/centre/trainees/${u.id}`} className="font-medium text-picton">{u.name}</Link><div className="text-xs text-[var(--muted)]">{u.email}</div></td>
-                <td>{u.subPosition ?? u.position ?? "—"}</td>
+                <td>{effectiveSubPositions(u).join(", ") || u.position || "—"}</td>
                 <td>{u.isTrained ? <span className="gt-badge bg-mint/20 text-mint">Trained</span> : <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">In training</span>}</td>
                 <td>{u.enrollments.length}</td>
                 <td>{u.lastLoginAt ? formatDate(u.lastLoginAt) : "Never"}</td>
