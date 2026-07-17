@@ -96,6 +96,7 @@ model User {
   email          String   @unique
   password       String
   name           String
+  phone          String?
   position       String?
   subPosition    String?  @map("sub_position")
   subPositions   String[] @default([]) @map("sub_positions")

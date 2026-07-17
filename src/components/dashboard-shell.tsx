@@ -9,6 +9,13 @@ import { cn } from "@/lib/utils";
 
 export type NavItem = { href: string; label: string; icon?: string; badge?: number };
 
+const profileBase: Record<string, string> = {
+  SUPER_ADMIN: "/admin",
+  CENTRE_ADMIN: "/centre",
+  INSTRUCTOR: "/instructor",
+  TRAINEE: "/trainee",
+};
+
 export function DashboardShell({
   user,
   nav,
@@ -50,7 +57,11 @@ export function DashboardShell({
           })}
         </nav>
         <div className="mt-auto p-4 border-t border-[var(--border)]">
-          <div className="flex items-center gap-3">
+          <Link
+            href={`${profileBase[user.roleType] ?? "/trainee"}/profile`}
+            title="My profile"
+            className="flex items-center gap-3 rounded-xl -m-1 p-1 transition-colors hover:bg-[var(--soft)]"
+          >
             <div className="h-9 w-9 rounded-full bg-picton text-navy grid place-items-center font-bold">
               {user.name.slice(0, 1).toUpperCase()}
             </div>
@@ -58,7 +69,7 @@ export function DashboardShell({
               <div className="truncate text-sm font-semibold">{user.name}</div>
               <div className="truncate text-xs text-[var(--muted)]">{user.roleType.replace("_", " ")}</div>
             </div>
-          </div>
+          </Link>
           <button onClick={() => signOut({ callbackUrl: "/login" })} className="gt-btn-ghost w-full mt-3 text-sm">
             Sign out
           </button>

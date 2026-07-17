@@ -17,6 +17,7 @@ class LastSuperAdminError extends Error {}
 const UpdateUserSchema = z.object({
   name: zName.optional(),
   email: zEmail.optional(),
+  phone: z.string().trim().max(30).nullable().optional(),
   position: z.string().max(200).nullable().optional(),
   subPosition: z.string().max(200).nullable().optional(),
   subPositions: z.array(z.string().max(200)).max(50).optional(),
@@ -92,7 +93,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   }
 
   const data: Record<string, unknown> = {};
-  for (const k of ["name", "email", "position", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
+  for (const k of ["name", "email", "phone", "position", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
   }
   if (subs !== undefined) {

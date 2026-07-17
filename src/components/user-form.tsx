@@ -24,6 +24,7 @@ export function UserForm({
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [position, setPosition] = useState("");
   const [selectedSubs, setSelectedSubs] = useState<string[]>([]);
   const [roleId, setRoleId] = useState(initialRole?.id ?? "");
@@ -46,6 +47,7 @@ export function UserForm({
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         name, email, password,
+        phone: phone || null,
         position: isTrainee ? null : position || null,
         subPositions: isTrainee ? selectedSubs : [],
         roleId,
@@ -64,6 +66,7 @@ export function UserForm({
       <div><label className="gt-label">Full name</label><input className="gt-input" value={name} onChange={(e) => setName(e.target.value)} required /></div>
       <div><label className="gt-label">Email</label><input type="email" className="gt-input" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
       <div><label className="gt-label">Temporary password</label><input className="gt-input" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} /></div>
+      <div><label className="gt-label">Phone (optional)</label><input type="tel" className="gt-input" value={phone} onChange={(e) => setPhone(e.target.value)} /></div>
       <div>
         <label className="gt-label">Role</label>
         <select className="gt-input" value={roleId} onChange={(e) => { setRoleId(e.target.value); setSelectedSubs([]); }}>

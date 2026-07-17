@@ -17,6 +17,7 @@ export function UserEditForm({
   initial: {
     name: string;
     email: string;
+    phone: string | null;
     position: string | null;
     subPositions: string[];
     isTrained: boolean;
@@ -60,6 +61,7 @@ export function UserEditForm({
       body: JSON.stringify({
         name: form.name,
         email: form.email,
+        phone: form.phone || null,
         position: isTrainee ? null : (form.position || null),
         subPositions: isTrainee ? form.subPositions : [],
         isTrained: form.isTrained,
@@ -83,6 +85,7 @@ export function UserEditForm({
     <form onSubmit={submit} className="gt-card p-6 space-y-3">
       <div><label className="gt-label">Full name</label><input className="gt-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required /></div>
       <div><label className="gt-label">Email</label><input type="email" className="gt-input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required /></div>
+      <div><label className="gt-label">Phone</label><input type="tel" className="gt-input" value={form.phone ?? ""} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
       <div>
         <label className="gt-label">Role</label>
         <select className="gt-input" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value, subPositions: [] })}>
