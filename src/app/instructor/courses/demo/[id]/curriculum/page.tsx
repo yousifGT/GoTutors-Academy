@@ -24,7 +24,14 @@ export default async function DemoCurriculumPage({ params }: { params: { id: str
         <Link href="/instructor/courses/demo" className="text-sm text-picton">← Courses</Link>
         <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
       </div>
-      <WizardSteps current={2} />
+      <WizardSteps
+        current={2}
+        links={[
+          `/instructor/courses/demo/${course.id}/details`,
+          null,
+          lessonCount > 0 ? `/instructor/courses/demo/${course.id}/review` : null,
+        ]}
+      />
 
       <p className="text-sm text-[var(--muted)]">
         Build the modules and lessons for this course. It stays a draft while you work — publish on the next step.
@@ -44,7 +51,7 @@ export default async function DemoCurriculumPage({ params }: { params: { id: str
       }))} />
 
       <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
-        <Link href="/instructor/courses/demo/new" className="gt-btn-ghost">← Back</Link>
+        <Link href={`/instructor/courses/demo/${course.id}/details`} className="gt-btn-ghost">← Back to details</Link>
         <div className="flex items-center gap-3">
           {lessonCount === 0 && <span className="text-xs text-[var(--muted)]">Add at least one lesson before continuing.</span>}
           <Link

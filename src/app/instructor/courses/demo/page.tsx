@@ -1,12 +1,12 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { DemoCourseList } from "@/components/demo-course-list";
 
 /**
- * DEMO PREVIEW of the redesigned Courses section: cleaner cards (status chip +
- * compact audience line instead of a badge pile) and a step-by-step "New
- * course" wizard. Works against real data — courses made here are real drafts.
- * Once approved, this replaces /instructor/courses and the demo route goes.
+ * DEMO PREVIEW of the redesigned Courses section: searchable, filterable list
+ * with quick actions, and a step-by-step "New course" wizard. Works against
+ * real data — courses made here are real drafts. Once approved, this replaces
+ * /instructor/courses and the demo route goes.
  */
 
 /** "Trainee — Maths Tutor, English Tutor +2 more" instead of one badge per assignment. */
@@ -40,37 +40,18 @@ export default async function DemoCoursesPage() {
       <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
         Demo preview of the redesigned Courses section — everything works on real data. The current section is untouched at “Courses”.
       </div>
-
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Courses</h2>
-        <Link href="/instructor/courses/demo/new" className="gt-btn-primary">New course</Link>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {courses.map((c) => (
-          <Link key={c.id} href={`/instructor/courses/${c.id}`} className="gt-card p-5 hover:shadow-soft flex flex-col">
-            <div className="flex items-start justify-between gap-2">
-              <div className="text-lg font-bold">{c.title}</div>
-              <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
-                {c.published ? "Published" : "Draft"}
-              </span>
-            </div>
-            {c.description && <p className="mt-1 text-sm text-[var(--muted)] line-clamp-1">{c.description}</p>}
-            <div className="mt-3 space-y-0.5 text-sm text-[var(--muted)]">
-              {c.roleAssignments.length === 0 ? (
-                <div className="text-orange">No audience assigned yet</div>
-              ) : (
-                compactAssignments(c.roleAssignments).map((line) => (
-                  <div key={line} className="truncate">For: <span className="text-[var(--fg)]">{line}</span></div>
-                ))
-              )}
-            </div>
-            <div className="mt-auto pt-3 text-xs text-[var(--muted)]">
-              {c._count.modules} module{c._count.modules === 1 ? "" : "s"} · {c._count.enrollments} enrolment{c._count.enrollments === 1 ? "" : "s"}
-            </div>
-          </Link>
-        ))}
-      </div>
+      <h2 className="text-lg font-bold">Courses</h2>
+      <DemoCourseList
+        courses={courses.map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          published: c.published,
+          modules: c._count.modules,
+          enrollments: c._count.enrollments,
+          audience: compactAssignments(c.roleAssignments),
+        }))}
+      />
     </div>
   );
 }

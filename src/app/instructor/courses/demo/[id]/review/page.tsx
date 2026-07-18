@@ -46,7 +46,14 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
         <Link href="/instructor/courses/demo" className="text-sm text-picton">← Courses</Link>
         <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
       </div>
-      <WizardSteps current={3} />
+      <WizardSteps
+        current={3}
+        links={[
+          `/instructor/courses/demo/${course.id}/details`,
+          `/instructor/courses/demo/${course.id}/curriculum`,
+          null,
+        ]}
+      />
 
       <div className="gt-card p-6 space-y-4">
         <div className="flex items-center justify-between">
