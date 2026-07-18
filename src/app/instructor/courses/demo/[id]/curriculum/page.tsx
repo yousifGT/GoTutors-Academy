@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
-import { ModuleEditor } from "@/components/module-editor";
+import { DemoCurriculumBuilder } from "@/components/demo-curriculum-builder";
 
 export default async function DemoCurriculumPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -34,19 +34,17 @@ export default async function DemoCurriculumPage({ params }: { params: { id: str
       />
 
       <p className="text-sm text-[var(--muted)]">
-        Build the modules and lessons for this course. It stays a draft while you work — publish on the next step.
+        Drag <span className="text-[var(--fg)]">⠿</span> to reorder, click a title to rename, press Enter to add in bulk. It all stays a draft — publish on the next step.
       </p>
 
-      <ModuleEditor courseId={course.id} modules={course.modules.map((m) => ({
+      <DemoCurriculumBuilder courseId={course.id} modules={course.modules.map((m) => ({
         id: m.id,
         title: m.title,
-        order: m.order,
         lessons: m.lessons.map((l) => ({
           id: l.id,
           title: l.title,
-          order: l.order,
-          video: l.video ? { provider: l.video.provider, url: l.video.url } : null,
-          quiz: l.quiz ? { id: l.quiz.id, passThreshold: l.quiz.passThreshold, retryLimit: l.quiz.retryLimit, questionsCount: l.quiz.questions.length } : null,
+          video: l.video ? { provider: l.video.provider } : null,
+          quiz: l.quiz ? { passThreshold: l.quiz.passThreshold, questionsCount: l.quiz.questions.length } : null,
         })),
       }))} />
 
