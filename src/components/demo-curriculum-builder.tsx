@@ -225,7 +225,7 @@ export function DemoCurriculumBuilder({
                               <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">no quiz</span>
                             )}
                           </span>
-                          <Link href={`/instructor/courses/${courseId}/lessons/${l.id}`} className="gt-btn-ghost text-xs shrink-0">
+                          <Link href={`/instructor/courses/demo/${courseId}/lessons/${l.id}`} className="gt-btn-ghost text-xs shrink-0">
                             Content →
                           </Link>
                           <button onClick={() => deleteLesson(m.id, l.id)} className="px-1 text-[var(--muted)] hover:text-orange shrink-0" title="Delete lesson">

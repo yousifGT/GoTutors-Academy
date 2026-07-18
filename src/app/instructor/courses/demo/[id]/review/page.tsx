@@ -10,14 +10,25 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
   const course = await prisma.course.findUnique({
     where: { id: params.id },
     include: {
-      modules: { orderBy: { order: "asc" }, include: { lessons: { orderBy: { order: "asc" }, select: { id: true, title: true } } } },
+      modules: {
+        orderBy: { order: "asc" },
+        include: {
+          lessons: {
+            orderBy: { order: "asc" },
+            select: { id: true, title: true, video: { select: { id: true } }, quiz: { select: { id: true, questions: { select: { id: true } } } } },
+          },
+        },
+      },
       roleAssignments: { include: { role: true } },
     },
   });
   if (!course) notFound();
   if (session.user.roleType !== "SUPER_ADMIN" && course.authorId !== session.user.id) notFound();
 
-  const lessonCount = course.modules.reduce((n, m) => n + m.lessons.length, 0);
+  const allLessons = course.modules.flatMap((m) => m.lessons);
+  const lessonCount = allLessons.length;
+  const missingVideo = allLessons.filter((l) => !l.video).length;
+  const missingQuiz = allLessons.filter((l) => !l.quiz || l.quiz.questions.length === 0).length;
   const traineeSubs = [...new Set(course.roleAssignments.filter((r) => r.subPosition).map((r) => r.subPosition as string))];
   const wholeRoles = course.roleAssignments.filter((r) => r.subPosition === null).map((r) => r.role.name);
 
@@ -57,48 +68,71 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
 
       <div className="gt-card p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="font-bold">Summary</h3>
+          <h3 className="font-bold">Course</h3>
           <span className={`gt-badge ${course.published ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
             {course.published ? "Published" : "Draft"}
           </span>
         </div>
         {course.description && <p className="text-sm text-[var(--muted)]">{course.description}</p>}
-        <dl className="text-sm space-y-2">
-          <div className="flex gap-2"><dt className="text-[var(--muted)] w-32 shrink-0">Pass threshold</dt><dd>{course.passThreshold}%</dd></div>
-          <div className="flex gap-2">
-            <dt className="text-[var(--muted)] w-32 shrink-0">Audience</dt>
-            <dd className="flex flex-wrap gap-1">
-              {wholeRoles.map((r) => <span key={r} className="gt-badge bg-[var(--soft)]">{r} (everyone)</span>)}
-              {traineeSubs.map((s) => <span key={s} className="gt-badge bg-lavender text-magenta">{s}</span>)}
-              {wholeRoles.length === 0 && traineeSubs.length === 0 && <span className="text-orange">Nobody yet — go back to Details and assign roles.</span>}
-            </dd>
-          </div>
-          <div className="flex gap-2"><dt className="text-[var(--muted)] w-32 shrink-0">Curriculum</dt><dd>{course.modules.length} module{course.modules.length === 1 ? "" : "s"}, {lessonCount} lesson{lessonCount === 1 ? "" : "s"}</dd></div>
-          {!course.published && (
-            <div className="flex gap-2"><dt className="text-[var(--muted)] w-32 shrink-0">On publish</dt><dd>{reachCount} trainee{reachCount === 1 ? "" : "s"} will be enrolled automatically</dd></div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-[var(--muted)]">Audience:</span>
+          {wholeRoles.map((r) => <span key={r} className="gt-badge bg-navy text-white">{r} · everyone</span>)}
+          {traineeSubs.map((s) => <span key={s} className="gt-badge bg-magenta text-white">{s}</span>)}
+          {wholeRoles.length === 0 && traineeSubs.length === 0 && (
+            <Link href={`/instructor/courses/demo/${course.id}/details`} className="text-orange underline">
+              Nobody yet — assign an audience in Details
+            </Link>
           )}
-        </dl>
+        </div>
+        <div className="text-sm text-[var(--muted)]">Quiz pass threshold: <span className="text-[var(--fg)] font-semibold">{course.passThreshold}%</span></div>
+      </div>
 
-        {course.modules.length > 0 && (
-          <div className="rounded-xl border border-[var(--border)] p-4 text-sm space-y-2">
-            {course.modules.map((m, i) => (
-              <div key={m.id}>
-                <div className="font-medium">Module {i + 1}: {m.title}</div>
-                <ul className="ml-4 mt-1 list-disc text-[var(--muted)]">
-                  {m.lessons.map((l) => <li key={l.id}>{l.title}</li>)}
-                  {m.lessons.length === 0 && <li className="text-orange">No lessons in this module</li>}
-                </ul>
-              </div>
-            ))}
+      <div className="gt-card p-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold">Curriculum</h3>
+          <Link href={`/instructor/courses/demo/${course.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
+        </div>
+        {course.modules.length === 0 && <p className="text-sm text-orange">No modules yet.</p>}
+        {course.modules.map((m, i) => (
+          <div key={m.id} className="rounded-xl border border-[var(--border)] p-4">
+            <div className="font-medium text-sm">Module {i + 1}: {m.title}</div>
+            <ul className="mt-2 space-y-1.5">
+              {m.lessons.map((l) => (
+                <li key={l.id} className="flex items-center gap-2 text-sm">
+                  <span className="truncate">{l.title}</span>
+                  <span className="ml-auto flex shrink-0 gap-1.5">
+                    <span className={`gt-badge ${l.video ? "bg-picton/15 text-picton" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                      {l.video ? "🎬 video" : "no video"}
+                    </span>
+                    <span className={`gt-badge ${l.quiz && l.quiz.questions.length > 0 ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                      {l.quiz && l.quiz.questions.length > 0 ? `📝 ${l.quiz.questions.length} Qs` : "no quiz"}
+                    </span>
+                  </span>
+                </li>
+              ))}
+              {m.lessons.length === 0 && <li className="text-sm text-orange">No lessons in this module</li>}
+            </ul>
           </div>
-        )}
-        {lessonCount === 0 && (
-          <p className="text-sm text-orange">This course has no lessons yet — trainees would see an empty course. Go back and add some first.</p>
+        ))}
+        {(missingVideo > 0 || missingQuiz > 0) && lessonCount > 0 && (
+          <p className="text-xs text-[var(--muted)]">
+            Heads up: {missingVideo > 0 ? `${missingVideo} lesson${missingVideo === 1 ? "" : "s"} without a video` : ""}
+            {missingVideo > 0 && missingQuiz > 0 ? " · " : ""}
+            {missingQuiz > 0 ? `${missingQuiz} without a quiz` : ""}. That&apos;s allowed — those lessons just complete on view.
+          </p>
         )}
       </div>
 
-      <div className="flex items-center justify-between">
-        <Link href={`/instructor/courses/demo/${course.id}/curriculum`} className="gt-btn-ghost">← Back to curriculum</Link>
+      <div className="gt-card p-6 space-y-3">
+        {course.published ? (
+          <p className="text-sm">This course is <b className="text-mint">live</b>. Matching trainees are enrolled automatically as they join.</p>
+        ) : lessonCount === 0 ? (
+          <p className="text-sm text-orange">Add at least one lesson before publishing — trainees would see an empty course.</p>
+        ) : (
+          <p className="text-sm">
+            Ready to go? Publishing enrols <b>{reachCount}</b> matching trainee{reachCount === 1 ? "" : "s"} immediately, and new trainees pick it up as they&apos;re added.
+          </p>
+        )}
         <DemoPublishActions courseId={course.id} published={course.published} />
       </div>
     </div>
