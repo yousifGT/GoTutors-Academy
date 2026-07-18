@@ -1,6 +1,24 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { CourseList } from "@/components/course-list";
+
+/** "Trainee — Maths Tutor, English Tutor +2 more" instead of one badge per assignment. */
+function compactAssignments(assignments: { role: { name: string }; subPosition: string | null }[]): string[] {
+  const byRole = new Map<string, string[] | null>(); // null = the whole role
+  for (const a of assignments) {
+    const current = byRole.get(a.role.name);
+    if (a.subPosition === null || current === null) {
+      byRole.set(a.role.name, null);
+      continue;
+    }
+    byRole.set(a.role.name, [...(current ?? []), a.subPosition]);
+  }
+  return [...byRole.entries()].map(([role, subs]) => {
+    if (subs === null) return `${role} — everyone`;
+    const shown = subs.slice(0, 3).join(", ");
+    return subs.length > 3 ? `${role} — ${shown} +${subs.length - 3} more` : `${role} — ${shown}`;
+  });
+}
 
 export default async function InstructorCoursesPage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -9,28 +27,22 @@ export default async function InstructorCoursesPage() {
     include: { _count: { select: { modules: true, enrollments: true } }, roleAssignments: { include: { role: true } } },
     orderBy: { updatedAt: "desc" },
   });
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold">Courses</h2>
-        <Link href="/instructor/courses/new" className="gt-btn-primary">New course</Link>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {courses.map((c) => (
-          <Link key={c.id} href={`/instructor/courses/${c.id}`} className="gt-card p-5 hover:shadow-soft">
-            <div className="text-lg font-bold">{c.title}</div>
-            <p className="mt-1 text-sm text-[var(--muted)] line-clamp-2">{c.description}</p>
-            <div className="mt-3 flex flex-wrap gap-1">
-              {c.roleAssignments.map((r) => (
-                <span key={r.id} className="gt-badge bg-lavender text-magenta">
-                  {r.role.name}{r.subPosition ? ` · ${r.subPosition}` : ""}
-                </span>
-              ))}
-            </div>
-            <div className="mt-3 text-xs text-[var(--muted)]">{c._count.modules} modules · {c._count.enrollments} enrolments</div>
-          </Link>
-        ))}
-      </div>
+    <div className="space-y-4">
+      <h2 className="text-lg font-bold">Courses</h2>
+      <CourseList
+        courses={courses.map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          category: c.category,
+          published: c.published,
+          modules: c._count.modules,
+          enrollments: c._count.enrollments,
+          audience: compactAssignments(c.roleAssignments),
+        }))}
+      />
     </div>
   );
 }

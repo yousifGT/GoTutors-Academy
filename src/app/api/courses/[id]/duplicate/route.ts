@@ -39,6 +39,7 @@ export async function POST(_: Request, { params }: { params: { id: string } }) {
     data: {
       title: `${src.title} (copy)`,
       description: src.description,
+      category: src.category,
       thumbnail: src.thumbnail,
       authorId: session.user.id,
       passThreshold: src.passThreshold,

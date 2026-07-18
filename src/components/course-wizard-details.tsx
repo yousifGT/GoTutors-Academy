@@ -38,14 +38,18 @@ function Pill({
 export function CourseWizardDetails({
   roles,
   allSubPositions,
+  categories,
   initial,
 }: {
   roles: { id: string; name: string; type: string }[];
   allSubPositions: SP[];
+  /** Existing category names, offered as suggestions. */
+  categories: string[];
   initial?: {
     id: string;
     title: string;
     description: string | null;
+    category: string | null;
     passThreshold: number;
     roleIds: string[];
     subPositions: string[];
@@ -54,6 +58,7 @@ export function CourseWizardDetails({
   const router = useRouter();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [description, setDescription] = useState(initial?.description ?? "");
+  const [category, setCategory] = useState(initial?.category ?? "");
   const [passThreshold, setPassThreshold] = useState(initial?.passThreshold ?? 70);
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roleIds ?? []);
   const [subPositions, setSubPositions] = useState<string[]>(initial?.subPositions ?? []);
@@ -114,6 +119,7 @@ export function CourseWizardDetails({
       body: JSON.stringify({
         title,
         description,
+        category: category.trim() || null,
         passThreshold: Number(passThreshold),
         roleIds,
         subPositions: traineeRoleSelected ? subPositions : [],
@@ -122,7 +128,7 @@ export function CourseWizardDetails({
     const data = await res.json();
     setSaving(false);
     if (!res.ok) return alert(data.error ?? "Failed");
-    router.push(`/instructor/courses/demo/${initial?.id ?? data.id}/curriculum`);
+    router.push(`/instructor/courses/${initial?.id ?? data.id}/curriculum`);
     router.refresh();
   }
 
@@ -136,6 +142,20 @@ export function CourseWizardDetails({
         <div>
           <label className="gt-label">Description <span className="text-[var(--muted)] font-normal">(optional)</span></label>
           <textarea className="gt-input min-h-[80px]" value={description ?? ""} onChange={(e) => setDescription(e.target.value)} placeholder="What will trainees learn?" />
+        </div>
+        <div>
+          <label className="gt-label">Category <span className="text-[var(--muted)] font-normal">(optional)</span></label>
+          <input
+            className="gt-input max-w-xs"
+            list="course-categories"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            placeholder="e.g. Onboarding"
+          />
+          <datalist id="course-categories">
+            {categories.map((c) => <option key={c} value={c} />)}
+          </datalist>
+          <p className="text-xs text-[var(--muted)] mt-1">Courses are grouped by category on the Courses page — pick an existing one or type a new name.</p>
         </div>
         <div>
           <label className="gt-label">Quiz pass threshold</label>

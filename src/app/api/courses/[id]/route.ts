@@ -12,6 +12,7 @@ import { parseJson, zId } from "@/lib/validate";
 const UpdateCourseSchema = z.object({
   title: z.string().trim().min(1).max(300).optional(),
   description: z.string().max(5000).nullable().optional(),
+  category: z.string().trim().max(100).nullable().optional(),
   passThreshold: z.number().int().min(1).max(100).optional(),
   published: z.boolean().optional(),
   roleIds: z.array(zId).optional(),
@@ -34,6 +35,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   for (const k of ["title", "description", "passThreshold", "published"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
   }
+  if (body.category !== undefined) data.category = body.category || null;
   if (body.roleIds !== undefined) {
     await prisma.courseRoleAssignment.deleteMany({ where: { courseId: params.id } });
     const subPositions = body.subPositions ?? [];

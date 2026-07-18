@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
-import { DemoCurriculumBuilder } from "@/components/demo-curriculum-builder";
+import { CurriculumBuilder } from "@/components/curriculum-builder";
 
-export default async function DemoCurriculumPage({ params }: { params: { id: string } }) {
+export default async function CourseCurriculumPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
   const course = await prisma.course.findUnique({
     where: { id: params.id },
@@ -20,24 +20,31 @@ export default async function DemoCurriculumPage({ params }: { params: { id: str
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href="/instructor/courses/demo" className="text-sm text-picton">← Courses</Link>
-        <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
+          <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`/instructor/courses/${course.id}/enrol`} className="gt-btn-ghost text-sm">Bulk enrol</Link>
+          <Link href={`/instructor/courses/${course.id}/progress`} className="gt-btn-ghost text-sm">Trainee progress</Link>
+        </div>
       </div>
       <WizardSteps
         current={2}
         links={[
-          `/instructor/courses/demo/${course.id}/details`,
+          `/instructor/courses/${course.id}/details`,
           null,
-          lessonCount > 0 ? `/instructor/courses/demo/${course.id}/review` : null,
+          lessonCount > 0 ? `/instructor/courses/${course.id}/review` : null,
         ]}
       />
 
       <p className="text-sm text-[var(--muted)]">
-        Drag <span className="text-[var(--fg)]">⠿</span> to reorder, click a title to rename, press Enter to add in bulk. It all stays a draft — publish on the next step.
+        Drag <span className="text-[var(--fg)]">⠿</span> to reorder, click a title to rename, press Enter to add in bulk.
+        {!course.published && " It all stays a draft — publish on the next step."}
       </p>
 
-      <DemoCurriculumBuilder courseId={course.id} modules={course.modules.map((m) => ({
+      <CurriculumBuilder courseId={course.id} modules={course.modules.map((m) => ({
         id: m.id,
         title: m.title,
         lessons: m.lessons.map((l) => ({
@@ -49,11 +56,11 @@ export default async function DemoCurriculumPage({ params }: { params: { id: str
       }))} />
 
       <div className="flex items-center justify-between border-t border-[var(--border)] pt-4">
-        <Link href={`/instructor/courses/demo/${course.id}/details`} className="gt-btn-ghost">← Back to details</Link>
+        <Link href={`/instructor/courses/${course.id}/details`} className="gt-btn-ghost">← Back to details</Link>
         <div className="flex items-center gap-3">
           {lessonCount === 0 && <span className="text-xs text-[var(--muted)]">Add at least one lesson before continuing.</span>}
           <Link
-            href={`/instructor/courses/demo/${course.id}/review`}
+            href={`/instructor/courses/${course.id}/review`}
             className={lessonCount === 0 ? "gt-btn-ghost pointer-events-none opacity-50" : "gt-btn-primary"}
             aria-disabled={lessonCount === 0}
           >

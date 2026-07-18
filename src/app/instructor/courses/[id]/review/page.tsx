@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
-import { DemoPublishActions } from "@/components/demo-publish-actions";
+import { PublishActions } from "@/components/publish-actions";
 
-export default async function DemoReviewPage({ params }: { params: { id: string } }) {
+export default async function CourseReviewPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
   const course = await prisma.course.findUnique({
     where: { id: params.id },
@@ -54,14 +54,14 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
   return (
     <div className="max-w-2xl space-y-5">
       <div>
-        <Link href="/instructor/courses/demo" className="text-sm text-picton">← Courses</Link>
+        <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
         <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
       </div>
       <WizardSteps
         current={3}
         links={[
-          `/instructor/courses/demo/${course.id}/details`,
-          `/instructor/courses/demo/${course.id}/curriculum`,
+          `/instructor/courses/${course.id}/details`,
+          `/instructor/courses/${course.id}/curriculum`,
           null,
         ]}
       />
@@ -79,18 +79,21 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
           {wholeRoles.map((r) => <span key={r} className="gt-badge bg-navy text-white">{r} · everyone</span>)}
           {traineeSubs.map((s) => <span key={s} className="gt-badge bg-magenta text-white">{s}</span>)}
           {wholeRoles.length === 0 && traineeSubs.length === 0 && (
-            <Link href={`/instructor/courses/demo/${course.id}/details`} className="text-orange underline">
+            <Link href={`/instructor/courses/${course.id}/details`} className="text-orange underline">
               Nobody yet — assign an audience in Details
             </Link>
           )}
         </div>
-        <div className="text-sm text-[var(--muted)]">Quiz pass threshold: <span className="text-[var(--fg)] font-semibold">{course.passThreshold}%</span></div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-[var(--muted)]">
+          <span>Category: <span className="text-[var(--fg)] font-semibold">{course.category ?? "—"}</span></span>
+          <span>Quiz pass threshold: <span className="text-[var(--fg)] font-semibold">{course.passThreshold}%</span></span>
+        </div>
       </div>
 
       <div className="gt-card p-6 space-y-3">
         <div className="flex items-center justify-between">
           <h3 className="font-bold">Curriculum</h3>
-          <Link href={`/instructor/courses/demo/${course.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
+          <Link href={`/instructor/courses/${course.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
         </div>
         {course.modules.length === 0 && <p className="text-sm text-orange">No modules yet.</p>}
         {course.modules.map((m, i) => (
@@ -133,7 +136,7 @@ export default async function DemoReviewPage({ params }: { params: { id: string 
             Ready to go? Publishing enrols <b>{reachCount}</b> matching trainee{reachCount === 1 ? "" : "s"} immediately, and new trainees pick it up as they&apos;re added.
           </p>
         )}
-        <DemoPublishActions courseId={course.id} published={course.published} />
+        <PublishActions courseId={course.id} published={course.published} />
       </div>
     </div>
   );

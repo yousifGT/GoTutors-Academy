@@ -131,6 +131,7 @@ model Course {
   id            String   @id @default(cuid())
   title         String
   description   String?
+  category      String?
   thumbnail     String?
   authorId      String
   passThreshold Int      @default(70)

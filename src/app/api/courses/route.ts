@@ -11,6 +11,7 @@ import { parseJson, zId } from "@/lib/validate";
 const CreateCourseSchema = z.object({
   title: z.string().trim().min(1).max(300),
   description: z.string().max(5000).nullish(),
+  category: z.string().trim().max(100).nullish(),
   passThreshold: z.number().int().min(1).max(100).optional(),
   published: z.boolean().optional(),
   roleIds: z.array(zId).optional(),
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
     data: {
       title,
       description: description ?? null,
+      category: parsed.data.category || null,
       passThreshold: passThreshold ?? 70,
       published: !!published,
       authorId: session.user.id,

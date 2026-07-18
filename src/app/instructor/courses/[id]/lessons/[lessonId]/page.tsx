@@ -18,17 +18,18 @@ export default async function LessonEditPage({ params }: { params: { id: string;
   if (session.user.roleType !== "SUPER_ADMIN" && lesson.module.course.authorId !== session.user.id) notFound();
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-5">
       <div>
-        <Link href={`/instructor/courses/${params.id}`} className="text-sm text-picton">← {lesson.module.course.title}</Link>
-        <h2 className="text-2xl font-bold mt-1">Lesson: {lesson.title}</h2>
+        <Link href={`/instructor/courses/${params.id}/curriculum`} className="text-sm text-picton">← Back to curriculum</Link>
+        <h2 className="text-2xl font-bold mt-1">{lesson.title}</h2>
+        <p className="text-sm text-[var(--muted)]">{lesson.module.course.title} · {lesson.module.title}</p>
       </div>
       <LessonEditor
         courseId={params.id}
         lessonId={lesson.id}
         title={lesson.title}
         content={lesson.content ?? ""}
-        video={lesson.video ? { provider: lesson.video.provider, url: lesson.video.url, duration: lesson.video.duration } : null}
+        video={lesson.video ? { provider: lesson.video.provider, url: lesson.video.url } : null}
         quiz={lesson.quiz ? {
           id: lesson.quiz.id,
           passThreshold: lesson.quiz.passThreshold,
