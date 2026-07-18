@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
 
 type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
 type SafeAnswer = { id: string; text: string };
@@ -288,17 +289,36 @@ function VideoEmbed({
 // client-side snap-back for genuine large jumps.
 const SEEK_TOLERANCE = 6;
 
+/**
+ * Notice shown when a skip is snapped back or an end-jump is resumed. Without
+ * it, a trainee who scrubs to the end sees a "finished" video, a stuck
+ * progress bar, and no explanation of why the quiz stays locked.
+ */
+function useSkipNotice() {
+  const [notice, setNotice] = useState<string | null>(null);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  function show() {
+    setNotice("Skipping ahead doesn't count — resumed from your furthest watched point.");
+    if (timer.current) window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => setNotice(null), 8000);
+  }
+  return { notice, show };
+}
+
 function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const ref = useRef<HTMLVideoElement | null>(null);
   const maxWatched = useRef(0);
   const reached = useRef(false);
   const [progressPct, setProgressPct] = useState(0);
+  const { notice, show } = useSkipNotice();
 
   function clampSeek() {
     const v = ref.current;
     if (!v || done) return false;
     if (v.currentTime > maxWatched.current + SEEK_TOLERANCE) {
       v.currentTime = maxWatched.current;
+      show();
       return true;
     }
     return false;
@@ -309,9 +329,21 @@ function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
     if (clampSeek()) return;
     maxWatched.current = Math.max(maxWatched.current, v.currentTime);
     onReport(maxWatched.current, v.duration || 0);
-    const pct = (v.currentTime / Math.max(1, v.duration)) * 100;
+    const pct = (maxWatched.current / Math.max(1, v.duration)) * 100;
     setProgressPct(pct);
     if (pct >= 95 && !reached.current) { reached.current = true; onReachedEnd(); }
+  }
+  function handleEnded() {
+    const v = ref.current;
+    // A jump to the end without enough genuine watching would strand the
+    // player at the final frame — resume from the furthest watched point.
+    if (v && !done && v.duration > 0 && maxWatched.current < v.duration * SERVER_WATCH_FRACTION) {
+      v.currentTime = maxWatched.current;
+      v.play().catch(() => {});
+      show();
+      return;
+    }
+    onReachedEnd();
   }
   return (
     <div>
@@ -322,12 +354,13 @@ function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
         controlsList="nodownload"
         onSeeking={clampSeek}
         onTimeUpdate={handleTimeUpdate}
-        onEnded={onReachedEnd}
+        onEnded={handleEnded}
         className="w-full rounded-xl bg-black aspect-video"
       />
       <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
         <div className="h-full bg-picton" style={{ width: `${progressPct}%` }} />
       </div>
+      {notice && <p className="mt-1 text-xs text-orange">{notice}</p>}
     </div>
   );
 }
@@ -345,6 +378,8 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const maxWatched = useRef(0);
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
+  const { notice, show } = useSkipNotice();
+  const showRef = useRef(show); showRef.current = show;
   const id = useMemo(() => url.match(/(?:v=|youtu\.be\/|embed\/)([\w-]{11})/)?.[1], [url]);
   // Hold latest props in refs so the player initializes once per video and isn't
   // torn down/recreated when a callback identity or `done` changes.
@@ -372,17 +407,32 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
               if (dur <= 0) return;
               if (!doneRef.current && cur > maxWatched.current + SEEK_TOLERANCE) {
                 p.seekTo(maxWatched.current, true);
+                // A seek from the ENDED state doesn't restart playback by
+                // itself — the player would sit stranded on the end frame.
+                if (p.getPlayerState?.() === 0) p.playVideo?.();
+                showRef.current();
                 return;
               }
               maxWatched.current = Math.max(maxWatched.current, cur);
               reportRef.current(maxWatched.current, dur);
-              const next = (cur / dur) * 100;
+              const next = (maxWatched.current / dur) * 100;
               setPct(next);
               if (next >= 95 && !reached.current) { reached.current = true; reachedEndRef.current(); }
             }, 1000);
           },
           onStateChange: (e: any) => {
-            if (e.data === 0) reachedEndRef.current(); // 0 = ENDED
+            if (e.data !== 0) return; // 0 = ENDED
+            const p = playerRef.current;
+            const dur = p?.getDuration?.() ?? 0;
+            // Ended without enough genuine watching (scrubbed to the end):
+            // resume from the furthest watched point instead of stranding.
+            if (!doneRef.current && dur > 0 && maxWatched.current < dur * SERVER_WATCH_FRACTION) {
+              p.seekTo(maxWatched.current, true);
+              p.playVideo?.();
+              showRef.current();
+              return;
+            }
+            reachedEndRef.current();
           },
         },
       });
@@ -414,6 +464,7 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
       <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
         <div className="h-full bg-picton" style={{ width: `${pct}%` }} />
       </div>
+      {notice && <p className="mt-1 text-xs text-orange">{notice}</p>}
     </div>
   );
 }
@@ -421,8 +472,11 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
 function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const maxWatched = useRef(0);
+  const durRef = useRef(0);
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
+  const { notice, show } = useSkipNotice();
+  const showRef = useRef(show); showRef.current = show;
   const id = useMemo(() => url.match(/vimeo\.com\/(\d+)/)?.[1], [url]);
   const doneRef = useRef(done); doneRef.current = done;
   const reportRef = useRef(onReport); reportRef.current = onReport;
@@ -444,17 +498,29 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
         if (data?.event === "timeupdate" && data.data) {
           const secs = data.data.seconds ?? 0;
           const dur = data.data.duration ?? 0;
+          if (dur > 0) durRef.current = dur;
           if (!doneRef.current && secs > maxWatched.current + SEEK_TOLERANCE) {
             post({ method: "setCurrentTime", value: maxWatched.current });
+            showRef.current();
             return;
           }
           maxWatched.current = Math.max(maxWatched.current, secs);
           reportRef.current(maxWatched.current, dur);
-          const p = (data.data.percent ?? 0) * 100;
+          const p = dur > 0 ? (maxWatched.current / dur) * 100 : 0;
           setPct(p);
           if (p >= 95 && !reached.current) { reached.current = true; reachedEndRef.current(); }
         }
-        if (data?.event === "ended") reachedEndRef.current();
+        if (data?.event === "ended") {
+          // Ended without enough genuine watching (scrubbed to the end):
+          // resume from the furthest watched point instead of stranding.
+          if (!doneRef.current && durRef.current > 0 && maxWatched.current < durRef.current * SERVER_WATCH_FRACTION) {
+            post({ method: "setCurrentTime", value: maxWatched.current });
+            post({ method: "play" });
+            showRef.current();
+          } else {
+            reachedEndRef.current();
+          }
+        }
       } catch {}
     }
     window.addEventListener("message", onMessage);
@@ -477,6 +543,7 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
       <div className="mt-2 h-1.5 w-full rounded-full bg-[var(--soft)] overflow-hidden">
         <div className="h-full bg-picton" style={{ width: `${pct}%` }} />
       </div>
+      {notice && <p className="mt-1 text-xs text-orange">{notice}</p>}
     </div>
   );
 }
