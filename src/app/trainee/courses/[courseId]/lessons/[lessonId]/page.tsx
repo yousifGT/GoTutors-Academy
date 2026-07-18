@@ -40,10 +40,14 @@ export default async function LessonPage({ params }: { params: { courseId: strin
     );
   }
 
+  // The row's createdAt anchors the server-side watch-time cap. Write it from
+  // THIS process's clock so /api/progress compares two readings of the same
+  // clock — a DB/app clock skew (common with Dockerised Postgres) would
+  // otherwise make elapsed tiny/negative and lock a fully-watched video.
   const progress = await prisma.progress.upsert({
     where: { userId_lessonId: { userId, lessonId: lesson.id } },
     update: {},
-    create: { userId, lessonId: lesson.id },
+    create: { userId, lessonId: lesson.id, createdAt: new Date() },
   });
 
   let attempts: { id: string; score: number; passed: boolean; createdAt: Date; locked: boolean; needsReview: boolean }[] = [];

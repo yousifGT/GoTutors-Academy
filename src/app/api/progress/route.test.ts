@@ -69,4 +69,16 @@ describe("POST /api/progress — access + watch gating", () => {
     const body = await res.json();
     expect(body.videoWatched).toBe(true);
   });
+
+  it("re-anchors a future createdAt (clock skew) instead of locking forever", async () => {
+    // A stored anchor in the future can only come from a skewed clock; it must
+    // not permanently block completion.
+    db.progress.upsert.mockResolvedValue({ timeSpent: 0, videoWatched: false, createdAt: new Date(Date.now() + 3_600_000) });
+    const res = await POST(req({ lessonId: "l1", watchedSeconds: 95, duration: 95 }), {} as never);
+    expect(res.status).toBe(200);
+    // This request restarts the count from now (not yet watched), and resets the anchor.
+    const call = db.progress.update.mock.calls[0][0];
+    expect(call.data.createdAt).toBeInstanceOf(Date);
+    expect(call.data.videoWatched).toBe(false);
+  });
 });
