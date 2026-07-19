@@ -1,16 +1,16 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { EmptyState } from "@/components/page-ui";
+import { EmptyState, RoleChip } from "@/components/page-ui";
 
 type Role = { id: string; name: string; type: string; description: string | null; userCount: number };
-type SubPosition = { id: string; name: string; roleId: string; roleName: string; userCount: number };
+type SubPosition = { id: string; name: string; roleId: string; roleName: string; userCount: number; courseCount: number };
 
-const TYPE_CHIP: Record<string, string> = {
-  SUPER_ADMIN: "bg-magenta/15 text-magenta",
-  CENTRE_ADMIN: "bg-gold/15 text-gold",
-  INSTRUCTOR: "bg-picton/15 text-picton",
-  TRAINEE: "bg-mint/15 text-mint",
+const TYPE_STYLE: Record<string, { icon: string; bubble: string }> = {
+  SUPER_ADMIN: { icon: "🛡️", bubble: "bg-magenta/15 text-magenta" },
+  CENTRE_ADMIN: { icon: "🏫", bubble: "bg-gold/15 text-gold" },
+  INSTRUCTOR: { icon: "🧑‍🏫", bubble: "bg-picton/15 text-picton" },
+  TRAINEE: { icon: "🎓", bubble: "bg-mint/15 text-mint" },
 };
 
 const ROLE_TYPES = [
@@ -32,6 +32,7 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
   }
 
   // ---------- Roles ----------
+  const [addingRole, setAddingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleType, setNewRoleType] = useState("TRAINEE");
   const [newRoleDesc, setNewRoleDesc] = useState("");
@@ -49,7 +50,7 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
     setBusy(false);
     const data = await res.json();
     if (!res.ok) return flash("err", data.error ?? "Failed");
-    setNewRoleName(""); setNewRoleDesc("");
+    setNewRoleName(""); setNewRoleDesc(""); setAddingRole(false);
     flash("ok", "Role created");
     router.refresh();
   }
@@ -159,13 +160,13 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
       <div className="flex items-center gap-2">
         <button
           onClick={() => setTab("roles")}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "roles" ? "bg-navy text-white" : "bg-[var(--soft)] hover:opacity-80"}`}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "roles" ? "bg-navy text-white shadow-soft" : "bg-[var(--soft)] hover:opacity-80"}`}
         >
           Roles ({roles.length})
         </button>
         <button
           onClick={() => setTab("subs")}
-          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "subs" ? "bg-navy text-white" : "bg-[var(--soft)] hover:opacity-80"}`}
+          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "subs" ? "bg-navy text-white shadow-soft" : "bg-[var(--soft)] hover:opacity-80"}`}
         >
           Sub-positions ({subPositions.length})
         </button>
@@ -179,77 +180,110 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
 
       {/* ROLES TAB */}
       {tab === "roles" && (
-        <div className="space-y-4">
-          {roles.length === 0 ? (
-            <EmptyState icon="🛡️" title="No roles defined" hint="Create your first role below." />
-          ) : (
-          <div className="gt-card overflow-hidden">
-            <table className="gt-table">
-              <thead>
-                <tr><th>Name</th><th>Base type</th><th>Description</th><th>Users</th><th className="text-right"></th></tr>
-              </thead>
-              <tbody>
-                {roles.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      {editingRoleId === r.id ? (
-                        <input
-                          autoFocus
-                          className="gt-input"
-                          value={editingRoleName}
-                          onChange={(e) => setEditingRoleName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") renameRole(r.id); if (e.key === "Escape") setEditingRoleId(null); }}
-                        />
-                      ) : (
-                        <span className="font-medium">{r.name}</span>
-                      )}
-                    </td>
-                    <td><span className={`gt-badge ${TYPE_CHIP[r.type] ?? "bg-magenta/15 text-magenta"}`}>{r.type.replace("_", " ")}</span></td>
-                    <td className="text-sm text-[var(--muted)]">{r.description ?? "—"}</td>
-                    <td><span className="gt-badge bg-[var(--soft)]">{r.userCount}</span></td>
-                    <td className="text-right">
-                      {editingRoleId === r.id ? (
-                        <>
-                          <button onClick={() => renameRole(r.id)} disabled={busy} className="gt-btn-primary text-xs mr-2">Save</button>
-                          <button onClick={() => setEditingRoleId(null)} className="gt-btn-ghost text-xs">Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => { setEditingRoleId(r.id); setEditingRoleName(r.name); }} className="gt-btn-ghost text-xs mr-2">Rename</button>
-                          <button onClick={() => deleteRole(r)} disabled={busy} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          )}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {roles.map((r) => {
+            const style = TYPE_STYLE[r.type] ?? TYPE_STYLE.SUPER_ADMIN;
+            const subCount = (subsByRole.get(r.id) ?? []).length;
+            const editing = editingRoleId === r.id;
+            return (
+              <div key={r.id} className="gt-card group flex flex-col p-5 transition hover:border-picton/50">
+                <div className="flex items-start justify-between gap-3">
+                  <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl text-xl ${style.bubble}`}>{style.icon}</div>
+                  <RoleChip type={r.type} />
+                </div>
+                <div className="mt-3 min-w-0 flex-1">
+                  {editing ? (
+                    <div className="space-y-2">
+                      <input
+                        autoFocus
+                        className="gt-input"
+                        value={editingRoleName}
+                        onChange={(e) => setEditingRoleName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") renameRole(r.id); if (e.key === "Escape") setEditingRoleId(null); }}
+                      />
+                      <div className="flex gap-2">
+                        <button onClick={() => renameRole(r.id)} disabled={busy} className="gt-btn-primary text-xs">Save</button>
+                        <button onClick={() => setEditingRoleId(null)} className="gt-btn-ghost text-xs">Cancel</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => { setEditingRoleId(r.id); setEditingRoleName(r.name); }}
+                        className="text-left text-lg font-bold tracking-tight transition hover:text-picton"
+                        title="Click to rename"
+                      >
+                        {r.name}
+                      </button>
+                      <p className="mt-0.5 line-clamp-2 text-sm text-[var(--muted)]">{r.description ?? "No description."}</p>
+                    </>
+                  )}
+                </div>
+                <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-3">
+                  <div className="flex gap-5">
+                    <div>
+                      <div className="text-xl font-bold leading-tight">{r.userCount}</div>
+                      <div className="text-xs text-[var(--muted)]">user{r.userCount === 1 ? "" : "s"}</div>
+                    </div>
+                    <button
+                      onClick={() => { setActiveRoleId(r.id); setEditingSubId(null); setTab("subs"); }}
+                      className="text-left transition hover:text-picton"
+                      title="View sub-positions"
+                    >
+                      <div className="text-xl font-bold leading-tight">{subCount}</div>
+                      <div className="text-xs text-[var(--muted)]">sub-position{subCount === 1 ? "" : "s"} →</div>
+                    </button>
+                  </div>
+                  {!editing && (
+                    <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                      <button onClick={() => { setEditingRoleId(r.id); setEditingRoleName(r.name); }} className="gt-btn-ghost text-xs">Rename</button>
+                      <button onClick={() => deleteRole(r)} disabled={busy} className="px-1.5 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
 
-          <div className="gt-card p-5">
-            <h3 className="font-semibold mb-3">Add role</h3>
-            <div className="grid sm:grid-cols-4 gap-3">
-              <div className="sm:col-span-1">
-                <label className="gt-label">Name</label>
-                <input className="gt-input" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="e.g. Senior Centre Admin" />
-              </div>
-              <div>
-                <label className="gt-label">Base type</label>
-                <select className="gt-input" value={newRoleType} onChange={(e) => setNewRoleType(e.target.value)}>
-                  {ROLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="gt-label">Description (optional)</label>
-                <input className="gt-input" value={newRoleDesc} onChange={(e) => setNewRoleDesc(e.target.value)} />
+          {/* Add-role card */}
+          {addingRole ? (
+            <div className="gt-card border-picton/50 p-5">
+              <h3 className="font-bold">New role</h3>
+              <div className="mt-3 space-y-3">
+                <div>
+                  <label className="gt-label">Name</label>
+                  <input autoFocus className="gt-input" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createRole(); if (e.key === "Escape") setAddingRole(false); }} placeholder="e.g. Senior Centre Admin" />
+                </div>
+                <div>
+                  <label className="gt-label">Base type</label>
+                  <select className="gt-input" value={newRoleType} onChange={(e) => setNewRoleType(e.target.value)}>
+                    {ROLE_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="gt-label">Description (optional)</label>
+                  <input className="gt-input" value={newRoleDesc} onChange={(e) => setNewRoleDesc(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createRole(); }} />
+                </div>
+                <p className="text-xs text-[var(--muted)]">
+                  Base type is permanent — it determines routing and default permissions.
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={createRole} disabled={busy || !newRoleName.trim()} className="gt-btn-primary">Add role</button>
+                  <button onClick={() => setAddingRole(false)} className="gt-btn-ghost">Cancel</button>
+                </div>
               </div>
             </div>
-            <p className="text-xs text-[var(--muted)] mt-2">
-              Base type is permanent — it determines routing and default permissions. Pick whichever existing role this new one should behave like.
-            </p>
-            <button onClick={createRole} disabled={busy || !newRoleName.trim()} className="gt-btn-primary mt-3">Add role</button>
-          </div>
+          ) : (
+            <button
+              onClick={() => setAddingRole(true)}
+              className="grid min-h-[11rem] place-items-center rounded-2xl border-2 border-dashed border-[var(--border)] p-5 text-[var(--muted)] transition hover:border-picton/60 hover:text-picton"
+            >
+              <span className="text-center">
+                <span className="block text-3xl">＋</span>
+                <span className="mt-1 block text-sm font-semibold">New role</span>
+              </span>
+            </button>
+          )}
         </div>
       )}
 
@@ -274,70 +308,80 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
             })}
           </div>
 
-          <div className="gt-card p-5 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="font-semibold">{activeRole?.name ?? "—"} sub-positions</h3>
-              {activeRole?.type === "TRAINEE" && (
-                <span className="text-xs text-[var(--muted)]">Sub-positions drive automatic course enrolment.</span>
-              )}
-            </div>
+          {activeRole?.type === "TRAINEE" && (
+            <p className="text-xs text-[var(--muted)]">Sub-positions drive automatic course enrolment — renames cascade to users and course assignments.</p>
+          )}
 
-            {activeSubs.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center">
-                <div className="text-3xl">🧩</div>
-                <div className="mt-2 text-sm font-semibold">No sub-positions yet</div>
-                <p className="mt-0.5 text-sm text-[var(--muted)]">Add the first {activeRole?.name ?? ""} sub-position below.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-[var(--border)]">
-                {activeSubs.map((s) => (
-                  <li key={s.id} className="py-2.5 flex items-center justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      {editingSubId === s.id ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {activeSubs.map((s) => {
+              const editing = editingSubId === s.id;
+              return (
+                <div key={s.id} className="gt-card group flex flex-col p-5 transition hover:border-picton/50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-magenta/15 text-xl text-magenta">🧩</div>
+                    {!editing && (
+                      <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
+                        <button onClick={() => { setEditingSubId(s.id); setEditingSubName(s.name); }} className="gt-btn-ghost text-xs">Rename</button>
+                        <button onClick={() => deleteSubPosition(s)} disabled={busy} className="px-1.5 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-3 min-w-0 flex-1">
+                    {editing ? (
+                      <div className="space-y-2">
                         <input
                           autoFocus
-                          className="gt-input max-w-md"
+                          className="gt-input"
                           value={editingSubName}
                           onChange={(e) => setEditingSubName(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") renameSubPosition(s.id); if (e.key === "Escape") setEditingSubId(null); }}
                         />
-                      ) : (
-                        <>
-                          <span className="font-medium">{s.name}</span>
-                          <span className="gt-badge ml-3 bg-[var(--soft)] text-xs">{s.userCount} user{s.userCount === 1 ? "" : "s"}</span>
-                        </>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {editingSubId === s.id ? (
-                        <>
+                        <div className="flex gap-2">
                           <button onClick={() => renameSubPosition(s.id)} disabled={busy} className="gt-btn-primary text-xs">Save</button>
                           <button onClick={() => setEditingSubId(null)} className="gt-btn-ghost text-xs">Cancel</button>
-                        </>
-                      ) : (
-                        <>
-                          <button onClick={() => { setEditingSubId(s.id); setEditingSubName(s.name); }} className="gt-btn-ghost text-xs">Rename</button>
-                          <button onClick={() => deleteSubPosition(s)} disabled={busy} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
-                        </>
-                      )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setEditingSubId(s.id); setEditingSubName(s.name); }}
+                        className="text-left text-lg font-bold tracking-tight transition hover:text-picton"
+                        title="Click to rename"
+                      >
+                        {s.name}
+                      </button>
+                    )}
+                  </div>
+                  <div className="mt-4 flex gap-5 border-t border-[var(--border)] pt-3">
+                    <div>
+                      <div className="text-xl font-bold leading-tight">{s.userCount}</div>
+                      <div className="text-xs text-[var(--muted)]">user{s.userCount === 1 ? "" : "s"}</div>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+                    <div>
+                      <div className="text-xl font-bold leading-tight">{s.courseCount}</div>
+                      <div className="text-xs text-[var(--muted)]">course{s.courseCount === 1 ? "" : "s"} auto-enrol</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
 
-            <div className="flex gap-2 border-t border-[var(--border)] pt-3">
+            {/* Add sub-position card */}
+            <div className="flex min-h-[11rem] flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-[var(--border)] p-5 text-center transition focus-within:border-picton/60 hover:border-picton/60">
+              <span className="text-3xl text-[var(--muted)]">＋</span>
               <input
-                className="gt-input max-w-md"
+                className="gt-input max-w-[14rem] text-center"
                 value={newSubName}
                 onChange={(e) => setNewSubName(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter") createSubPosition(); }}
-                placeholder={`Add a ${activeRole?.name ?? ""} sub-position — e.g. Coding Tutor`}
+                placeholder={`New ${activeRole?.name ?? ""} sub-position`}
               />
-              <button onClick={createSubPosition} disabled={busy || !newSubName.trim() || !activeRoleId} className="gt-btn-primary">Add</button>
+              <button onClick={createSubPosition} disabled={busy || !newSubName.trim() || !activeRoleId} className="gt-btn-primary text-sm">Add</button>
             </div>
-            <p className="text-xs text-[var(--muted)]">Renames cascade to users and course assignments automatically.</p>
           </div>
+
+          {activeSubs.length === 0 && (
+            <EmptyState icon="🧩" title={`No ${activeRole?.name ?? ""} sub-positions yet`} hint="Type a name in the card above to add the first one — e.g. Coding Tutor." />
+          )}
         </div>
       )}
     </div>

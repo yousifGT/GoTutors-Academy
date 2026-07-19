@@ -47,19 +47,29 @@ export default async function CentreReportsPage() {
       {byCourse.length === 0 ? (
         <EmptyState icon="📊" title="No enrolment data" hint="Numbers appear here once trainees are enrolled in courses." />
       ) : (
-      <div className="gt-card overflow-hidden">
-        <table className="gt-table">
-          <thead><tr><th>Course</th><th>Enrolments</th></tr></thead>
-          <tbody>
-            {[...byCourse].sort((a, b) => b._count._all - a._count._all).map((g) => (
-              <tr key={g.courseId}>
-                <td className="font-medium">{titleMap.get(g.courseId) ?? g.courseId}</td>
-                <td><span className="gt-badge bg-picton/15 text-picton">{g._count._all}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+        <div className="gt-card p-5">
+          <h3 className="font-bold">Enrolments by course</h3>
+          <div className="mt-4 space-y-3">
+            {(() => {
+              const sorted = [...byCourse].sort((a, b) => b._count._all - a._count._all);
+              const max = sorted[0]?._count._all ?? 1;
+              return sorted.map((g) => (
+                <div key={g.courseId}>
+                  <div className="flex items-center justify-between gap-3 text-sm">
+                    <span className="truncate font-medium">{titleMap.get(g.courseId) ?? g.courseId}</span>
+                    <span className="shrink-0 font-bold">{g._count._all}</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--soft)]">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-picton to-cyan"
+                      style={{ width: `${Math.max(6, Math.round((g._count._all / max) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
       )}
     </div>
   );

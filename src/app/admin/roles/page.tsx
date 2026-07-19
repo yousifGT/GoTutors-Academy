@@ -7,16 +7,22 @@ import { effectiveSubPositions } from "@/lib/sub-positions";
 export default async function RolesPage() {
   await requireRole("SUPER_ADMIN");
 
-  const [roles, subPositions, userCountsRaw] = await Promise.all([
+  const [roles, subPositions, userCountsRaw, courseCountsRaw] = await Promise.all([
     prisma.role.findMany({ orderBy: { name: "asc" } }),
     prisma.subPosition.findMany({
       include: { role: { select: { id: true, name: true } } },
       orderBy: [{ role: { name: "asc" } }, { name: "asc" }],
     }),
     prisma.user.groupBy({ by: ["roleId"], _count: { _all: true } }),
+    prisma.courseRoleAssignment.groupBy({
+      by: ["roleId", "subPosition"],
+      where: { subPosition: { not: null } },
+      _count: { _all: true },
+    }),
   ]);
 
   const userCountByRole = new Map(userCountsRaw.map((g) => [g.roleId, g._count._all]));
+  const courseCountBySub = new Map(courseCountsRaw.map((g) => [`${g.roleId}:${g.subPosition}`, g._count._all]));
   // Sub-positions are multi-valued (plus the legacy single column), so count
   // holders in app code rather than with a column groupBy.
   const usersWithSubs = await prisma.user.findMany({
@@ -48,6 +54,7 @@ export default async function RolesPage() {
         roleId: s.roleId,
         roleName: s.role.name,
         userCount: usageBySub.get(`${s.roleId}:${s.name}`) ?? 0,
+        courseCount: courseCountBySub.get(`${s.roleId}:${s.name}`) ?? 0,
       }))}
       />
     </div>

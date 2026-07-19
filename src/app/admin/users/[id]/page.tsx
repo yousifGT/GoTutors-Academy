@@ -21,7 +21,7 @@ export default async function AdminUserEditPage({ params }: { params: { id: stri
   ]);
   if (!user) notFound();
   return (
-    <div className="max-w-xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <PageHeader backHref="/admin/users" backLabel="All users" title={`Edit ${user.name}`} subtitle="Update details, role, positions and status." />
       <UserEditForm
         userId={user.id}

@@ -26,7 +26,7 @@ export default async function CentreTraineeEditPage({ params }: { params: { id: 
   ]);
 
   return (
-    <div className="max-w-xl space-y-4">
+    <div className="max-w-3xl space-y-4">
       <PageHeader backHref={`/centre/trainees/${user.id}`} backLabel={user.name} title={`Edit ${user.name}`} subtitle="Update details, positions and status." />
       <UserEditForm
         userId={user.id}
