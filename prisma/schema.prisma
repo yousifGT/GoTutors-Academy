@@ -132,6 +132,7 @@ model Course {
   title         String
   description   String?
   category      String?
+  sortOrder     Int      @default(0) @map("sort_order")
   thumbnail     String?
   authorId      String
   passThreshold Int      @default(70)

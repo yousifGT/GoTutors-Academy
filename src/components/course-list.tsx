@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type CourseCard = {
   id: string;
@@ -9,13 +9,17 @@ export type CourseCard = {
   description: string | null;
   category: string | null;
   published: boolean;
+  createdAt: string;
+  updatedAt: string;
   modules: number;
   enrollments: number;
   audience: string[]; // compact lines, e.g. "Trainee — Maths Tutor, English Tutor +2 more"
 };
 
 type Filter = "all" | "published" | "draft";
+type SortMode = "custom" | "modified" | "created" | "name";
 const UNCATEGORISED = "Uncategorised";
+const SORT_STORAGE_KEY = "gt-courses-sort";
 
 /**
  * Interactive course list: search, status filter, quick actions, and
@@ -34,9 +38,21 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
   const [newCategory, setNewCategory] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [sort, setSortState] = useState<SortMode>("custom");
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
 
   // Re-sync with fresh server data after router.refresh().
   useEffect(() => setItems(courses), [courses]);
+  // Remember the chosen sort across visits.
+  useEffect(() => {
+    const stored = localStorage.getItem(SORT_STORAGE_KEY) as SortMode | null;
+    if (stored && ["custom", "modified", "created", "name"].includes(stored)) setSortState(stored);
+  }, []);
+  function changeSort(s: SortMode) {
+    setSortState(s);
+    localStorage.setItem(SORT_STORAGE_KEY, s);
+  }
 
   const counts = useMemo(
     () => ({
@@ -61,6 +77,10 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
         return false;
       return true;
     });
+    // "custom" keeps the items order (server: sortOrder, then last modified).
+    if (sort === "modified") visible.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    else if (sort === "created") visible.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    else if (sort === "name") visible.sort((a, b) => a.title.localeCompare(b.title));
     const byCategory = new Map<string, CourseCard[]>();
     // Session-created empty categories stay visible as drop targets.
     for (const c of extraCategories) byCategory.set(c, []);
@@ -76,7 +96,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
       if (b === UNCATEGORISED) return -1;
       return a.localeCompare(b);
     });
-  }, [items, query, filter, extraCategories, dragId]);
+  }, [items, query, filter, extraCategories, dragId, sort]);
 
   const allCategoryNames = useMemo(
     () => new Set([...items.map((c) => c.category?.trim()).filter(Boolean), ...extraCategories].map((c) => (c as string).toLowerCase())),
@@ -94,6 +114,37 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
     setExtraCategories((s) => [...s, name]);
     setNewCategory("");
     setAddingCategory(false);
+  }
+
+  /** Live in-category reorder preview while dragging (custom sort only). */
+  function onCardDragOver(e: React.DragEvent, target: CourseCard) {
+    if (!dragId || sort !== "custom" || dragId === target.id) return;
+    const dragged = itemsRef.current.find((c) => c.id === dragId);
+    if (!dragged || (dragged.category?.trim() || null) !== (target.category?.trim() || null)) return;
+    e.preventDefault();
+    setItems((s) => {
+      const from = s.findIndex((c) => c.id === dragId);
+      const to = s.findIndex((c) => c.id === target.id);
+      if (from < 0 || to < 0 || from === to) return s;
+      const copy = [...s];
+      const [moved] = copy.splice(from, 1);
+      copy.splice(to, 0, moved);
+      return copy;
+    });
+  }
+
+  /** Persist the manual order (whole list — sortOrder is global, groups read it per category). */
+  async function persistOrder() {
+    const res = await fetch("/api/courses/sort", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ courseIds: itemsRef.current.map((c) => c.id) }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.error ?? "Could not save the order.");
+    }
+    router.refresh();
   }
 
   async function moveToCategory(courseId: string, category: string | null) {
@@ -183,6 +234,19 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
             </button>
           ))}
         </div>
+        <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+          Sort
+          <select
+            className="gt-input w-auto py-1.5 text-sm"
+            value={sort}
+            onChange={(e) => changeSort(e.target.value as SortMode)}
+          >
+            <option value="custom">Custom order</option>
+            <option value="modified">Last modified</option>
+            <option value="created">Newest created</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
+        </label>
         <div className="ml-auto flex items-center gap-2">
           {addingCategory ? (
             <input
@@ -218,7 +282,11 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
             onDragOver={(e) => {
               if (!dragId) return;
               e.preventDefault();
-              if (dropTarget !== category) setDropTarget(category);
+              const dragged = itemsRef.current.find((c) => c.id === dragId);
+              const targetKey = category === UNCATEGORISED ? null : category;
+              const sameCategory = dragged && (dragged.category?.trim() || null) === targetKey;
+              if (!sameCategory && dropTarget !== category) setDropTarget(category);
+              if (sameCategory && dropTarget) setDropTarget(null);
             }}
             onDragLeave={(e) => {
               if (e.currentTarget.contains(e.relatedTarget as Node)) return;
@@ -226,7 +294,16 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
             }}
             onDrop={(e) => {
               e.preventDefault();
-              if (dragId) moveToCategory(dragId, category === UNCATEGORISED ? null : category);
+              if (dragId) {
+                const dragged = itemsRef.current.find((c) => c.id === dragId);
+                const targetKey = category === UNCATEGORISED ? null : category;
+                if (dragged && (dragged.category?.trim() || null) === targetKey) {
+                  // Dropped within its own category — save the manual order.
+                  if (sort === "custom") persistOrder();
+                } else {
+                  moveToCategory(dragId, targetKey);
+                }
+              }
               setDragId(null);
               setDropTarget(null);
             }}
@@ -246,6 +323,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                 {list.map((c) => (
                   <div
                     key={c.id}
+                    onDragOver={(e) => onCardDragOver(e, c)}
                     className={`gt-card p-5 flex flex-col hover:shadow-soft transition ${dragId === c.id ? "opacity-50 ring-2 ring-picton" : ""}`}
                   >
                     <div className="flex items-start gap-2">
@@ -253,7 +331,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                         draggable
                         onDragStart={() => setDragId(c.id)}
                         onDragEnd={() => { setDragId(null); setDropTarget(null); }}
-                        title="Drag to another category"
+                        title="Drag to reorder (custom sort) or move to another category"
                         className="cursor-grab select-none text-[var(--muted)] hover:text-[var(--fg)] pt-1"
                       >
                         ⠿

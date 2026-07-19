@@ -25,7 +25,7 @@ export default async function InstructorCoursesPage() {
   const courses = await prisma.course.findMany({
     where: session.user.roleType === "SUPER_ADMIN" ? {} : { authorId: session.user.id },
     include: { _count: { select: { modules: true, enrollments: true } }, roleAssignments: { include: { role: true } } },
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
   });
 
   return (
@@ -38,6 +38,8 @@ export default async function InstructorCoursesPage() {
           description: c.description,
           category: c.category,
           published: c.published,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
           modules: c._count.modules,
           enrollments: c._count.enrollments,
           audience: compactAssignments(c.roleAssignments),
