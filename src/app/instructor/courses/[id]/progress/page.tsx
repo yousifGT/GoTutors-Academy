@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser } from "@/lib/course-progress";
-import { formatDate } from "@/lib/utils";
+import { PageHeader, EmptyState, Avatar } from "@/components/page-ui";
+import { timeAgo } from "@/lib/utils";
 
 export default async function CourseProgressPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -39,34 +40,47 @@ export default async function CourseProgressPage({ params }: { params: { id: str
 
   return (
     <div className="space-y-4">
-      <div>
-        <Link href={`/instructor/courses/${course.id}`} className="text-sm text-picton">← {course.title}</Link>
-        <h2 className="text-2xl font-bold mt-1">Trainee progress · {course.title}</h2>
-      </div>
+      <PageHeader
+        title="Trainee progress"
+        subtitle={course.title}
+        backHref={`/instructor/courses/${course.id}/curriculum`}
+        backLabel={course.title}
+      />
+      {rows.length === 0 ? (
+        <EmptyState icon="🧑‍🎓" title="No enrolments yet" hint="Trainees appear here when the course reaches them — publish it to auto-enrol matching positions." />
+      ) : (
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>Trainee</th><th>Centre</th><th>Progress</th><th>Passes</th><th>Fails</th><th>Time</th><th>Last login</th><th>Status</th></tr></thead>
           <tbody>
             {rows.map(({ e, progress, passes, fails, locked, timeSpent }) => (
               <tr key={e.id}>
-                <td><div className="font-medium">{e.user.name}</div><div className="text-xs text-[var(--muted)]">{e.user.email}</div></td>
+                <td>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={e.user.name} size="sm" />
+                    <div className="min-w-0">
+                      <div className="font-medium">{e.user.name}</div>
+                      <div className="text-xs text-[var(--muted)]">{e.user.email}</div>
+                    </div>
+                  </div>
+                </td>
                 <td>{e.user.centre?.name ?? "—"}</td>
                 <td className="w-56"><div className="flex items-center gap-2"><ProgressBar percent={progress?.percent ?? 0} /><span className="text-xs w-10 text-right">{progress?.percent ?? 0}%</span></div></td>
-                <td className="text-mint">{passes}</td>
-                <td className="text-orange">{fails}</td>
+                <td><span className="gt-badge bg-mint/15 text-mint">{passes}</span></td>
+                <td><span className="gt-badge bg-orange/15 text-orange">{fails}</span></td>
                 <td>{Math.round(timeSpent / 60)}m</td>
-                <td>{e.user.lastLoginAt ? formatDate(e.user.lastLoginAt) : "—"}</td>
+                <td className="whitespace-nowrap text-[var(--muted)]">{e.user.lastLoginAt ? timeAgo(e.user.lastLoginAt) : "—"}</td>
                 <td>
-                  {locked ? <span className="gt-badge bg-orange/20 text-orange">Locked</span> :
-                    e.completed ? <span className="gt-badge bg-mint/20 text-mint">Completed</span> :
-                    <span className="gt-badge bg-gold/20 text-gold">In progress</span>}
+                  {locked ? <span className="gt-badge bg-orange/15 text-orange">Locked</span> :
+                    e.completed ? <span className="gt-badge bg-mint/15 text-mint">Completed</span> :
+                    <span className="gt-badge bg-gold/15 text-gold">In progress</span>}
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={8} className="text-center py-6 text-[var(--muted)]">No enrolments yet.</td></tr>}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

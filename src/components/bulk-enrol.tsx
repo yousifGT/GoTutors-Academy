@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { EmptyState, Avatar } from "@/components/page-ui";
 import { useRouter } from "next/navigation";
 
 type Candidate = { id: string; name: string; email: string; centre: string; position: string | null; alreadyEnrolled: boolean };
@@ -9,7 +10,7 @@ export function BulkEnrol({ courseId, candidates }: { courseId: string; candidat
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const filtered = useMemo(
     () =>
@@ -48,9 +49,9 @@ export function BulkEnrol({ courseId, candidates }: { courseId: string; candidat
     });
     const data = await res.json();
     setBusy(false);
-    if (!res.ok) return setMsg(data.error ?? "Failed");
+    if (!res.ok) return setMsg({ kind: "err", text: data.error ?? "Failed" });
     setSelected(new Set());
-    setMsg(`Enrolled ${data.added}, skipped ${data.skipped}.`);
+    setMsg({ kind: "ok", text: `Enrolled ${data.added}, skipped ${data.skipped}.` });
     router.refresh();
   }
 
@@ -60,12 +61,17 @@ export function BulkEnrol({ courseId, candidates }: { courseId: string; candidat
         <input className="gt-input max-w-sm" placeholder="Search trainees…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         <button onClick={toggleAllVisible} className="gt-btn-ghost text-sm">Toggle all visible</button>
         <div className="ml-auto flex items-center gap-3">
-          {msg && <span className="text-sm text-mint">{msg}</span>}
+          {msg && <span className={`text-sm ${msg.kind === "ok" ? "text-mint" : "text-orange"}`}>{msg.kind === "ok" ? "✓ " : "⚠ "}{msg.text}</span>}
           <button onClick={submit} disabled={busy || selected.size === 0} className="gt-btn-primary">
             {busy ? "Enrolling…" : `Enrol ${selected.size} trainee${selected.size === 1 ? "" : "s"}`}
           </button>
         </div>
       </div>
+      {candidates.length === 0 ? (
+        <EmptyState icon="🧑‍🎓" title="No candidates" hint="Nobody matches this course's roles and sub-positions yet." />
+      ) : filtered.length === 0 ? (
+        <EmptyState icon="🔍" title={`Nothing matches “${filter}”`} hint="Try a different name, email or centre." />
+      ) : (
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th></th><th>Name</th><th>Centre</th><th>Position</th><th></th></tr></thead>
@@ -73,16 +79,24 @@ export function BulkEnrol({ courseId, candidates }: { courseId: string; candidat
             {filtered.map((c) => (
               <tr key={c.id} className={c.alreadyEnrolled ? "opacity-60" : ""}>
                 <td><input type="checkbox" disabled={c.alreadyEnrolled} checked={selected.has(c.id)} onChange={() => toggle(c.id)} /></td>
-                <td><div className="font-medium">{c.name}</div><div className="text-xs text-[var(--muted)]">{c.email}</div></td>
+                <td>
+                  <div className="flex items-center gap-3">
+                    <Avatar name={c.name} size="sm" />
+                    <div className="min-w-0">
+                      <div className="font-medium">{c.name}</div>
+                      <div className="text-xs text-[var(--muted)]">{c.email}</div>
+                    </div>
+                  </div>
+                </td>
                 <td>{c.centre}</td>
                 <td>{c.position ?? "—"}</td>
-                <td>{c.alreadyEnrolled ? <span className="gt-badge bg-mint/20 text-mint">Enrolled</span> : null}</td>
+                <td>{c.alreadyEnrolled ? <span className="gt-badge bg-mint/15 text-mint">Enrolled</span> : null}</td>
               </tr>
             ))}
-            {filtered.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-[var(--muted)]">No candidates.</td></tr>}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

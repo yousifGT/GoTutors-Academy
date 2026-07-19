@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/session";
 import { centreUserScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { timeAgo } from "@/lib/utils";
-import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, type AttentionItem, type FeedItem } from "@/components/page-ui";
+import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, Avatar, type AttentionItem, type FeedItem } from "@/components/page-ui";
 
 /** Action-first centre dashboard: who is stuck, who is idle, what just happened. */
 export default async function CentreDashboard() {
@@ -145,22 +145,29 @@ export default async function CentreDashboard() {
             {trainees.slice(0, 4).map((t) => (
               <Link key={t.id} href={`/centre/trainees/${t.id}`} className="gt-card p-4 transition hover:shadow-soft">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="truncate font-semibold">{t.name}</div>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <Avatar name={t.name} size="sm" />
+                    <div className="truncate font-semibold">{t.name}</div>
+                  </div>
                   {t.isTrained ? (
-                    <span className="gt-badge shrink-0 bg-mint/20 text-mint">Trained</span>
+                    <span className="gt-badge shrink-0 bg-mint/15 text-mint">Trained</span>
                   ) : (
                     <span className="gt-badge shrink-0 bg-[var(--soft)] text-[var(--muted)]">In training</span>
                   )}
                 </div>
-                <div className="mt-1 text-xs text-[var(--muted)]">
+                <div className="mt-1.5 pl-[42px] text-xs text-[var(--muted)]">
                   {effectiveSubPositions(t).join(", ") || "No position yet"} · joined {timeAgo(t.createdAt)}
                 </div>
               </Link>
             ))}
-            {trainees.length === 0 && <div className="text-sm text-[var(--muted)]">No trainees yet.</div>}
+            {trainees.length === 0 && (
+              <div className="sm:col-span-2">
+                <EmptyState icon="🧑‍🎓" title="No trainees yet" hint="Add your first trainee to get started." action={<Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link>} />
+              </div>
+            )}
           </div>
           <div>
-            <Link href="/centre/trainees" className="text-sm text-picton">All trainees →</Link>
+            <Link href="/centre/trainees" className="gt-btn-ghost text-xs">All trainees →</Link>
           </div>
         </section>
 

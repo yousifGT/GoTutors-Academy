@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { UserEditForm } from "@/components/user-edit-form";
+import { PageHeader } from "@/components/page-ui";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function AdminUserEditPage({ params }: { params: { id: string } }) {
@@ -20,9 +21,8 @@ export default async function AdminUserEditPage({ params }: { params: { id: stri
   ]);
   if (!user) notFound();
   return (
-    <div className="max-w-xl">
-      <Link href="/admin/users" className="text-sm text-picton">← All users</Link>
-      <h2 className="text-2xl font-bold mt-1 mb-4">Edit {user.name}</h2>
+    <div className="max-w-xl space-y-4">
+      <PageHeader backHref="/admin/users" backLabel="All users" title={`Edit ${user.name}`} subtitle="Update details, role, positions and status." />
       <UserEditForm
         userId={user.id}
         initial={{

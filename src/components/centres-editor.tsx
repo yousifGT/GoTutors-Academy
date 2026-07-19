@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { EmptyState } from "@/components/page-ui";
 
 type Centre = { id: string; name: string; location: string; users: number };
 
@@ -93,6 +94,9 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
           <button onClick={add} disabled={busy || !name.trim()} className="gt-btn-primary">Add</button>
         </div>
       </div>
+      {centres.length === 0 ? (
+        <EmptyState icon="🏫" title="No centres yet" hint="Add your first centre above." />
+      ) : (
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead>
@@ -146,12 +150,10 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
                 )}
               </tr>
             ))}
-            {centres.length === 0 && (
-              <tr><td colSpan={4} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>
-            )}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

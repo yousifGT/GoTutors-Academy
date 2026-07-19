@@ -6,6 +6,7 @@ import { getCourseProgressForUser, nextUnlockedLesson } from "@/lib/course-progr
 import { ProgressBar } from "@/components/progress-bar";
 import { EnrolButton } from "@/components/enrol-button";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
+import { EmptyState, PageHeader } from "@/components/page-ui";
 
 export default async function CoursePage({ params }: { params: { courseId: string } }) {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
@@ -22,10 +23,12 @@ export default async function CoursePage({ params }: { params: { courseId: strin
   });
   if (!enrollment && session.user.roleType !== "SUPER_ADMIN") {
     return (
-      <div className="gt-card p-6">
-        <p>You're not enrolled in this course.</p>
-        <div className="mt-4 max-w-xs"><EnrolButton courseId={course.id} label="Enrol now" /></div>
-      </div>
+      <EmptyState
+        icon="🔐"
+        title="Not enrolled"
+        hint="This course isn't assigned to your position — you can still enrol yourself."
+        action={<div className="w-40"><EnrolButton courseId={course.id} label="Enrol now" /></div>}
+      />
     );
   }
 
@@ -34,8 +37,10 @@ export default async function CoursePage({ params }: { params: { courseId: strin
     const missing = await getMissingPrerequisites(session.user.id, course.id);
     if (missing.length > 0) {
       return (
+        <div className="space-y-5">
+        <PageHeader backHref="/trainee/courses" backLabel="My courses" title={course.title} />
         <div className="gt-card p-6">
-          <h2 className="text-xl font-bold">🔒 {course.title} is locked</h2>
+          <h2 className="text-xl font-bold">🔒 This course is locked</h2>
           <p className="mt-1 text-[var(--muted)]">Complete these courses first:</p>
           <ul className="mt-3 space-y-2">
             {missing.map((m) => (
@@ -44,7 +49,8 @@ export default async function CoursePage({ params }: { params: { courseId: strin
               </li>
             ))}
           </ul>
-          <Link href="/trainee" className="text-sm text-picton mt-4 inline-block">← Back to dashboard</Link>
+          <Link href="/trainee" className="gt-btn-ghost mt-4 inline-flex text-xs">← Back to dashboard</Link>
+        </div>
         </div>
       );
     }
@@ -58,12 +64,10 @@ export default async function CoursePage({ params }: { params: { courseId: strin
 
   return (
     <div className="space-y-6">
+      <PageHeader backHref="/trainee/courses" backLabel="My courses" title={course.title} subtitle={course.description} />
       <div className="gt-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h2 className="text-2xl font-bold">{course.title}</h2>
-            <p className="mt-1 text-[var(--muted)] max-w-2xl">{course.description}</p>
-          </div>
+          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Your progress</div>
           <div className="text-right">
             <div className="text-3xl font-bold text-mint">{progress?.percent ?? 0}%</div>
             <div className="text-xs text-[var(--muted)]">{progress?.completed}/{progress?.total} lessons</div>
@@ -89,7 +93,7 @@ export default async function CoursePage({ params }: { params: { courseId: strin
                 const p = progress?.progressMap.get(l.id);
                 const done = p?.videoWatched && p?.quizPassed;
                 return (
-                  <li key={l.id} className="py-3 flex items-center justify-between">
+                  <li key={l.id} className="flex items-center justify-between rounded-lg px-2 py-3 transition-colors hover:bg-[var(--soft)]/50">
                     <div>
                       <div className="font-medium">{mi + 1}.{li + 1}  {l.title}</div>
                       <div className="text-xs text-[var(--muted)]">
@@ -97,8 +101,8 @@ export default async function CoursePage({ params }: { params: { courseId: strin
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {done ? <span className="gt-badge bg-mint/20 text-mint">Done</span> : <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">Pending</span>}
-                      <Link href={`/trainee/courses/${course.id}/lessons/${l.id}`} className="gt-btn-ghost text-sm">Open</Link>
+                      {done ? <span className="gt-badge bg-mint/15 text-mint">Done</span> : <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">Pending</span>}
+                      <Link href={`/trainee/courses/${course.id}/lessons/${l.id}`} className="gt-btn-ghost text-xs">Open</Link>
                     </div>
                   </li>
                 );

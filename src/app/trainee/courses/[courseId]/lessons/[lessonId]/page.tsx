@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { isLessonUnlocked } from "@/lib/course-progress";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
+import { EmptyState } from "@/components/page-ui";
 import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
 
@@ -32,13 +33,12 @@ export default async function LessonPage({ params }: { params: { courseId: strin
     const missing = await getMissingPrerequisites(userId, lesson.module.courseId);
     if (missing.length > 0) {
       return (
-        <div className="gt-card p-6">
-          <h2 className="text-xl font-bold">🔒 Course locked</h2>
-          <p className="mt-1 text-[var(--muted)]">
-            Complete {missing.map((m) => m.title).join(", ")} first to unlock this course.
-          </p>
-          <Link href={`/trainee/courses/${params.courseId}`} className="gt-btn-primary mt-4">Back to course</Link>
-        </div>
+        <EmptyState
+          icon="🔒"
+          title="Course locked"
+          hint={`Complete ${missing.map((m) => m.title).join(", ")} first to unlock this course.`}
+          action={<Link href={`/trainee/courses/${params.courseId}`} className="gt-btn-primary">Back to course</Link>}
+        />
       );
     }
   }
@@ -46,11 +46,12 @@ export default async function LessonPage({ params }: { params: { courseId: strin
   const unlocked = await isLessonUnlocked(userId, lesson.id);
   if (!unlocked) {
     return (
-      <div className="gt-card p-6">
-        <h2 className="text-xl font-bold">Lesson locked</h2>
-        <p className="mt-1 text-[var(--muted)]">Complete the previous lesson and pass its quiz to unlock this one.</p>
-        <Link href={`/trainee/courses/${params.courseId}`} className="gt-btn-primary mt-4">Back to course</Link>
-      </div>
+      <EmptyState
+        icon="🔒"
+        title="Lesson locked"
+        hint="Complete the previous lesson and pass its quiz to unlock this one."
+        action={<Link href={`/trainee/courses/${params.courseId}`} className="gt-btn-primary">Back to course</Link>}
+      />
     );
   }
 

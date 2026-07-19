@@ -2,6 +2,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { timeAgo } from "@/lib/utils";
+import { Avatar } from "@/components/page-ui";
 
 type Q = {
   id: string;
@@ -48,11 +49,14 @@ export function ReviewQueueItem({
   return (
     <div className="gt-card p-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="font-bold">{attempt.userName} <span className="text-[var(--muted)] text-sm">({attempt.userEmail})</span></div>
-          <div className="text-xs text-[var(--muted)]">{attempt.courseTitle} · {attempt.lessonTitle} · submitted {timeAgo(attempt.createdAt)}</div>
+        <div className="flex items-center gap-3">
+          <Avatar name={attempt.userName} />
+          <div>
+            <div className="font-bold">{attempt.userName} <span className="text-[var(--muted)] text-sm">({attempt.userEmail})</span></div>
+            <div className="text-xs text-[var(--muted)]">{attempt.courseTitle} · {attempt.lessonTitle} · submitted {timeAgo(attempt.createdAt)}</div>
+          </div>
         </div>
-        <span className="gt-badge bg-gold/20 text-gold">Pending review</span>
+        <span className="gt-badge bg-gold/15 text-gold">Pending review</span>
       </div>
 
       <div className="mt-4 space-y-4">
@@ -77,7 +81,7 @@ export function ReviewQueueItem({
                 ) : (
                   <span>
                     {mcSubmittedText}{" "}
-                    <span className={mcCorrect ? "text-mint" : "text-orange"}>· {mcCorrect ? "correct" : "wrong"}</span>
+                    <span className={`gt-badge ${mcCorrect ? "bg-mint/15 text-mint" : "bg-orange/15 text-orange"}`}>{mcCorrect ? "Correct" : "Wrong"}</span>
                   </span>
                 )}
               </div>

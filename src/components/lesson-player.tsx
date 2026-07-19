@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
+import { timeAgo } from "@/lib/utils";
+import { PageHeader } from "@/components/page-ui";
 
 type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
 type SafeAnswer = { id: string; text: string };
@@ -129,14 +131,10 @@ export function LessonPlayer({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <Link href={`/trainee/courses/${courseId}`} className="text-sm text-picton">← Back to course</Link>
-        <div className="text-sm text-[var(--muted)]">{title}</div>
-      </div>
+      <PageHeader backHref={`/trainee/courses/${courseId}`} backLabel="Back to course" title={title} />
 
       <div className="gt-card p-6">
-        <h2 className="text-2xl font-bold">{title}</h2>
-        {content && <p className="mt-2 text-[var(--muted)] whitespace-pre-line">{content}</p>}
+        {content && <p className="text-[var(--muted)] whitespace-pre-line">{content}</p>}
 
         {video && (
           <div className="mt-5">
@@ -165,7 +163,7 @@ export function LessonPlayer({
           </div>
 
           {!videoWatched && (
-            <p className="mt-4 text-orange">Quiz locked. Finish the video first.</p>
+            <div className="mt-4 rounded-xl border border-orange/30 bg-orange/10 p-4 text-orange">🔒 Quiz locked — finish the video first.</div>
           )}
 
           {videoWatched && (
@@ -241,13 +239,13 @@ export function LessonPlayer({
                 {latestAttempts.map((a) => (
                   <li key={a.id}>
                     {a.needsReview ? (
-                      <span className="text-gold">Pending review</span>
+                      <span className="gt-badge bg-gold/15 text-gold">Pending review</span>
                     ) : (
-                      <span className={a.passed ? "text-mint" : "text-orange"}>
+                      <span className={`gt-badge ${a.passed ? "bg-mint/15 text-mint" : "bg-orange/15 text-orange"}`}>
                         {a.passed ? "Passed" : "Failed"}
                       </span>
                     )}
-                    {" "}· {a.needsReview ? "—" : `${a.score}%`} · {new Date(a.createdAt).toLocaleString()}
+                    {" "}· {a.needsReview ? "—" : `${a.score}%`} · {timeAgo(a.createdAt)}
                   </li>
                 ))}
               </ul>

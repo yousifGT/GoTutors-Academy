@@ -163,7 +163,7 @@ export function LessonEditor({
           <div>
             <label className="gt-label">Pass threshold</label>
             <div className="flex items-center gap-3">
-              <input type="range" min={1} max={100} className="w-40 accent-[#233b8f]" value={pass} onChange={(e) => setPass(Number(e.target.value))} />
+              <input type="range" min={1} max={100} className="w-40 accent-picton" value={pass} onChange={(e) => setPass(Number(e.target.value))} />
               <span className="w-12 text-sm font-semibold">{pass}%</span>
             </div>
           </div>
@@ -178,8 +178,10 @@ export function LessonEditor({
         </div>
 
         {questions.length === 0 && (
-          <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-            No questions yet — add one below. Lessons without a quiz complete on video watch alone.
+          <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center">
+            <div className="text-3xl">📝</div>
+            <div className="mt-2 text-sm font-semibold">No questions yet</div>
+            <p className="mt-0.5 text-sm text-[var(--muted)]">Add one below — lessons without a quiz complete on video watch alone.</p>
           </div>
         )}
 
@@ -301,7 +303,10 @@ function VideoUploader({ currentUrl, onUploaded }: { currentUrl: string; onUploa
   return (
     <div className="rounded-xl border border-dashed border-[var(--border)] p-4">
       <label className="gt-label">{currentUrl ? "Replace the video file" : "Upload a video file"}</label>
-      <input type="file" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={handle} disabled={uploading} />
+      <label className={`gt-btn-ghost cursor-pointer text-sm ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+        📁 Choose video…
+        <input type="file" className="sr-only" accept="video/mp4,video/webm,video/ogg,video/quicktime" onChange={handle} disabled={uploading} />
+      </label>
       {uploading && (
         <div className="mt-3">
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--soft)]"><div className="h-full bg-picton" style={{ width: `${pct}%` }} /></div>

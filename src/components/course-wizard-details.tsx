@@ -1,34 +1,9 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { Pill } from "@/components/pill";
 
 type SP = { id: string; name: string; roleId: string };
-
-/** Clean pill toggle (no visible checkbox) used for roles and sub-positions. */
-function Pill({
-  selected,
-  onToggle,
-  children,
-  tone = "navy",
-}: {
-  selected: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-  tone?: "navy" | "magenta";
-}) {
-  const on = tone === "navy" ? "bg-navy text-white" : "bg-magenta text-white";
-  return (
-    <label
-      className={`cursor-pointer select-none rounded-full px-3.5 py-1.5 text-sm font-medium transition ${
-        selected ? `${on} shadow-soft` : "bg-[var(--soft)] text-[var(--fg)] hover:opacity-80"
-      }`}
-    >
-      <input type="checkbox" className="sr-only" checked={selected} onChange={onToggle} />
-      {selected ? "✓ " : ""}
-      {children}
-    </label>
-  );
-}
 
 /**
  * Step 1 of the demo course wizard. Creates a draft (or updates one when
@@ -168,7 +143,7 @@ export function CourseWizardDetails({
           <div className="flex items-center gap-3">
             <input
               type="range" min={1} max={100}
-              className="w-48 accent-[#233b8f]"
+              className="w-48 accent-picton"
               value={passThreshold}
               onChange={(e) => setPassThreshold(Number(e.target.value))}
             />

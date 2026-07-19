@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { Pill } from "@/components/pill";
 
 type SP = { id: string; name: string; roleId: string };
 
@@ -78,10 +79,9 @@ export function UserForm({
           <label className="gt-label">Sub-positions</label>
           <div className="flex flex-wrap gap-2">
             {subsForRole.map((s) => (
-              <label key={s.id} className={`gt-badge cursor-pointer ${selectedSubs.includes(s.name) ? "bg-magenta text-white" : "bg-lavender text-magenta"}`}>
-                <input type="checkbox" className="mr-1" checked={selectedSubs.includes(s.name)} onChange={() => toggleSub(s.name)} />
+              <Pill key={s.id} tone="magenta" selected={selectedSubs.includes(s.name)} onToggle={() => toggleSub(s.name)}>
                 {s.name}
-              </label>
+              </Pill>
             ))}
           </div>
           <p className="text-xs text-[var(--muted)] mt-1">The trainee is automatically enrolled in every published course assigned to any of these sub-positions.</p>

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { centreUserScope } from "@/lib/scope";
-import { PageHeader, StatCard } from "@/components/page-ui";
+import { PageHeader, StatCard, EmptyState } from "@/components/page-ui";
 
 export default async function CentreReportsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -44,17 +44,23 @@ export default async function CentreReportsPage() {
         <StatCard label="Total fails" value={failed} icon="❌" tone="orange" />
       </div>
 
+      {byCourse.length === 0 ? (
+        <EmptyState icon="📊" title="No enrolment data" hint="Numbers appear here once trainees are enrolled in courses." />
+      ) : (
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>Course</th><th>Enrolments</th></tr></thead>
           <tbody>
-            {byCourse.map((g) => (
-              <tr key={g.courseId}><td>{titleMap.get(g.courseId) ?? g.courseId}</td><td>{g._count._all}</td></tr>
+            {[...byCourse].sort((a, b) => b._count._all - a._count._all).map((g) => (
+              <tr key={g.courseId}>
+                <td className="font-medium">{titleMap.get(g.courseId) ?? g.courseId}</td>
+                <td><span className="gt-badge bg-picton/15 text-picton">{g._count._all}</span></td>
+              </tr>
             ))}
-            {byCourse.length === 0 && <tr><td colSpan={2} className="text-center py-6 text-[var(--muted)]">No enrolment data.</td></tr>}
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }

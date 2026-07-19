@@ -3,8 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
-import { formatDate } from "@/lib/utils";
-import { PageHeader, EmptyState } from "@/components/page-ui";
+import { timeAgo } from "@/lib/utils";
+import { PageHeader, EmptyState, RoleChip } from "@/components/page-ui";
 
 export default async function MyTeamPage() {
   const session = await requireSession();
@@ -37,13 +37,17 @@ export default async function MyTeamPage() {
               <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-picton to-cyan font-bold text-navy">{user.name.slice(0, 1).toUpperCase()}</div>
               <div>
               <div className="font-bold">{user.name}</div>
-              <div className="text-xs text-[var(--muted)]">{user.email} · {user.role.name} · {user.centre?.name ?? "no centre"}</div>
-              <div className="text-xs text-[var(--muted)]">Last login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+                <span>{user.email}</span>
+                <RoleChip type={user.role.type} label={user.role.name} />
+                <span>{user.centre?.name ?? "no centre"}</span>
+              </div>
+              <div className="text-xs text-[var(--muted)] mt-0.5">Last login: {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "Never"}</div>
               </div>
             </div>
           </div>
           {progress.length === 0 ? (
-            <div className="text-sm text-[var(--muted)] mt-3">No enrolments.</div>
+            <div className="mt-3 rounded-xl border border-dashed border-[var(--border)] p-4 text-center text-sm text-[var(--muted)]">📚 No enrolments yet.</div>
           ) : (
             <div className="mt-3 space-y-2">
               {progress.map(({ enrollment, progress: p }) => (
@@ -53,13 +57,13 @@ export default async function MyTeamPage() {
                     <ProgressBar percent={p?.percent ?? 0} />
                   </div>
                   <div className="text-xs w-12 text-right">{p?.percent ?? 0}%</div>
-                  <div>{enrollment.completed ? <span className="gt-badge bg-mint/20 text-mint">Completed</span> : <span className="gt-badge bg-gold/20 text-gold">In progress</span>}</div>
+                  <div>{enrollment.completed ? <span className="gt-badge bg-mint/15 text-mint">Completed</span> : <span className="gt-badge bg-gold/15 text-gold">In progress</span>}</div>
                 </div>
               ))}
             </div>
           )}
           <div className="mt-3 text-right">
-            <Link href={`/my-team/certificates?user=${user.id}`} className="text-sm text-picton">View certificates</Link>
+            <Link href={`/my-team/certificates?user=${user.id}`} className="gt-btn-ghost text-xs">View certificates</Link>
           </div>
         </div>
       ))}

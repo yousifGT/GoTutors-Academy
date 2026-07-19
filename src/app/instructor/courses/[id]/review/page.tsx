@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PublishActions } from "@/components/publish-actions";
+import { PageHeader } from "@/components/page-ui";
+import { formatDate } from "@/lib/utils";
 
 export default async function CourseReviewPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -55,10 +57,7 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
 
   return (
     <div className="max-w-2xl space-y-5">
-      <div>
-        <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
-        <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
-      </div>
+      <PageHeader backHref="/instructor/courses" backLabel="Courses" title={course.title} subtitle="Step 3 — check everything, then publish." />
       <WizardSteps
         current={3}
         links={[
@@ -71,19 +70,20 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
       <div className="gt-card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="font-bold">Course</h3>
-          <span className={`gt-badge ${course.published ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+          <span className={`gt-badge ${course.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
             {course.published ? "Published" : "Draft"}
           </span>
         </div>
         {course.description && <p className="text-sm text-[var(--muted)]">{course.description}</p>}
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <span className="text-[var(--muted)]">Audience:</span>
-          {wholeRoles.map((r) => <span key={r} className="gt-badge bg-navy text-white">{r} · everyone</span>)}
-          {traineeSubs.map((s) => <span key={s} className="gt-badge bg-magenta text-white">{s}</span>)}
+          {wholeRoles.map((r) => <span key={r} className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">{r} · everyone</span>)}
+          {traineeSubs.map((s) => <span key={s} className="gt-badge bg-magenta/15 text-magenta">{s}</span>)}
           {wholeRoles.length === 0 && traineeSubs.length === 0 && (
-            <Link href={`/instructor/courses/${course.id}/details`} className="text-orange underline">
-              Nobody yet — assign an audience in Details
-            </Link>
+            <span className="flex items-center gap-2">
+              <span className="gt-badge bg-orange/15 text-orange">Nobody yet</span>
+              <Link href={`/instructor/courses/${course.id}/details`} className="gt-btn-ghost text-xs">Fix audience</Link>
+            </span>
           )}
         </div>
         {course.prerequisites.length > 0 && (
@@ -105,7 +105,7 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
             <ul className="mt-2 space-y-1 text-[var(--muted)]">
               {course.versions.map((v) => (
                 <li key={v.version}>
-                  v{v.version} — published {v.publishedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  v{v.version} — published {formatDate(v.publishedAt)}
                   {v.version === course.version ? " (current)" : ""}
                 </li>
               ))}
@@ -120,7 +120,12 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
           <h3 className="font-bold">Curriculum</h3>
           <Link href={`/instructor/courses/${course.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
         </div>
-        {course.modules.length === 0 && <p className="text-sm text-orange">No modules yet.</p>}
+        {course.modules.length === 0 && (
+          <div className="rounded-xl border border-dashed border-[var(--border)] p-5 text-center text-sm">
+            <span className="gt-badge bg-orange/15 text-orange">No modules yet</span>
+            <div className="mt-2"><Link href={`/instructor/courses/${course.id}/curriculum`} className="gt-btn-ghost text-xs">Build the curriculum</Link></div>
+          </div>
+        )}
         {course.modules.map((m, i) => (
           <div key={m.id} className="rounded-xl border border-[var(--border)] p-4">
             <div className="font-medium text-sm">Module {i + 1}: {m.title}</div>
@@ -138,7 +143,7 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
                   </span>
                 </li>
               ))}
-              {m.lessons.length === 0 && <li className="text-sm text-orange">No lessons in this module</li>}
+              {m.lessons.length === 0 && <li><span className="gt-badge bg-orange/15 text-orange">No lessons in this module</span></li>}
             </ul>
           </div>
         ))}
@@ -153,9 +158,9 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
 
       <div className="gt-card p-6 space-y-3">
         {course.published ? (
-          <p className="text-sm">This course is <b className="text-mint">live</b>. Matching trainees are enrolled automatically as they join.</p>
+          <p className="flex items-center gap-2 text-sm"><span className="gt-badge bg-mint/15 text-mint">Live</span> Matching trainees are enrolled automatically as they join.</p>
         ) : lessonCount === 0 ? (
-          <p className="text-sm text-orange">Add at least one lesson before publishing — trainees would see an empty course.</p>
+          <p className="flex items-center gap-2 text-sm text-[var(--muted)]"><span className="gt-badge bg-orange/15 text-orange">Not ready</span> Add at least one lesson before publishing — trainees would see an empty course.</p>
         ) : (
           <p className="text-sm">
             Ready to go? Publishing enrols <b>{reachCount}</b> matching trainee{reachCount === 1 ? "" : "s"} immediately, and new trainees pick it up as they&apos;re added.

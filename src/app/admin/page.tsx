@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { formatDate } from "@/lib/utils";
-import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, type AttentionItem, type FeedItem } from "@/components/page-ui";
+import { timeAgo } from "@/lib/utils";
+import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, type AttentionItem, type FeedItem } from "@/components/page-ui";
 
 /** Action-first super-admin dashboard: platform-wide blockers, broken courses and live activity. */
 export default async function AdminDashboard() {
@@ -129,18 +129,21 @@ export default async function AdminDashboard() {
           <AttentionPanel items={attention} emptyHint="No reviews waiting, no locked trainees, no broken courses, no empty centres." />
 
           <h3 className="pt-4 text-lg font-bold">Latest audit entries</h3>
+          {auditEntries.length === 0 ? (
+            <EmptyState icon="🧾" title="No audit entries yet" hint="Sensitive actions are recorded here as they happen." />
+          ) : (
           <div className="gt-card divide-y divide-[var(--border)] p-0">
             {auditEntries.map((l) => (
               <div key={l.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="gt-badge bg-lavender text-magenta shrink-0">{l.action}</span>
+                <span className="gt-badge bg-magenta/15 text-magenta shrink-0">{l.action}</span>
                 <span className="min-w-0 flex-1 truncate">{l.target ?? "—"}</span>
-                <span className="shrink-0 text-xs text-[var(--muted)]">{formatDate(l.createdAt)}</span>
+                <span className="shrink-0 text-xs text-[var(--muted)]">{timeAgo(l.createdAt)}</span>
               </div>
             ))}
-            {auditEntries.length === 0 && <div className="px-4 py-3 text-sm text-[var(--muted)]">No audit entries yet.</div>}
           </div>
+          )}
           <div>
-            <Link href="/admin/audit" className="text-sm text-picton">Full audit log →</Link>
+            <Link href="/admin/audit" className="gt-btn-ghost text-xs">Full audit log →</Link>
           </div>
         </section>
 

@@ -1,11 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { EmptyState, Avatar, RoleChip } from "@/components/page-ui";
 
 type Role = { id: string; name: string; type: string; allowed: string[] };
 type Perm = { id: string; key: string; label: string; description: string };
 type Override = { userId: string; permissionId: string; allowed: boolean };
-type UserLite = { id: string; name: string; email: string; role: string };
+type UserLite = { id: string; name: string; email: string; role: string; roleType: string };
 
 export function PermissionsMatrix({
   roles, permissions, users, overrides,
@@ -90,9 +91,23 @@ export function PermissionsMatrix({
                 </tr>
               </thead>
               <tbody>
+                {filteredUsers.length === 0 && (
+                  <tr><td colSpan={permissions.length + 1} className="py-8 text-center text-sm text-[var(--muted)]">Nothing matches “{filter}”.</td></tr>
+                )}
                 {filteredUsers.map((u) => (
                   <tr key={u.id}>
-                    <td><div className="font-medium">{u.name}</div><div className="text-xs text-[var(--muted)]">{u.email} · {u.role}</div></td>
+                    <td>
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={u.name} size="sm" />
+                        <div className="min-w-0">
+                          <div className="font-medium">{u.name}</div>
+                          <div className="flex items-center gap-1.5 text-xs text-[var(--muted)]">
+                            <span>{u.email}</span>
+                            <RoleChip type={u.roleType} label={u.role} />
+                          </div>
+                        </div>
+                      </div>
+                    </td>
                     {permissions.map((p) => {
                       const ov = overrides.find((o) => o.userId === u.id && o.permissionId === p.id);
                       const state = ov ? (ov.allowed ? "allow" : "deny") : "inherit";
@@ -102,7 +117,7 @@ export function PermissionsMatrix({
                             disabled={busy}
                             value={state}
                             onChange={(e) => setUserOverride(u.id, p.id, e.target.value as any)}
-                            className="rounded-md text-xs border border-[var(--border)] bg-[var(--card)] py-1 px-2"
+                            className="gt-input w-auto px-2 py-1 text-xs"
                           >
                             <option value="inherit">Inherit</option>
                             <option value="allow">Allow</option>

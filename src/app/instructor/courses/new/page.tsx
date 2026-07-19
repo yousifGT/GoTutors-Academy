@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
+import { PageHeader } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
 
 export default async function NewCoursePage() {
@@ -26,10 +27,7 @@ export default async function NewCoursePage() {
   });
   return (
     <div className="max-w-2xl space-y-5">
-      <div>
-        <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
-        <h2 className="text-2xl font-bold mt-1">New course</h2>
-      </div>
+      <PageHeader backHref="/instructor/courses" backLabel="Courses" title="New course" subtitle="Three steps: details, curriculum, review & publish." />
       <WizardSteps current={1} />
       <CourseWizardDetails
         roles={roles.map((r) => ({ id: r.id, name: r.name, type: r.type }))}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { LessonEditor } from "@/components/lesson-editor";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function LessonEditPage({ params }: { params: { id: string; lessonId: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -19,11 +20,12 @@ export default async function LessonEditPage({ params }: { params: { id: string;
 
   return (
     <div className="max-w-3xl space-y-5">
-      <div>
-        <Link href={`/instructor/courses/${params.id}/curriculum`} className="text-sm text-picton">← Back to curriculum</Link>
-        <h2 className="text-2xl font-bold mt-1">{lesson.title}</h2>
-        <p className="text-sm text-[var(--muted)]">{lesson.module.course.title} · {lesson.module.title}</p>
-      </div>
+      <PageHeader
+        backHref={`/instructor/courses/${params.id}/curriculum`}
+        backLabel="Back to curriculum"
+        title={lesson.title}
+        subtitle={`${lesson.module.course.title} · ${lesson.module.title}`}
+      />
       <LessonEditor
         courseId={params.id}
         lessonId={lesson.id}

@@ -31,7 +31,7 @@ export function PhoneEditor({ initial }: { initial: string | null }) {
     return (
       <div className="flex items-center gap-3 text-sm">
         <span>{initial || <span className="text-[var(--muted)]">Not set</span>}</span>
-        <button type="button" onClick={() => { setPhone(initial ?? ""); setEditing(true); }} className="text-picton text-xs font-semibold">
+        <button type="button" onClick={() => { setPhone(initial ?? ""); setEditing(true); }} className="gt-btn-ghost text-xs">
           {initial ? "Edit" : "Add"}
         </button>
       </div>

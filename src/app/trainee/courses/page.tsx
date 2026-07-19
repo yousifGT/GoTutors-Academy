@@ -35,9 +35,11 @@ export default async function MyCoursesPage() {
           {withProgress.map(({ e, progress, missingPrereqs }) => (
             <Link key={e.id} href={`/trainee/courses/${e.courseId}`} className={`gt-card p-5 hover:shadow-soft transition ${missingPrereqs.length > 0 ? "opacity-75" : ""}`}>
               {missingPrereqs.length > 0 ? (
-                <div className="text-sm font-semibold text-[var(--muted)]">🔒 Locked</div>
+                <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">🔒 Locked</span>
+              ) : e.completed ? (
+                <span className="gt-badge bg-mint/15 text-mint">🎓 Completed</span>
               ) : (
-                <div className="text-sm text-picton font-semibold">{progress?.percent ?? 0}% complete</div>
+                <span className="gt-badge bg-picton/15 text-picton">{progress?.percent ?? 0}% complete</span>
               )}
               <div className="mt-1 text-lg font-bold">{e.course.title}</div>
               <p className="mt-1 text-sm text-[var(--muted)] line-clamp-2">{e.course.description}</p>

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import Link from "next/link";
 import { UserForm } from "@/components/user-form";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function AdminNewUserPage() {
   await requireRole("SUPER_ADMIN");
@@ -12,11 +13,7 @@ export default async function AdminNewUserPage() {
   ]);
   return (
     <div className="max-w-xl space-y-4">
-      <div>
-        <Link href="/admin/users" className="text-sm text-picton">← All users</Link>
-        <h2 className="text-2xl font-bold tracking-tight mt-1">Add user</h2>
-        <p className="mt-0.5 text-sm text-[var(--muted)]">Trainees are auto-enrolled in matching published courses the moment they're created.</p>
-      </div>
+      <PageHeader backHref="/admin/users" backLabel="All users" title="Add user" subtitle="Trainees are auto-enrolled in matching published courses the moment they're created." />
       <UserForm
         roles={roles.map((r) => ({ id: r.id, name: r.name, type: r.type }))}
         centres={centres.map((c) => ({ id: c.id, name: c.name }))}

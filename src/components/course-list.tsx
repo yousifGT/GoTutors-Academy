@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EmptyState } from "@/components/page-ui";
 
 export type CourseCard = {
   id: string;
@@ -270,11 +271,17 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
         </div>
       </div>
 
-      {groups.length === 0 && (
-        <div className="gt-card p-8 text-center text-[var(--muted)]">
-          {items.length === 0 ? "No courses yet — create your first one." : "Nothing matches your search."}
-        </div>
-      )}
+      {groups.length === 0 &&
+        (items.length === 0 ? (
+          <EmptyState
+            icon="📚"
+            title="No courses yet"
+            hint="Create your first course — the wizard walks you through details, curriculum and publishing."
+            action={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
+          />
+        ) : (
+          <EmptyState icon="🔍" title="Nothing matches your search" hint="Try a different title, description or category." />
+        ))}
 
       {groups.map(([category, list]) => {
         const isTarget = dropTarget === category && dragId !== null;
@@ -341,14 +348,14 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                       <Link href={`/instructor/courses/${c.id}/details`} className="text-lg font-bold hover:text-picton transition">
                         {c.title}
                       </Link>
-                      <span className={`gt-badge ml-auto shrink-0 ${c.published ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                      <span className={`gt-badge ml-auto shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
                         {c.published ? "Published" : "Draft"}
                       </span>
                     </div>
                     {c.description && <p className="mt-1 text-sm text-[var(--muted)] line-clamp-1">{c.description}</p>}
                     <div className="mt-3 space-y-0.5 text-sm">
                       {c.audience.length === 0 ? (
-                        <div className="text-orange">No audience assigned yet</div>
+                        <div><span className="gt-badge bg-orange/15 text-orange">No audience assigned yet</span></div>
                       ) : (
                         c.audience.map((line) => (
                           <div key={line} className="truncate text-[var(--muted)]">

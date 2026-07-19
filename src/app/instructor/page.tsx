@@ -162,7 +162,7 @@ export default async function InstructorDashboard() {
               <Link key={c.id} href={`/instructor/courses/${c.id}/curriculum`} className="gt-card p-4 transition hover:shadow-soft">
                 <div className="flex items-start justify-between gap-2">
                   <div className="truncate font-semibold">{c.title}</div>
-                  <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                  <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
                     {c.published ? "Published" : "Draft"}
                   </span>
                 </div>
@@ -173,7 +173,7 @@ export default async function InstructorDashboard() {
             ))}
           </div>
           <div>
-            <Link href="/instructor/courses" className="text-sm text-picton">All courses →</Link>
+            <Link href="/instructor/courses" className="gt-btn-ghost text-xs">All courses →</Link>
           </div>
         </section>
 

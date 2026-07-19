@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { UserEditForm } from "@/components/user-edit-form";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreTraineeEditPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -25,9 +26,8 @@ export default async function CentreTraineeEditPage({ params }: { params: { id: 
   ]);
 
   return (
-    <div className="max-w-xl">
-      <Link href={`/centre/trainees/${user.id}`} className="text-sm text-picton">← {user.name}</Link>
-      <h2 className="text-2xl font-bold mt-1 mb-4">Edit {user.name}</h2>
+    <div className="max-w-xl space-y-4">
+      <PageHeader backHref={`/centre/trainees/${user.id}`} backLabel={user.name} title={`Edit ${user.name}`} subtitle="Update details, positions and status." />
       <UserEditForm
         userId={user.id}
         initial={{

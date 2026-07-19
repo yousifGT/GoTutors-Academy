@@ -1,6 +1,6 @@
 import { requireRole } from "@/lib/session";
 import { centreReportRows } from "@/lib/centre-report";
-import { PageHeader } from "@/components/page-ui";
+import { PageHeader, StatStrip, EmptyState } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 
 export default async function AdminReportsPage() {
@@ -14,6 +14,17 @@ export default async function AdminReportsPage() {
         subtitle="Per-centre training performance."
         actions={<a href="/api/reports/admin/export" className="gt-btn-ghost">Download CSV</a>}
       />
+      <StatStrip
+        items={[
+          { label: "Centres", value: rows.length },
+          { label: "Users", value: rows.reduce((n, r) => n + r.users, 0) },
+          { label: "Enrolments", value: rows.reduce((n, r) => n + r.enrolments, 0) },
+          { label: "Completed", value: rows.reduce((n, r) => n + r.completed, 0) },
+        ]}
+      />
+      {rows.length === 0 ? (
+        <EmptyState icon="🏫" title="No centres yet" hint="Add a centre to see per-centre performance." />
+      ) : (
       <div className="gt-card overflow-hidden">
       <table className="gt-table">
         <thead><tr><th>Centre</th><th>Users</th><th>Enrolments</th><th>Completed</th><th>Pass rate</th><th>Passes</th><th>Fails</th></tr></thead>
@@ -34,10 +45,10 @@ export default async function AdminReportsPage() {
               <td><span className="gt-badge bg-orange/15 text-orange">{r.fails}</span></td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>}
         </tbody>
       </table>
       </div>
+      )}
     </div>
   );
 }

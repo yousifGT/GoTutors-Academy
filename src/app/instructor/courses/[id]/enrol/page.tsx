@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { BulkEnrol } from "@/components/bulk-enrol";
+import { PageHeader } from "@/components/page-ui";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function BulkEnrolPage({ params }: { params: { id: string } }) {
@@ -43,11 +44,12 @@ export default async function BulkEnrolPage({ params }: { params: { id: string }
 
   return (
     <div className="space-y-4">
-      <div>
-        <Link href={`/instructor/courses/${course.id}`} className="text-sm text-picton">← {course.title}</Link>
-        <h2 className="text-2xl font-bold mt-1">Bulk enrol</h2>
-        <p className="text-sm text-[var(--muted)]">Candidates match the role and position assigned to this course.</p>
-      </div>
+      <PageHeader
+        backHref={`/instructor/courses/${course.id}/curriculum`}
+        backLabel={course.title}
+        title="Bulk enrol"
+        subtitle="Candidates match the role and position assigned to this course — auto-enrolment already covers most of them."
+      />
       <BulkEnrol courseId={course.id} candidates={candidates} />
     </div>
   );

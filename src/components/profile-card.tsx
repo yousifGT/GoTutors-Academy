@@ -20,7 +20,7 @@ export async function ProfileCard({ userId }: { userId: string }) {
     <div className="max-w-xl space-y-6">
       <div className="gt-card p-6">
         <div className="flex items-center gap-4">
-          <div className="h-14 w-14 rounded-full bg-picton text-navy grid place-items-center text-xl font-bold">
+          <div className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-picton to-cyan text-xl font-bold text-navy">
             {user.name.slice(0, 1).toUpperCase()}
           </div>
           <div>
@@ -28,7 +28,7 @@ export async function ProfileCard({ userId }: { userId: string }) {
             <p className="text-sm text-[var(--muted)]">{user.role.name}</p>
           </div>
           {user.role.type === "TRAINEE" && user.isTrained && (
-            <span className="gt-badge bg-mint/20 text-mint ml-auto">Trained</span>
+            <span className="gt-badge bg-mint/15 text-mint ml-auto">Trained</span>
           )}
         </div>
 
@@ -40,7 +40,7 @@ export async function ProfileCard({ userId }: { userId: string }) {
                 {subs.length > 0 ? (
                   <div className="flex flex-wrap gap-2">
                     {subs.map((s) => (
-                      <span key={s} className="gt-badge bg-lavender text-magenta">{s}</span>
+                      <span key={s} className="gt-badge bg-magenta/15 text-magenta">{s}</span>
                     ))}
                   </div>
                 ) : (

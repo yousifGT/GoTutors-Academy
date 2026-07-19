@@ -59,7 +59,7 @@ export function PageHeader({
   return (
     <div>
       {backHref && (
-        <Link href={backHref} className="text-sm text-picton">
+        <Link href={backHref} className="text-sm text-picton transition hover:underline">
           ← {backLabel ?? "Back"}
         </Link>
       )}
@@ -71,6 +71,45 @@ export function PageHeader({
         {actions && <div className="flex items-center gap-2">{actions}</div>}
       </div>
     </div>
+  );
+}
+
+const avatarSizes = {
+  sm: "h-8 w-8 text-sm",
+  md: "h-10 w-10",
+  lg: "h-12 w-12 text-lg",
+} as const;
+
+/** Gradient initial avatar used on every person row/card. */
+export function Avatar({ name, size = "md" }: { name: string; size?: keyof typeof avatarSizes }) {
+  return (
+    <div
+      className={`grid shrink-0 place-items-center rounded-full bg-gradient-to-br from-picton to-cyan font-bold text-navy ${avatarSizes[size]}`}
+    >
+      {(name || "?").slice(0, 1).toUpperCase()}
+    </div>
+  );
+}
+
+/** Tone chip per role base type — one source of truth across the app. */
+const roleTones: Record<string, string> = {
+  SUPER_ADMIN: "bg-magenta/15 text-magenta",
+  CENTRE_ADMIN: "bg-gold/15 text-gold",
+  INSTRUCTOR: "bg-picton/15 text-picton",
+  TRAINEE: "bg-mint/15 text-mint",
+};
+export function RoleChip({ type, label }: { type: string; label?: string }) {
+  return (
+    <span className={`gt-badge ${roleTones[type] ?? "bg-magenta/15 text-magenta"}`}>
+      {label ?? type.replace("_", " ")}
+    </span>
+  );
+}
+
+/** Gold callout banner (e.g. "this course is live"). */
+export function Callout({ children }: { children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">{children}</div>
   );
 }
 

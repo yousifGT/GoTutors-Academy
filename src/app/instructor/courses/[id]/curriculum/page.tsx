@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
+import { PageHeader, Callout } from "@/components/page-ui";
 import { CurriculumBuilder } from "@/components/curriculum-builder";
 
 export default async function CourseCurriculumPage({ params }: { params: { id: string } }) {
@@ -20,16 +21,18 @@ export default async function CourseCurriculumPage({ params }: { params: { id: s
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
-          <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
-        </div>
-        <div className="flex gap-2">
-          <Link href={`/instructor/courses/${course.id}/enrol`} className="gt-btn-ghost text-sm">Bulk enrol</Link>
-          <Link href={`/instructor/courses/${course.id}/progress`} className="gt-btn-ghost text-sm">Trainee progress</Link>
-        </div>
-      </div>
+      <PageHeader
+        backHref="/instructor/courses"
+        backLabel="Courses"
+        title={course.title}
+        subtitle="Step 2 — build the modules and lessons."
+        actions={
+          <>
+            <Link href={`/instructor/courses/${course.id}/enrol`} className="gt-btn-ghost text-sm">Bulk enrol</Link>
+            <Link href={`/instructor/courses/${course.id}/progress`} className="gt-btn-ghost text-sm">Trainee progress</Link>
+          </>
+        }
+      />
       <WizardSteps
         current={2}
         links={[
@@ -40,9 +43,7 @@ export default async function CourseCurriculumPage({ params }: { params: { id: s
       />
 
       {course.published && (
-        <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
-          This course is live (v{course.version}) — trainees see changes immediately. Unpublish first for bigger reworks; each publish records a version snapshot.
-        </div>
+        <Callout>This course is live (v{course.version}) — trainees see changes immediately. Unpublish first for bigger reworks; each publish records a version snapshot.</Callout>
       )}
       <p className="text-sm text-[var(--muted)]">
         Drag <span className="text-[var(--fg)]">⠿</span> to reorder, click a title to rename, press Enter to add in bulk.

@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { Pill } from "@/components/pill";
 
 type SP = { id: string; name: string; roleId: string };
 
@@ -36,7 +37,7 @@ export function UserEditForm({
   const [form, setForm] = useState(initial);
   const [password, setPassword] = useState("");
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const role = roles.find((r) => r.id === form.roleId);
   const isTrainee = role?.type === "TRAINEE";
@@ -74,9 +75,9 @@ export function UserEditForm({
     });
     const data = await res.json();
     setSaving(false);
-    if (!res.ok) return setMsg(data.error ?? "Failed");
+    if (!res.ok) return setMsg({ kind: "err", text: data.error ?? "Failed" });
     setPassword("");
-    setMsg("Saved.");
+    setMsg({ kind: "ok", text: "Saved ✓" });
     router.refresh();
     setTimeout(() => setMsg(null), 1500);
   }
@@ -101,10 +102,9 @@ export function UserEditForm({
             <label className="gt-label">Sub-positions</label>
             <div className="flex flex-wrap gap-2">
               {subsForRole.map((s) => (
-                <label key={s.id} className={`gt-badge cursor-pointer ${form.subPositions.includes(s.name) ? "bg-magenta text-white" : "bg-lavender text-magenta"}`}>
-                  <input type="checkbox" className="mr-1" checked={form.subPositions.includes(s.name)} onChange={() => toggleSub(s.name)} />
+                <Pill key={s.id} tone="magenta" selected={form.subPositions.includes(s.name)} onToggle={() => toggleSub(s.name)}>
                   {s.name}
-                </label>
+                </Pill>
               ))}
             </div>
             <p className="text-xs text-[var(--muted)] mt-1">The trainee is automatically enrolled in every published course assigned to any of these sub-positions.</p>
@@ -144,7 +144,7 @@ export function UserEditForm({
       </label>
       <div className="flex items-center gap-3">
         <button disabled={saving} className="gt-btn-primary">{saving ? "Saving…" : "Save"}</button>
-        {msg && <span className="text-sm text-mint">{msg}</span>}
+        {msg && <span className={`text-sm ${msg.kind === "ok" ? "text-mint" : "text-orange"}`}>{msg.text}</span>}
       </div>
     </form>
   );

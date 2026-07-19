@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { EmptyState } from "@/components/page-ui";
 
 type Role = { id: string; name: string; type: string; description: string | null; userCount: number };
 type SubPosition = { id: string; name: string; roleId: string; roleName: string; userCount: number };
@@ -179,6 +180,9 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
       {/* ROLES TAB */}
       {tab === "roles" && (
         <div className="space-y-4">
+          {roles.length === 0 ? (
+            <EmptyState icon="🛡️" title="No roles defined" hint="Create your first role below." />
+          ) : (
           <div className="gt-card overflow-hidden">
             <table className="gt-table">
               <thead>
@@ -200,7 +204,7 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                         <span className="font-medium">{r.name}</span>
                       )}
                     </td>
-                    <td><span className={`gt-badge ${TYPE_CHIP[r.type] ?? "bg-lavender text-magenta"}`}>{r.type.replace("_", " ")}</span></td>
+                    <td><span className={`gt-badge ${TYPE_CHIP[r.type] ?? "bg-magenta/15 text-magenta"}`}>{r.type.replace("_", " ")}</span></td>
                     <td className="text-sm text-[var(--muted)]">{r.description ?? "—"}</td>
                     <td><span className="gt-badge bg-[var(--soft)]">{r.userCount}</span></td>
                     <td className="text-right">
@@ -218,10 +222,10 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                     </td>
                   </tr>
                 ))}
-                {roles.length === 0 && <tr><td colSpan={5} className="text-center py-6 text-[var(--muted)]">No roles defined.</td></tr>}
               </tbody>
             </table>
           </div>
+          )}
 
           <div className="gt-card p-5">
             <h3 className="font-semibold mb-3">Add role</h3>
@@ -279,8 +283,10 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
             </div>
 
             {activeSubs.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center text-sm text-[var(--muted)]">
-                No sub-positions for {activeRole?.name ?? "this role"} yet — add the first one below.
+              <div className="rounded-xl border border-dashed border-[var(--border)] p-6 text-center">
+                <div className="text-3xl">🧩</div>
+                <div className="mt-2 text-sm font-semibold">No sub-positions yet</div>
+                <p className="mt-0.5 text-sm text-[var(--muted)]">Add the first {activeRole?.name ?? ""} sub-position below.</p>
               </div>
             ) : (
               <ul className="divide-y divide-[var(--border)]">

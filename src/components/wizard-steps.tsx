@@ -20,7 +20,7 @@ export function WizardSteps({ current, links }: { current: 1 | 2 | 3; links?: (s
                 state === "active"
                   ? "bg-navy text-white"
                   : state === "done"
-                    ? "bg-mint text-white"
+                    ? "bg-mint text-navy"
                     : "bg-[var(--soft)] text-[var(--muted)]"
               }`}
             >

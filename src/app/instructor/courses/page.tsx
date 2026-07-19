@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { CourseList } from "@/components/course-list";
+import { PageHeader } from "@/components/page-ui";
 
 /** "Trainee — Maths Tutor, English Tutor +2 more" instead of one badge per assignment. */
 function compactAssignments(assignments: { role: { name: string }; subPosition: string | null }[]): string[] {
@@ -30,7 +31,7 @@ export default async function InstructorCoursesPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold">Courses</h2>
+      <PageHeader title="Courses" subtitle="Search, organise into categories, and publish." />
       <CourseList
         courses={courses.map((c) => ({
           id: c.id,

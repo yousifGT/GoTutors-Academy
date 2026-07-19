@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { timeAgo } from "@/lib/utils";
+import { EmptyState } from "@/components/page-ui";
 
 type N = { id: string; type: string; title: string; body: string | null; link: string | null; read: boolean; createdAt: string };
 
@@ -49,10 +50,8 @@ export function NotificationsList({ initial }: { initial: N[] }) {
           </div>
         ))}
         {initial.length === 0 && (
-          <div className="p-10 text-center">
-            <div className="text-4xl">🔕</div>
-            <div className="mt-3 font-semibold">All quiet</div>
-            <p className="mt-1 text-sm text-[var(--muted)]">Nothing needs your attention right now.</p>
+          <div className="border-0 p-2">
+            <EmptyState icon="🔕" title="All quiet" hint="Nothing needs your attention right now." />
           </div>
         )}
       </div>
@@ -70,9 +69,9 @@ function label(t: string) {
 }
 function typeColor(t: string) {
   return ({
-    TRAINEE_ENROLLED: "bg-picton/20 text-picton",
-    TRAINEE_PASSED: "bg-mint/20 text-mint",
-    TRAINEE_FAILED: "bg-orange/20 text-orange",
-    RETRY_UNLOCK_NEEDED: "bg-magenta/20 text-magenta",
+    TRAINEE_ENROLLED: "bg-picton/15 text-picton",
+    TRAINEE_PASSED: "bg-mint/15 text-mint",
+    TRAINEE_FAILED: "bg-orange/15 text-orange",
+    RETRY_UNLOCK_NEEDED: "bg-magenta/15 text-magenta",
   } as Record<string, string>)[t] ?? "bg-[var(--soft)]";
 }

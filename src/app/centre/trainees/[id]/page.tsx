@@ -7,6 +7,8 @@ import { getCourseProgressForUser } from "@/lib/course-progress";
 import { UnlockButton } from "@/components/unlock-button";
 import { formatDate } from "@/lib/utils";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { timeAgo } from "@/lib/utils";
+import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function TraineeDetailPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -52,6 +54,12 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
 
   return (
     <div className="space-y-6">
+      <PageHeader
+        backHref="/centre/trainees"
+        backLabel="Trainees"
+        title={user.name}
+        actions={<Link href={`/centre/trainees/${user.id}/edit`} className="gt-btn-ghost text-sm">Edit</Link>}
+      />
       <div className="gt-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-4">
@@ -65,15 +73,20 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
               {effectiveSubPositions(user).length ? ` · ${effectiveSubPositions(user).join(", ")}` : user.position ? ` · ${user.position}` : ""}
               {" "}· {user.centre?.name ?? "no centre"}
             </p>
-            <p className="text-xs text-[var(--muted)] mt-1">Last login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</p>
+            <p className="text-xs text-[var(--muted)] mt-1">Last login: {user.lastLoginAt ? timeAgo(user.lastLoginAt) : "Never"}</p>
             </div>
           </div>
-          {user.isTrained && <span className="gt-badge bg-mint/20 text-mint">Trained</span>}
+          <span className="flex gap-2">
+            {!user.active && <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">Inactive</span>}
+            {user.isTrained
+              ? <span className="gt-badge bg-mint/15 text-mint">Trained</span>
+              : <span className="gt-badge bg-gold/15 text-gold">In training</span>}
+          </span>
         </div>
       </div>
 
       <section>
-        <h3 className="font-bold mb-2">Course progress</h3>
+        <h3 className="text-lg font-bold mb-2">Course progress</h3>
         <div className="space-y-4">
           {rows.map(({ e, progress }) => {
             const totalSeconds = e.course.modules
@@ -89,7 +102,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                   <div className="flex items-center gap-3">
                     <div className="w-40"><ProgressBar percent={progress?.percent ?? 0} /></div>
                     <span className="text-xs w-10 text-right">{progress?.percent ?? 0}%</span>
-                    {e.completed ? <span className="gt-badge bg-mint/20 text-mint">Completed</span> : <span className="gt-badge bg-gold/20 text-gold">In progress</span>}
+                    {e.completed ? <span className="gt-badge bg-mint/15 text-mint">Completed</span> : <span className="gt-badge bg-gold/15 text-gold">In progress</span>}
                   </div>
                 </summary>
                 <div className="mt-3 divide-y divide-[var(--border)]">
@@ -103,8 +116,8 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                             {l.title}
                           </div>
                           <div className="flex gap-2">
-                            <span className={`gt-badge ${p?.videoWatched ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Video</span>
-                            <span className={`gt-badge ${p?.quizPassed ? "bg-mint/20 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Quiz</span>
+                            <span className={`gt-badge ${p?.videoWatched ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Video</span>
+                            <span className={`gt-badge ${p?.quizPassed ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Quiz</span>
                           </div>
                         </div>
                       );
@@ -113,12 +126,15 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
               </details>
             );
           })}
-          {rows.length === 0 && <div className="gt-card p-6 text-[var(--muted)]">No enrolments.</div>}
+          {rows.length === 0 && <EmptyState icon="📚" title="No enrolments yet" hint="Courses matching their sub-positions appear here once published." />}
         </div>
       </section>
 
       <section>
-        <h3 className="font-bold mb-2">Locked quizzes</h3>
+        <h3 className="text-lg font-bold mb-2">Locked quizzes</h3>
+        {lockedAttempts.length === 0 ? (
+          <EmptyState icon="🔓" title="No locked quizzes" hint="Trainees who use up all their quiz attempts show up here for an unlock." />
+        ) : (
         <div className="gt-card overflow-hidden">
           <table className="gt-table">
             <thead><tr><th>Course / Lesson</th><th>Last score</th><th></th></tr></thead>
@@ -130,14 +146,14 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                   <td className="text-right"><UnlockButton userId={user.id} quizId={a.quizId} /></td>
                 </tr>
               ))}
-              {lockedAttempts.length === 0 && <tr><td colSpan={3} className="text-center text-[var(--muted)] py-6">None.</td></tr>}
             </tbody>
           </table>
         </div>
+        )}
       </section>
 
       <section>
-        <h3 className="font-bold mb-2">Certificates</h3>
+        <h3 className="text-lg font-bold mb-2">Certificates</h3>
         <div className="grid gap-3 md:grid-cols-2">
           {certs.map((c) => (
             <div key={c.id} className="gt-card p-4 flex items-center justify-between">
@@ -145,10 +161,10 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                 <div className="font-medium">{c.course.title}</div>
                 <div className="text-xs text-[var(--muted)]">Serial {c.serial} · {formatDate(c.issuedAt)}</div>
               </div>
-              <Link href={`/api/certificates/${c.id}/download`} target="_blank" className="gt-btn-ghost text-sm">Download</Link>
+              <Link href={`/api/certificates/${c.id}/download`} target="_blank" className="gt-btn-ghost text-xs">Download</Link>
             </div>
           ))}
-          {certs.length === 0 && <div className="text-sm text-[var(--muted)]">No certificates yet.</div>}
+          {certs.length === 0 && <div className="md:col-span-2"><EmptyState icon="🎓" title="No certificates yet" hint="Certificates appear here when courses are completed." /></div>}
         </div>
       </section>
     </div>

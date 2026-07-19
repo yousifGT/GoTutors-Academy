@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { EmptyState } from "@/components/page-ui";
 
 type Lesson = {
   id: string;
@@ -155,9 +156,7 @@ export function CurriculumBuilder({
   return (
     <div className="space-y-3">
       {modules.length === 0 && (
-        <div className="gt-card p-8 text-center text-[var(--muted)]">
-          Start by adding your first module — e.g. “Week 1: Basics”.
-        </div>
+        <EmptyState icon="🧱" title="No modules yet" hint="Start by adding your first module — e.g. “Week 1: Basics”." />
       )}
 
       {modules.map((m, mi) => {
@@ -187,7 +186,7 @@ export function CurriculumBuilder({
               <span className="ml-auto text-xs text-[var(--muted)] shrink-0">
                 {m.lessons.length} lesson{m.lessons.length === 1 ? "" : "s"}
               </span>
-              <button onClick={() => deleteModule(m.id)} className="text-xs text-orange hover:underline shrink-0">Delete</button>
+              <button onClick={() => deleteModule(m.id)} className="shrink-0 px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
             </div>
 
             {!isCollapsed && (

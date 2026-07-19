@@ -11,6 +11,7 @@ const config: Config = {
       colors: {
         // Primary
         navy: "#1C1960",
+        royal: "#322e9e",
         picton: "#56B9E9",
         ice: "#E9F6FF",
         // Secondary

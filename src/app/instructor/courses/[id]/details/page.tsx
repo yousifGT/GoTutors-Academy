@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { WizardSteps } from "@/components/wizard-steps";
+import { PageHeader, Callout } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
 
 /** Step 1 revisited for an existing course — same form, edits in place. */
@@ -39,18 +40,13 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
 
   return (
     <div className="max-w-2xl space-y-5">
-      <div>
-        <Link href="/instructor/courses" className="text-sm text-picton">← Courses</Link>
-        <h2 className="text-2xl font-bold mt-1">{course.title}</h2>
-      </div>
+      <PageHeader backHref="/instructor/courses" backLabel="Courses" title={course.title} subtitle="Step 1 — who this course is for." />
       <WizardSteps
         current={1}
         links={[null, `/instructor/courses/${course.id}/curriculum`, `/instructor/courses/${course.id}/review`]}
       />
       {course.published && (
-        <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
-          This course is live (v{course.version}) — trainees see changes immediately. Unpublish first for bigger reworks; each publish records a version snapshot.
-        </div>
+        <Callout>This course is live (v{course.version}) — trainees see changes immediately. Unpublish first for bigger reworks; each publish records a version snapshot.</Callout>
       )}
       <CourseWizardDetails
         roles={roles.map((r) => ({ id: r.id, name: r.name, type: r.type }))}
