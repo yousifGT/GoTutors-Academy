@@ -14,6 +14,8 @@ export type CourseCard = {
   modules: number;
   enrollments: number;
   audience: string[]; // compact lines, e.g. "Trainee — Maths Tutor, English Tutor +2 more"
+  /** Shown on the meta line when set (admin view across all instructors). */
+  author?: string;
 };
 
 type Filter = "all" | "published" | "draft";
@@ -356,7 +358,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                       )}
                     </div>
                     <div className="mt-3 text-xs text-[var(--muted)]">
-                      {c.modules} module{c.modules === 1 ? "" : "s"} · {c.enrollments} enrolment{c.enrollments === 1 ? "" : "s"}
+                      {c.author ? `by ${c.author} · ` : ""}{c.modules} module{c.modules === 1 ? "" : "s"} · {c.enrollments} enrolment{c.enrollments === 1 ? "" : "s"}
                     </div>
                     <div className="mt-4 flex items-center gap-2 border-t border-[var(--border)] pt-3">
                       <Link href={`/instructor/courses/${c.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>

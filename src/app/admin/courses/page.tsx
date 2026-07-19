@@ -1,44 +1,56 @@
-import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { CoursePublishToggle } from "@/components/course-publish-toggle";
+import { CourseList } from "@/components/course-list";
 import { PageHeader } from "@/components/page-ui";
+
+/** Same interactive course list as the instructor section, across ALL instructors. */
+
+function compactAssignments(assignments: { role: { name: string }; subPosition: string | null }[]): string[] {
+  const byRole = new Map<string, string[] | null>(); // null = the whole role
+  for (const a of assignments) {
+    const current = byRole.get(a.role.name);
+    if (a.subPosition === null || current === null) {
+      byRole.set(a.role.name, null);
+      continue;
+    }
+    byRole.set(a.role.name, [...(current ?? []), a.subPosition]);
+  }
+  return [...byRole.entries()].map(([role, subs]) => {
+    if (subs === null) return `${role} — everyone`;
+    const shown = subs.slice(0, 3).join(", ");
+    return subs.length > 3 ? `${role} — ${shown} +${subs.length - 3} more` : `${role} — ${shown}`;
+  });
+}
 
 export default async function AdminCoursesPage() {
   await requireRole("SUPER_ADMIN");
   const courses = await prisma.course.findMany({
-    include: { author: true, _count: { select: { modules: true, enrollments: true } } },
-    orderBy: { updatedAt: "desc" },
+    include: {
+      author: { select: { name: true } },
+      _count: { select: { modules: true, enrollments: true } },
+      roleAssignments: { include: { role: true } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { updatedAt: "desc" }],
   });
+
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Courses"
-        subtitle="Every course across all instructors."
-        actions={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
+      <PageHeader title="Courses" subtitle="Every course across all instructors — search, organise and publish." />
+      <CourseList
+        courses={courses.map((c) => ({
+          id: c.id,
+          title: c.title,
+          description: c.description,
+          category: c.category,
+          published: c.published,
+          createdAt: c.createdAt.toISOString(),
+          updatedAt: c.updatedAt.toISOString(),
+          modules: c._count.modules,
+          enrollments: c._count.enrollments,
+          audience: compactAssignments(c.roleAssignments),
+          author: c.author.name,
+        }))}
       />
-      <div className="gt-card overflow-hidden">
-        <table className="gt-table">
-          <thead><tr><th>Title</th><th>Author</th><th>Modules</th><th>Enrolments</th><th>Status</th><th></th></tr></thead>
-          <tbody>
-            {courses.map((c) => (
-              <tr key={c.id}>
-                <td className="font-medium">{c.title}</td>
-                <td>{c.author.name}</td>
-                <td>{c._count.modules}</td>
-                <td>{c._count.enrollments}</td>
-                <td>{c.published ? <span className="gt-badge bg-mint/20 text-mint">Published</span> : <span className="gt-badge bg-gold/20 text-gold">Draft</span>}</td>
-                <td className="text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    <CoursePublishToggle courseId={c.id} published={c.published} />
-                    <Link href={`/instructor/courses/${c.id}`} className="gt-btn-ghost text-sm">Open</Link>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
