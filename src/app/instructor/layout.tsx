@@ -19,7 +19,6 @@ export default async function InstructorLayout({ children }: { children: React.R
   ]);
   const nav = [
     { href: "/instructor", label: "Dashboard", icon: "🏠" },
-    { href: "/instructor/dashboard-demo", label: "Demo dashboard", icon: "🧪" },
     { href: "/instructor/courses", label: "Courses", icon: "📚" },
     { href: "/instructor/review", label: "Review queue", badge: reviewQueue, icon: "📝" },
     { href: "/instructor/progress", label: "Trainee progress", icon: "📊" },
