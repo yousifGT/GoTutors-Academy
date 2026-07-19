@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { PageHeader, EmptyState } from "@/components/page-ui";
+import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, type AttentionItem, type FeedItem } from "@/components/page-ui";
 import { timeAgo } from "@/lib/utils";
 
 /**
@@ -9,15 +9,6 @@ import { timeAgo } from "@/lib/utils";
  * it answers "what needs me today?" — a prioritised attention panel, a live
  * activity feed and a compact recently-updated strip.
  */
-
-type Attention = {
-  icon: string;
-  text: string;
-  detail?: string;
-  href: string;
-  action: string;
-  tone: "orange" | "gold" | "picton";
-};
 
 export default async function InstructorDashboard() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -67,7 +58,7 @@ export default async function InstructorDashboard() {
   const firstName = session.user.name?.split(" ")[0] ?? "there";
 
   // ---- Needs attention (priority order) ----
-  const attention: Attention[] = [];
+  const attention: AttentionItem[] = [];
   if (pendingReview > 0)
     attention.push({
       icon: "📝",
@@ -119,7 +110,7 @@ export default async function InstructorDashboard() {
     });
 
   // ---- Activity feed (merged, newest first) ----
-  const feed = [
+  const feed: FeedItem[] = [
     ...enrolments.map((e) => ({
       at: e.enrolledAt,
       icon: "🧑‍🎓",
@@ -141,8 +132,6 @@ export default async function InstructorDashboard() {
     .sort((a, b) => b.at.getTime() - a.at.getTime())
     .slice(0, 10);
 
-  const toneRing = { orange: "border-orange/40", gold: "border-gold/40", picton: "border-picton/40" } as const;
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -151,41 +140,20 @@ export default async function InstructorDashboard() {
         actions={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
       />
 
-      {/* Compact stat strip */}
-      <div className="gt-card flex flex-wrap divide-x divide-[var(--border)] p-0">
-        {[
+      <StatStrip
+        items={[
           { label: "Courses", value: courses.length },
           { label: "Published", value: published },
           { label: "Drafts", value: drafts.length },
           { label: "Enrolments", value: totalEnrolments },
-        ].map((s) => (
-          <div key={s.label} className="flex-1 min-w-[8rem] px-5 py-3">
-            <div className="text-xs uppercase tracking-wide text-[var(--muted)]">{s.label}</div>
-            <div className="text-xl font-bold">{s.value}</div>
-          </div>
-        ))}
-      </div>
+        ]}
+      />
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Needs attention */}
         <section className="lg:col-span-2 space-y-3">
           <h3 className="text-lg font-bold">Needs attention</h3>
-          {attention.length === 0 ? (
-            <EmptyState icon="✅" title="Nothing needs you" hint="No reviews waiting, no locked trainees, no broken courses. Enjoy it." />
-          ) : (
-            <div className="space-y-2">
-              {attention.map((a, i) => (
-                <div key={i} className={`gt-card flex items-center gap-3 border-l-4 p-4 ${toneRing[a.tone]}`}>
-                  <span className="text-xl">{a.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm font-semibold">{a.text}</div>
-                    {a.detail && <div className="text-xs text-[var(--muted)]">{a.detail}</div>}
-                  </div>
-                  <Link href={a.href} className="gt-btn-ghost shrink-0 text-xs">{a.action}</Link>
-                </div>
-              ))}
-            </div>
-          )}
+          <AttentionPanel items={attention} emptyHint="No reviews waiting, no locked trainees, no broken courses. Enjoy it." />
 
           {/* Recently updated */}
           <h3 className="pt-4 text-lg font-bold">Recently updated</h3>
@@ -212,21 +180,7 @@ export default async function InstructorDashboard() {
         {/* Activity feed */}
         <section className="space-y-3">
           <h3 className="text-lg font-bold">Recent activity</h3>
-          {feed.length === 0 ? (
-            <EmptyState icon="🌙" title="No activity yet" hint="Enrolments, quiz results and completions show up here." />
-          ) : (
-            <div className="gt-card divide-y divide-[var(--border)] p-0">
-              {feed.map((f, i) => (
-                <div key={i} className="flex items-start gap-3 px-4 py-3">
-                  <span className="text-lg leading-none">{f.icon}</span>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm">{f.text}</div>
-                    <div className="text-xs text-[var(--muted)]">{timeAgo(f.at)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          <ActivityFeed items={feed} emptyHint="Enrolments, quiz results and completions show up here." />
         </section>
       </div>
     </div>
