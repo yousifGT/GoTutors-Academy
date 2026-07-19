@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { timeAgo } from "@/lib/utils";
 
 type Q = {
   id: string;
@@ -49,7 +50,7 @@ export function ReviewQueueItem({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <div className="font-bold">{attempt.userName} <span className="text-[var(--muted)] text-sm">({attempt.userEmail})</span></div>
-          <div className="text-xs text-[var(--muted)]">{attempt.courseTitle} · {attempt.lessonTitle} · submitted {new Date(attempt.createdAt).toLocaleString()}</div>
+          <div className="text-xs text-[var(--muted)]">{attempt.courseTitle} · {attempt.lessonTitle} · submitted {timeAgo(attempt.createdAt)}</div>
         </div>
         <span className="gt-badge bg-gold/20 text-gold">Pending review</span>
       </div>

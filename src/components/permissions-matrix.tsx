@@ -41,8 +41,8 @@ export function PermissionsMatrix({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <button onClick={() => setTab("roles")} className={`gt-btn ${tab === "roles" ? "bg-navy text-white" : "gt-btn-ghost"}`}>By role</button>
-        <button onClick={() => setTab("users")} className={`gt-btn ${tab === "users" ? "bg-navy text-white" : "gt-btn-ghost"}`}>User overrides</button>
+        <button onClick={() => setTab("roles")} className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "roles" ? "bg-navy text-white" : "bg-[var(--soft)] hover:opacity-80"}`}>By role</button>
+        <button onClick={() => setTab("users")} className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${tab === "users" ? "bg-navy text-white" : "bg-[var(--soft)] hover:opacity-80"}`}>User overrides</button>
       </div>
 
       {tab === "roles" && (
@@ -80,7 +80,7 @@ export function PermissionsMatrix({
 
       {tab === "users" && (
         <div className="space-y-3">
-          <input className="gt-input" placeholder="Search users…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+          <input className="gt-input max-w-sm" placeholder="Search users…" value={filter} onChange={(e) => setFilter(e.target.value)} />
           <div className="gt-card overflow-x-auto">
             <table className="gt-table min-w-[700px]">
               <thead>

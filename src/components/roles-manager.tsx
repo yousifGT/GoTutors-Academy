@@ -5,6 +5,13 @@ import { useRouter } from "next/navigation";
 type Role = { id: string; name: string; type: string; description: string | null; userCount: number };
 type SubPosition = { id: string; name: string; roleId: string; roleName: string; userCount: number };
 
+const TYPE_CHIP: Record<string, string> = {
+  SUPER_ADMIN: "bg-magenta/15 text-magenta",
+  CENTRE_ADMIN: "bg-gold/15 text-gold",
+  INSTRUCTOR: "bg-picton/15 text-picton",
+  TRAINEE: "bg-mint/15 text-mint",
+};
+
 const ROLE_TYPES = [
   { value: "SUPER_ADMIN", label: "Super Admin" },
   { value: "CENTRE_ADMIN", label: "Centre Admin" },
@@ -142,8 +149,8 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
   return (
     <div className="space-y-10">
       {msg && (
-        <div className={`gt-card p-3 text-sm ${msg.kind === "ok" ? "text-mint" : "text-orange"}`}>
-          {msg.text}
+        <div className={`gt-card border-l-4 px-4 py-2.5 text-sm ${msg.kind === "ok" ? "border-mint/60 text-mint" : "border-orange/60 text-orange"}`}>
+          {msg.kind === "ok" ? "✓ " : "⚠ "}{msg.text}
         </div>
       )}
 
@@ -171,19 +178,19 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                       <span className="font-medium">{r.name}</span>
                     )}
                   </td>
-                  <td><span className="gt-badge bg-lavender text-magenta">{r.type}</span></td>
+                  <td><span className={`gt-badge ${TYPE_CHIP[r.type] ?? "bg-lavender text-magenta"}`}>{r.type.replace("_", " ")}</span></td>
                   <td className="text-sm text-[var(--muted)]">{r.description ?? "—"}</td>
-                  <td>{r.userCount}</td>
+                  <td><span className="gt-badge bg-[var(--soft)]">{r.userCount}</span></td>
                   <td className="text-right">
                     {editingRoleId === r.id ? (
                       <>
-                        <button onClick={() => renameRole(r.id)} disabled={busy} className="text-xs text-mint mr-2">Save</button>
-                        <button onClick={() => setEditingRoleId(null)} className="text-xs text-[var(--muted)]">Cancel</button>
+                        <button onClick={() => renameRole(r.id)} disabled={busy} className="gt-btn-primary text-xs mr-2">Save</button>
+                        <button onClick={() => setEditingRoleId(null)} className="gt-btn-ghost text-xs">Cancel</button>
                       </>
                     ) : (
                       <>
-                        <button onClick={() => { setEditingRoleId(r.id); setEditingRoleName(r.name); }} className="text-xs text-picton mr-3">Rename</button>
-                        <button onClick={() => deleteRole(r)} disabled={busy} className="text-xs text-orange">Delete</button>
+                        <button onClick={() => { setEditingRoleId(r.id); setEditingRoleName(r.name); }} className="gt-btn-ghost text-xs mr-2">Rename</button>
+                        <button onClick={() => deleteRole(r)} disabled={busy} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
                       </>
                     )}
                   </td>
@@ -228,10 +235,12 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
             return (
               <div key={r.id} className="gt-card p-5">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">{r.name} <span className="text-xs text-[var(--muted)] ml-2">{subs.length} sub-position{subs.length === 1 ? "" : "s"}</span></h3>
+                  <h3 className="flex items-center gap-2 font-semibold">{r.name}<span className="gt-badge bg-[var(--soft)] text-xs font-semibold">{subs.length}</span></h3>
                 </div>
                 {subs.length === 0 ? (
-                  <p className="text-sm text-[var(--muted)]">No sub-positions for this role.</p>
+                  <div className="rounded-xl border border-dashed border-[var(--border)] p-4 text-center text-sm text-[var(--muted)]">
+                    No sub-positions yet — add one below.
+                  </div>
                 ) : (
                   <ul className="divide-y divide-[var(--border)]">
                     {subs.map((s) => (
@@ -248,20 +257,20 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                           ) : (
                             <>
                               <span className="font-medium">{s.name}</span>
-                              <span className="text-xs text-[var(--muted)] ml-3">{s.userCount} user{s.userCount === 1 ? "" : "s"}</span>
+                              <span className="gt-badge ml-3 bg-[var(--soft)] text-xs">{s.userCount} user{s.userCount === 1 ? "" : "s"}</span>
                             </>
                           )}
                         </div>
                         <div className="flex items-center gap-3 shrink-0">
                           {editingSubId === s.id ? (
                             <>
-                              <button onClick={() => renameSubPosition(s.id)} disabled={busy} className="text-xs text-mint">Save</button>
-                              <button onClick={() => setEditingSubId(null)} className="text-xs text-[var(--muted)]">Cancel</button>
+                              <button onClick={() => renameSubPosition(s.id)} disabled={busy} className="gt-btn-primary text-xs">Save</button>
+                              <button onClick={() => setEditingSubId(null)} className="gt-btn-ghost text-xs">Cancel</button>
                             </>
                           ) : (
                             <>
-                              <button onClick={() => { setEditingSubId(s.id); setEditingSubName(s.name); }} className="text-xs text-picton">Rename</button>
-                              <button onClick={() => deleteSubPosition(s)} disabled={busy} className="text-xs text-orange">Delete</button>
+                              <button onClick={() => { setEditingSubId(s.id); setEditingSubName(s.name); }} className="gt-btn-ghost text-xs">Rename</button>
+                              <button onClick={() => deleteSubPosition(s)} disabled={busy} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
                             </>
                           )}
                         </div>

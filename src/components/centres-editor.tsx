@@ -83,10 +83,10 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
   return (
     <div className="space-y-6">
       {msg && (
-        <div className={`gt-card p-3 text-sm ${msg.kind === "ok" ? "text-mint" : "text-orange"}`}>{msg.text}</div>
+        <div className={`gt-card border-l-4 px-4 py-2.5 text-sm ${msg.kind === "ok" ? "border-mint/60 text-mint" : "border-orange/60 text-orange"}`}>{msg.kind === "ok" ? "✓ " : "⚠ "}{msg.text}</div>
       )}
       <div className="gt-card p-5">
-        <h3 className="font-bold mb-2">Add a centre</h3>
+        <h3 className="font-bold mb-3">Add a centre</h3>
         <div className="grid sm:grid-cols-3 gap-3">
           <input className="gt-input" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
           <input className="gt-input" placeholder="Location" value={location} onChange={(e) => setLocation(e.target.value)} />
@@ -127,20 +127,20 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
                         }}
                       />
                     </td>
-                    <td>{c.users}</td>
+                    <td><span className="gt-badge bg-[var(--soft)]">{c.users}</span></td>
                     <td className="text-right">
-                      <button onClick={() => saveEdit(c.id)} disabled={busy} className="text-xs text-mint mr-3">Save</button>
-                      <button onClick={() => setEditingId(null)} className="text-xs text-[var(--muted)]">Cancel</button>
+                      <button onClick={() => saveEdit(c.id)} disabled={busy} className="gt-btn-primary text-xs mr-2">Save</button>
+                      <button onClick={() => setEditingId(null)} className="gt-btn-ghost text-xs">Cancel</button>
                     </td>
                   </>
                 ) : (
                   <>
-                    <td>{c.name}</td>
-                    <td>{c.location || "—"}</td>
-                    <td>{c.users}</td>
+                    <td className="font-medium">{c.name}</td>
+                    <td className="text-[var(--muted)]">{c.location || "—"}</td>
+                    <td><span className="gt-badge bg-[var(--soft)]">{c.users}</span></td>
                     <td className="text-right">
-                      <button onClick={() => startEdit(c)} className="text-xs text-picton mr-3">Edit</button>
-                      <button onClick={() => remove(c)} disabled={busy} className="text-xs text-orange">Delete</button>
+                      <button onClick={() => startEdit(c)} className="gt-btn-ghost text-xs mr-2">Edit</button>
+                      <button onClick={() => remove(c)} disabled={busy} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
                     </td>
                   </>
                 )}

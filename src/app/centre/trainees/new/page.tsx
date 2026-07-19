@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import Link from "next/link";
 import { UserForm } from "@/components/user-form";
 
 export default async function NewTraineePage() {
@@ -14,8 +15,12 @@ export default async function NewTraineePage() {
         ? [await prisma.centre.findUniqueOrThrow({ where: { id: session.user.centreId } })]
         : []);
   return (
-    <div className="max-w-xl">
-      <h2 className="text-2xl font-bold mb-4">Add trainee</h2>
+    <div className="max-w-xl space-y-4">
+      <div>
+        <Link href="/centre/trainees" className="text-sm text-picton">← Trainees</Link>
+        <h2 className="text-2xl font-bold tracking-tight mt-1">Add trainee</h2>
+        <p className="mt-0.5 text-sm text-[var(--muted)]">They're auto-enrolled in every published course matching their sub-positions.</p>
+      </div>
       <UserForm
         roles={roles
           .filter((r) => session.user.roleType === "SUPER_ADMIN" || r.type === "TRAINEE")

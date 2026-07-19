@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
+import { timeAgo } from "@/lib/utils";
 
 type N = { id: string; type: string; title: string; body: string | null; link: string | null; read: boolean; createdAt: string };
 
@@ -39,15 +40,21 @@ export function NotificationsList({ initial }: { initial: N[] }) {
               </div>
               <div className="mt-2 font-medium">{n.title}</div>
               {n.body && <div className="text-sm text-[var(--muted)] mt-1">{n.body}</div>}
-              <div className="text-xs text-[var(--muted)] mt-1">{new Date(n.createdAt).toLocaleString()}</div>
+              <div className="text-xs text-[var(--muted)] mt-1">{timeAgo(n.createdAt)}</div>
             </div>
             <div className="flex items-center gap-2">
               {n.link && <Link href={n.link} className="gt-btn-accent text-sm">Open</Link>}
-              {!n.read && <button onClick={() => markRead(n.id)} className="text-xs text-picton">Mark read</button>}
+              {!n.read && <button onClick={() => markRead(n.id)} className="gt-btn-ghost text-xs">Mark read</button>}
             </div>
           </div>
         ))}
-        {initial.length === 0 && <div className="p-8 text-center text-[var(--muted)]">No notifications.</div>}
+        {initial.length === 0 && (
+          <div className="p-10 text-center">
+            <div className="text-4xl">🔕</div>
+            <div className="mt-3 font-semibold">All quiet</div>
+            <p className="mt-1 text-sm text-[var(--muted)]">Nothing needs your attention right now.</p>
+          </div>
+        )}
       </div>
     </div>
   );

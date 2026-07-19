@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import Link from "next/link";
 import { UserForm } from "@/components/user-form";
 
 export default async function AdminNewUserPage() {
@@ -10,8 +11,12 @@ export default async function AdminNewUserPage() {
     prisma.subPosition.findMany({ orderBy: { name: "asc" } }),
   ]);
   return (
-    <div className="max-w-xl">
-      <h2 className="text-2xl font-bold mb-4">Add user</h2>
+    <div className="max-w-xl space-y-4">
+      <div>
+        <Link href="/admin/users" className="text-sm text-picton">← All users</Link>
+        <h2 className="text-2xl font-bold tracking-tight mt-1">Add user</h2>
+        <p className="mt-0.5 text-sm text-[var(--muted)]">Trainees are auto-enrolled in matching published courses the moment they're created.</p>
+      </div>
       <UserForm
         roles={roles.map((r) => ({ id: r.id, name: r.name, type: r.type }))}
         centres={centres.map((c) => ({ id: c.id, name: c.name }))}

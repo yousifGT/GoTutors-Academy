@@ -54,7 +54,11 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
     <div className="space-y-6">
       <div className="gt-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+          <div className="flex items-start gap-4">
+            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-picton to-cyan text-lg font-bold text-navy">
+              {user.name.slice(0, 1).toUpperCase()}
+            </div>
+            <div>
             <h2 className="text-2xl font-bold">{user.name}</h2>
             <p className="text-sm text-[var(--muted)]">
               {user.email} · {user.role.name}
@@ -62,6 +66,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
               {" "}· {user.centre?.name ?? "no centre"}
             </p>
             <p className="text-xs text-[var(--muted)] mt-1">Last login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</p>
+            </div>
           </div>
           {user.isTrained && <span className="gt-badge bg-mint/20 text-mint">Trained</span>}
         </div>
