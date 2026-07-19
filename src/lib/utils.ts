@@ -18,3 +18,16 @@ export function initials(name: string) {
     .join("")
     .toUpperCase();
 }
+
+/** "3m ago" / "2h ago" / "5d ago" — coarse relative time for activity feeds. */
+export function timeAgo(d: Date | string) {
+  const ms = Date.now() - new Date(d).getTime();
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+}
