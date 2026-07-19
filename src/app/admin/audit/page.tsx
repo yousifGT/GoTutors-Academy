@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function AuditPage() {
   await requireRole("SUPER_ADMIN");
@@ -12,7 +13,7 @@ export default async function AuditPage() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold">Audit log</h2>
+      <PageHeader title="Audit log" subtitle="The latest 200 sensitive actions, newest first." />
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Details</th></tr></thead>

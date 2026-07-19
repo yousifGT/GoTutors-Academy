@@ -36,7 +36,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
       <div className="hidden lg:flex flex-col justify-between p-12 bg-gradient-to-br from-navy via-[#272484] to-picton text-white">
-        <Logo className="text-white [&_div:first-child]:bg-white [&_div:first-child]:text-navy" />
+        <Logo variant="onDark" />
         <div>
           <h1 className="text-4xl font-bold leading-tight">Learn. Grow. Get certified.</h1>
           <p className="mt-4 text-ice/80 max-w-md">

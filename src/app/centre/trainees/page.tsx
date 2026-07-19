@@ -6,6 +6,7 @@ import { ListSearch } from "@/components/list-search";
 import { formatDate } from "@/lib/utils";
 import { centreUserScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreTraineesPage({ searchParams }: { searchParams: { q?: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -34,13 +35,11 @@ export default async function CentreTraineesPage({ searchParams }: { searchParam
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold">Trainees</h2>
-        <div className="flex items-center gap-3">
-          <ListSearch placeholder="Search name, email, position…" />
-          <Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Trainees"
+        subtitle="Everyone training at your centre."
+        actions={<><ListSearch placeholder="Search name, email, position…" /><Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link></>}
+      />
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>Name</th><th>Sub-positions</th><th>Trained</th><th>Enrolments</th><th>Last login</th><th>Status</th><th></th></tr></thead>

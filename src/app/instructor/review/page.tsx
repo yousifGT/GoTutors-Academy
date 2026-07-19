@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { ReviewQueueItem } from "@/components/review-queue-item";
+import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function ReviewQueuePage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -27,9 +28,14 @@ export default async function ReviewQueuePage() {
   });
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold">Open-ended review queue</h2>
-      {attempts.length === 0 && <div className="gt-card p-6 text-[var(--muted)]">Nothing waiting for review.</div>}
+    <div className="space-y-5">
+      <PageHeader
+        title="Review queue"
+        subtitle="Open-ended answers waiting for a grade — oldest first."
+      />
+      {attempts.length === 0 && (
+        <EmptyState icon="✅" title="All caught up" hint="Nothing is waiting for review right now." />
+      )}
       <div className="space-y-4">
         {attempts.map((a) => (
           <ReviewQueueItem

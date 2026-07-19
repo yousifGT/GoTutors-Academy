@@ -1,5 +1,6 @@
 import { requireRole } from "@/lib/session";
 import { centreReportRows } from "@/lib/centre-report";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function AdminReportsPage() {
   await requireRole("SUPER_ADMIN");
@@ -7,9 +8,11 @@ export default async function AdminReportsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <a href="/api/reports/admin/export" className="gt-btn-ghost">Download CSV</a>
-      </div>
+      <PageHeader
+        title="Reports"
+        subtitle="Per-centre training performance."
+        actions={<a href="/api/reports/admin/export" className="gt-btn-ghost">Download CSV</a>}
+      />
       <div className="gt-card overflow-hidden">
       <table className="gt-table">
         <thead><tr><th>Centre</th><th>Users</th><th>Enrolments</th><th>Completed</th><th>Pass rate</th><th>Passes</th><th>Fails</th></tr></thead>

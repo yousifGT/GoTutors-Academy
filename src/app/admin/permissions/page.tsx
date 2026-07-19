@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { PermissionsMatrix } from "@/components/permissions-matrix";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function PermissionsPage() {
   await requireRole("SUPER_ADMIN");
@@ -12,7 +13,9 @@ export default async function PermissionsPage() {
   ]);
 
   return (
-    <PermissionsMatrix
+    <div className="space-y-5">
+      <PageHeader title="Permissions" subtitle="What each role can do, with per-user overrides." />
+      <PermissionsMatrix
       roles={roles.map((r) => ({
         id: r.id,
         name: r.name,
@@ -22,6 +25,7 @@ export default async function PermissionsPage() {
       permissions={perms.map((p) => ({ id: p.id, key: p.key, label: p.label, description: p.description ?? "" }))}
       users={users.map((u) => ({ id: u.id, name: u.name, email: u.email, role: u.role.name }))}
       overrides={userOverrides.map((o) => ({ userId: o.userId, permissionId: o.permissionId, allowed: o.allowed }))}
-    />
+      />
+    </div>
   );
 }

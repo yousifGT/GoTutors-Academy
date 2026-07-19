@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { NotificationsList } from "@/components/notifications-list";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreNotificationsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -10,11 +11,14 @@ export default async function CentreNotificationsPage() {
     take: 100,
   });
   return (
-    <NotificationsList
+    <div className="space-y-5">
+      <PageHeader title="Notifications" subtitle="Everything that needs your attention." />
+      <NotificationsList
       initial={items.map((n) => ({
         id: n.id, type: n.type, title: n.title, body: n.body, link: n.link, read: n.read,
         createdAt: n.createdAt.toISOString(),
       }))}
-    />
+      />
+    </div>
   );
 }

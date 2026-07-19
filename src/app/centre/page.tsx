@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { centreUserScope } from "@/lib/scope";
+import { PageHeader, StatCard } from "@/components/page-ui";
 
 export default async function CentreDashboard() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
@@ -13,13 +14,15 @@ export default async function CentreDashboard() {
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
   ]);
 
+  const firstName = session.user.name?.split(" ")[0] ?? "there";
   return (
     <div className="space-y-8">
-      <section className="grid gap-4 sm:grid-cols-4">
-        <div className="gt-card p-5"><div className="text-xs uppercase text-[var(--muted)]">Trainees</div><div className="mt-2 text-3xl font-bold text-navy dark:text-ice">{trainees}</div></div>
-        <div className="gt-card p-5"><div className="text-xs uppercase text-[var(--muted)]">Completed enrolments</div><div className="mt-2 text-3xl font-bold text-mint">{completed}</div></div>
-        <div className="gt-card p-5"><div className="text-xs uppercase text-[var(--muted)]">Quizzes locked</div><div className="mt-2 text-3xl font-bold text-orange">{locked}</div></div>
-        <div className="gt-card p-5"><div className="text-xs uppercase text-[var(--muted)]">Unread notifications</div><div className="mt-2 text-3xl font-bold text-magenta">{unread}</div></div>
+      <PageHeader title={`Welcome back, ${firstName}`} subtitle="Your centre at a glance." />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatCard label="Trainees" value={trainees} icon="👥" tone="navy" />
+        <StatCard label="Completed enrolments" value={completed} icon="✅" tone="mint" />
+        <StatCard label="Quizzes locked" value={locked} icon="🔒" tone="orange" />
+        <StatCard label="Unread notifications" value={unread} icon="🔔" tone="magenta" />
       </section>
     </div>
   );

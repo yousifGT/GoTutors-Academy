@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
+import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function CertificatesPage() {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
@@ -11,12 +12,13 @@ export default async function CertificatesPage() {
     orderBy: { issuedAt: "desc" },
   });
 
-  if (certs.length === 0) {
-    return <div className="gt-card p-6 text-[var(--muted)]">You haven't earned any certificates yet.</div>;
-  }
-
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-5">
+      <PageHeader title="Certificates" subtitle="Earned by completing every lesson and quiz in a course." />
+      {certs.length === 0 && (
+        <EmptyState icon="🎓" title="No certificates yet" hint="Finish a course — every lesson watched and every quiz passed — and your certificate lands here." />
+      )}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {certs.map((c) => (
         <div key={c.id} className="gt-card p-6">
           <div className="text-xs uppercase tracking-widest text-picton">Certificate</div>
@@ -28,6 +30,7 @@ export default async function CertificatesPage() {
           </div>
         </div>
       ))}
+      </div>
     </div>
   );
 }

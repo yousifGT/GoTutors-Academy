@@ -5,6 +5,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
+import { PageHeader, StatCard } from "@/components/page-ui";
 
 export default async function TraineeDashboard() {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
@@ -31,21 +32,14 @@ export default async function TraineeDashboard() {
     }))
   );
 
+  const firstName = session.user.name?.split(" ")[0] ?? "there";
   return (
     <div className="space-y-8">
+      <PageHeader title={`Hi, ${firstName} 👋`} subtitle="Pick up where you left off." />
       <section className="grid gap-4 sm:grid-cols-3">
-        <div className="gt-card p-5">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Enrolled courses</div>
-          <div className="mt-2 text-3xl font-bold text-navy dark:text-ice">{enrollments.length}</div>
-        </div>
-        <div className="gt-card p-5">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Certificates</div>
-          <div className="mt-2 text-3xl font-bold text-mint">{certificates}</div>
-        </div>
-        <div className="gt-card p-5">
-          <div className="text-xs uppercase tracking-wide text-[var(--muted)]">Completed</div>
-          <div className="mt-2 text-3xl font-bold text-picton">{enrollments.filter((e) => e.completed).length}</div>
-        </div>
+        <StatCard label="Enrolled courses" value={enrollments.length} icon="📚" tone="navy" />
+        <StatCard label="Certificates" value={certificates} icon="🎓" tone="mint" />
+        <StatCard label="Completed" value={enrollments.filter((e) => e.completed).length} icon="✅" tone="picton" />
       </section>
 
       <section>

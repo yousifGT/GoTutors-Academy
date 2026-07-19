@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireSession } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
+import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function TeamCertificatesPage({ searchParams }: { searchParams: { user?: string } }) {
   const session = await requireSession();
@@ -16,8 +17,8 @@ export default async function TeamCertificatesPage({ searchParams }: { searchPar
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold">Team certificates</h2>
-      {certs.length === 0 && <div className="gt-card p-6 text-[var(--muted)]">No certificates yet.</div>}
+      <PageHeader title="Team certificates" subtitle="Everything your team has earned." />
+      {certs.length === 0 && <EmptyState icon="🎓" title="No certificates yet" hint="They appear here as your team completes courses." />}
       <div className="grid gap-3 md:grid-cols-2">
         {certs.map((c) => (
           <div key={c.id} className="gt-card p-4 flex items-center justify-between">

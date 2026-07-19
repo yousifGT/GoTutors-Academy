@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/session";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
 import { formatDate } from "@/lib/utils";
+import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function MyTeamPage() {
   const session = await requireSession();
@@ -27,15 +28,18 @@ export default async function MyTeamPage() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-bold">My team</h2>
-      {rows.length === 0 && <div className="gt-card p-6 text-[var(--muted)]">No reports yet.</div>}
+      <PageHeader title="My team" subtitle="Progress and certificates for everyone you supervise." />
+      {rows.length === 0 && <EmptyState icon="🤝" title="No reports yet" hint="Trainees appear here once you are set as their supervisor." />}
       {rows.map(({ user, progress }) => (
         <div key={user.id} className="gt-card p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
+            <div className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-picton to-cyan font-bold text-navy">{user.name.slice(0, 1).toUpperCase()}</div>
+              <div>
               <div className="font-bold">{user.name}</div>
               <div className="text-xs text-[var(--muted)]">{user.email} · {user.role.name} · {user.centre?.name ?? "no centre"}</div>
               <div className="text-xs text-[var(--muted)]">Last login: {user.lastLoginAt ? formatDate(user.lastLoginAt) : "Never"}</div>
+              </div>
             </div>
           </div>
           {progress.length === 0 ? (

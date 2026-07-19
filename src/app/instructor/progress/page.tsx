@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function InstructorProgressPage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
@@ -18,7 +19,9 @@ export default async function InstructorProgressPage() {
   );
 
   return (
-    <div className="gt-card overflow-hidden">
+    <div className="space-y-5">
+      <PageHeader title="Trainee progress" subtitle="The latest 200 enrolments across your courses." />
+      <div className="gt-card overflow-hidden">
       <table className="gt-table">
         <thead><tr><th>Trainee</th><th>Course</th><th>Progress</th><th>Status</th></tr></thead>
         <tbody>
@@ -41,6 +44,7 @@ export default async function InstructorProgressPage() {
           {enrollments.length === 0 && <tr><td colSpan={4} className="text-center text-[var(--muted)] py-8">No data yet.</td></tr>}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { TraineeRowActions } from "@/components/trainee-row-actions";
 import { ListSearch } from "@/components/list-search";
 import { formatDate } from "@/lib/utils";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: { q?: string } }) {
   await requireRole("SUPER_ADMIN");
@@ -29,13 +30,11 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
   });
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-bold">All users</h2>
-        <div className="flex items-center gap-3">
-          <ListSearch placeholder="Search name, email, role, centre…" />
-          <Link href="/admin/users/new" className="gt-btn-primary">Add user</Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Users"
+        subtitle="Every account across all centres."
+        actions={<><ListSearch placeholder="Search name, email, role, centre…" /><Link href="/admin/users/new" className="gt-btn-primary">Add user</Link></>}
+      />
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>Name</th><th>Role</th><th>Sub-position</th><th>Trained</th><th>Centre</th><th>Last login</th><th></th></tr></thead>

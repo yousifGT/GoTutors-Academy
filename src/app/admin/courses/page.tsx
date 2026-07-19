@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { CoursePublishToggle } from "@/components/course-publish-toggle";
+import { PageHeader } from "@/components/page-ui";
 
 export default async function AdminCoursesPage() {
   await requireRole("SUPER_ADMIN");
@@ -11,10 +12,11 @@ export default async function AdminCoursesPage() {
   });
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">All courses</h2>
-        <Link href="/instructor/courses/new" className="gt-btn-primary">New course</Link>
-      </div>
+      <PageHeader
+        title="Courses"
+        subtitle="Every course across all instructors."
+        actions={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
+      />
       <div className="gt-card overflow-hidden">
         <table className="gt-table">
           <thead><tr><th>Title</th><th>Author</th><th>Modules</th><th>Enrolments</th><th>Status</th><th></th></tr></thead>

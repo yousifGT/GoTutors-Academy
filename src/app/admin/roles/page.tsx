@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { RolesManager } from "@/components/roles-manager";
+import { PageHeader } from "@/components/page-ui";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function RolesPage() {
@@ -31,7 +32,9 @@ export default async function RolesPage() {
   }
 
   return (
-    <RolesManager
+    <div className="space-y-5">
+      <PageHeader title="Roles & sub-positions" subtitle="Role types drive access; sub-positions drive automatic course enrolment." />
+      <RolesManager
       roles={roles.map((r) => ({
         id: r.id,
         name: r.name,
@@ -46,6 +49,7 @@ export default async function RolesPage() {
         roleName: s.role.name,
         userCount: usageBySub.get(`${s.roleId}:${s.name}`) ?? 0,
       }))}
-    />
+      />
+    </div>
   );
 }
