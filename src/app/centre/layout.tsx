@@ -9,11 +9,11 @@ export default async function CentreLayout({ children }: { children: React.React
     prisma.user.count({ where: { supervisorId: session.user.id } }),
   ]);
   const nav = [
-    { href: "/centre", label: "Dashboard" },
-    { href: "/centre/trainees", label: "Trainees" },
-    { href: "/centre/reports", label: "Reports" },
-    { href: "/centre/notifications", label: "Notifications", badge: unread },
-    ...(reports > 0 ? [{ href: "/my-team", label: "My team" }] : []),
+    { href: "/centre", label: "Dashboard", icon: "🏠" },
+    { href: "/centre/trainees", label: "Trainees", icon: "👥" },
+    { href: "/centre/reports", label: "Reports", icon: "📊" },
+    { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔" },
+    ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
   ];
   return (
     <DashboardShell user={session.user} nav={nav} title="Centre admin">

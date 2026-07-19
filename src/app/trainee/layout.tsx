@@ -6,10 +6,10 @@ export default async function TraineeLayout({ children }: { children: React.Reac
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
   const reports = await prisma.user.count({ where: { supervisorId: session.user.id } });
   const nav = [
-    { href: "/trainee", label: "Dashboard" },
-    { href: "/trainee/courses", label: "My Courses" },
-    { href: "/trainee/certificates", label: "Certificates" },
-    ...(reports > 0 ? [{ href: "/my-team", label: "My team" }] : []),
+    { href: "/trainee", label: "Dashboard", icon: "🏠" },
+    { href: "/trainee/courses", label: "My Courses", icon: "📚" },
+    { href: "/trainee/certificates", label: "Certificates", icon: "🎓" },
+    ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
   ];
   return (
     <DashboardShell user={session.user} nav={nav} title="Trainee">

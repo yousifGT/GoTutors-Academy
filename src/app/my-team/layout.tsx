@@ -10,9 +10,9 @@ export default async function MyTeamLayout({ children }: { children: React.React
   if (reportsCount === 0) redirect(roleDashboard[session.user.roleType]);
 
   const nav = [
-    { href: roleDashboard[session.user.roleType], label: "Back to dashboard" },
-    { href: "/my-team", label: "My team" },
-    { href: "/my-team/certificates", label: "Team certificates" },
+    { href: roleDashboard[session.user.roleType], label: "Back to dashboard", icon: "↩️" },
+    { href: "/my-team", label: "My team", icon: "🤝" },
+    { href: "/my-team/certificates", label: "Team certificates", icon: "🎓" },
   ];
   return (
     <DashboardShell user={session.user} nav={nav} title="Supervisor">

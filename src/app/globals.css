@@ -3,49 +3,114 @@
 @tailwind utilities;
 
 :root {
-  --bg: #ffffff;
-  --fg: #1C1960;
-  --muted: #6B7280;
+  --bg: #f4f8fc;
+  --fg: #1c1960;
+  --muted: #64748b;
   --card: #ffffff;
-  --border: #e5e7eb;
-  --soft: #E9F6FF;
+  --border: #e2e8f0;
+  --soft: #e9f6ff;
+  --input: #f8fafc;
 }
 
 .dark {
-  --bg: #0E0D2A;
-  --fg: #E9F6FF;
-  --muted: #9AA3C2;
-  --card: #161536;
-  --border: #25244B;
-  --soft: #1C1960;
+  --bg: #0b0a23;
+  --fg: #e9f6ff;
+  --muted: #9aa3c2;
+  --card: #14132f;
+  --border: #262550;
+  --soft: #1c1960;
+  --input: #100f2b;
 }
 
-html, body { background: var(--bg); color: var(--fg); }
-body { font-family: var(--font-poppins), system-ui, sans-serif; }
+html,
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: var(--font-poppins), system-ui, sans-serif;
+  /* Subtle brand glow in the corners instead of a flat wash. */
+  background-image:
+    radial-gradient(1100px 600px at 100% -10%, rgba(86, 185, 233, 0.1), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(28, 25, 96, 0.07), transparent 60%);
+  background-attachment: fixed;
+}
+
+.dark body {
+  background-image:
+    radial-gradient(1100px 600px at 100% -10%, rgba(86, 185, 233, 0.09), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(161, 18, 102, 0.07), transparent 60%);
+}
+
+::selection {
+  background: rgba(86, 185, 233, 0.35);
+}
+
+/* Slim, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
 
 @layer components {
   .gt-card {
-    @apply rounded-2xl border bg-[var(--card)] border-[var(--border)] shadow-soft;
+    @apply rounded-2xl border bg-[var(--card)] border-[var(--border)] shadow-soft transition-shadow;
   }
+  .dark .gt-card {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 4px 24px -8px rgba(0, 0, 0, 0.5);
+  }
+
   .gt-btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition-colors;
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-picton/60 active:scale-[0.98] disabled:opacity-60 disabled:pointer-events-none;
   }
   .gt-btn-primary {
-    @apply gt-btn bg-navy text-white hover:bg-[#171453];
+    @apply gt-btn text-white;
+    background-image: linear-gradient(135deg, #1c1960, #322e9e);
+    box-shadow: 0 4px 14px -4px rgba(28, 25, 96, 0.55);
+  }
+  .gt-btn-primary:hover {
+    filter: brightness(1.18);
   }
   .gt-btn-accent {
-    @apply gt-btn bg-picton text-navy hover:bg-[#3aa6d8];
+    @apply gt-btn text-navy;
+    background-image: linear-gradient(135deg, #56b9e9, #7cd7f7);
+    box-shadow: 0 4px 14px -4px rgba(86, 185, 233, 0.55);
+  }
+  .gt-btn-accent:hover {
+    filter: brightness(1.06);
   }
   .gt-btn-ghost {
-    @apply gt-btn border border-[var(--border)] hover:bg-[var(--soft)];
+    @apply gt-btn border border-[var(--border)] hover:bg-[var(--soft)] hover:border-picton/50;
   }
+
   .gt-input {
-    @apply w-full rounded-xl border border-[var(--border)] bg-[var(--card)] px-4 py-2.5 outline-none focus:border-picton focus:ring-2 focus:ring-picton/30;
+    @apply w-full rounded-xl border border-[var(--border)] bg-[var(--input)] px-4 py-2.5 outline-none transition-colors focus:border-picton focus:ring-2 focus:ring-picton/25 focus:bg-[var(--card)];
   }
-  .gt-label { @apply mb-1 block text-sm font-medium text-[var(--muted)]; }
+  .gt-input::placeholder {
+    color: var(--muted);
+    opacity: 0.6;
+  }
+  .gt-label {
+    @apply mb-1.5 block text-xs font-semibold uppercase tracking-wide text-[var(--muted)];
+  }
   .gt-badge {
     @apply inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium;
   }
+
   .gt-table {
     @apply w-full text-sm border-collapse;
   }
@@ -54,5 +119,11 @@ body { font-family: var(--font-poppins), system-ui, sans-serif; }
   }
   .gt-table td {
     @apply py-3 px-3 border-b border-[var(--border)];
+  }
+  .gt-table tbody tr {
+    @apply transition-colors;
+  }
+  .gt-table tbody tr:hover {
+    background: color-mix(in srgb, var(--soft) 45%, transparent);
   }
 }

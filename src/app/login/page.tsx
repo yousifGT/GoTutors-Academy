@@ -60,8 +60,8 @@ export default function LoginPage() {
         </div>
 
         <div className="flex-1 grid place-items-center">
-          <form onSubmit={onSubmit} className="gt-card w-full max-w-md p-8">
-            <h2 className="text-2xl font-bold">Sign in</h2>
+          <form onSubmit={onSubmit} className="gt-card w-full max-w-md p-8 shadow-xl">
+            <h2 className="text-2xl font-bold">Welcome back</h2>
             <p className="text-sm text-[var(--muted)] mt-1">Single sign-in for all roles.</p>
 
             <div className="mt-6">
