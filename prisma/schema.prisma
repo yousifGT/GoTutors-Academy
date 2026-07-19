@@ -137,6 +137,7 @@ model Course {
   authorId      String
   passThreshold Int      @default(70)
   published     Boolean  @default(false)
+  version       Int      @default(0)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -145,8 +146,31 @@ model Course {
   enrollments   Enrollment[]
   certificates  Certificate[]
   roleAssignments CourseRoleAssignment[]
+  versions      CourseVersion[]
+  prerequisites   CoursePrerequisite[] @relation("CoursePrereqs")
+  prerequisiteFor CoursePrerequisite[] @relation("PrereqFor")
 
   @@index([authorId])
+}
+
+/// Immutable snapshot of a course's structure, captured each time it is published.
+model CourseVersion {
+  id          String   @id @default(cuid())
+  courseId    String
+  version     Int
+  snapshot    Json
+  publishedAt DateTime @default(now())
+  course      Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  @@unique([courseId, version])
+}
+
+/// Trainees must complete `prerequisite` before starting `course`.
+model CoursePrerequisite {
+  courseId       String
+  prerequisiteId String
+  course         Course @relation("CoursePrereqs", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisite   Course @relation("PrereqFor", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  @@id([courseId, prerequisiteId])
 }
 
 model CourseRoleAssignment {
@@ -265,11 +289,13 @@ model QuizAttempt {
 }
 
 model Certificate {
-  id         String   @id @default(cuid())
-  userId     String
-  courseId   String
-  issuedAt   DateTime @default(now())
-  serial     String   @unique
+  id            String   @id @default(cuid())
+  userId        String
+  courseId      String
+  issuedAt      DateTime @default(now())
+  /// Course.version at award time — ties the certificate to the exact published snapshot.
+  courseVersion Int?
+  serial        String   @unique
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   @@unique([userId, courseId])

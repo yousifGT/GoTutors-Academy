@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/session";
 import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
+import { getMissingPrerequisites } from "@/lib/course-prereqs";
 
 export default async function TraineeDashboard() {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
@@ -26,6 +27,7 @@ export default async function TraineeDashboard() {
     enrollments.map(async (e) => ({
       enrollment: e,
       progress: await getCourseProgressForUser(userId, e.courseId),
+      missingPrereqs: await getMissingPrerequisites(userId, e.courseId),
     }))
   );
 
@@ -52,13 +54,25 @@ export default async function TraineeDashboard() {
           <div className="gt-card p-6 text-[var(--muted)]">No courses assigned to your position yet — they appear here automatically once published.</div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {progressByCourse.map(({ enrollment, progress }) => (
-              <Link key={enrollment.id} href={`/trainee/courses/${enrollment.courseId}`} className="gt-card p-5 hover:shadow-soft transition">
-                <div className="text-sm text-picton font-semibold">{progress?.percent ?? 0}% complete</div>
+            {progressByCourse.map(({ enrollment, progress, missingPrereqs }) => (
+              <Link key={enrollment.id} href={`/trainee/courses/${enrollment.courseId}`} className={`gt-card p-5 hover:shadow-soft transition ${missingPrereqs.length > 0 ? "opacity-75" : ""}`}>
+                {missingPrereqs.length > 0 ? (
+                  <div className="text-sm font-semibold text-[var(--muted)]">🔒 Locked</div>
+                ) : (
+                  <div className="text-sm text-picton font-semibold">{progress?.percent ?? 0}% complete</div>
+                )}
                 <div className="mt-1 text-lg font-bold">{enrollment.course.title}</div>
                 <p className="mt-1 text-sm text-[var(--muted)] line-clamp-2">{enrollment.course.description}</p>
-                <div className="mt-4"><ProgressBar percent={progress?.percent ?? 0} /></div>
-                <div className="mt-3 text-xs text-[var(--muted)]">{progress?.completed}/{progress?.total} lessons</div>
+                {missingPrereqs.length > 0 ? (
+                  <div className="mt-4 text-xs text-[var(--muted)]">
+                    Complete <span className="text-[var(--fg)]">{missingPrereqs.map((m) => m.title).join(", ")}</span> first
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-4"><ProgressBar percent={progress?.percent ?? 0} /></div>
+                    <div className="mt-3 text-xs text-[var(--muted)]">{progress?.completed}/{progress?.total} lessons</div>
+                  </>
+                )}
               </Link>
             ))}
           </div>

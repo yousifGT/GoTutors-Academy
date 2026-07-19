@@ -39,12 +39,15 @@ export function CourseWizardDetails({
   roles,
   allSubPositions,
   categories,
+  availableCourses,
   initial,
 }: {
   roles: { id: string; name: string; type: string }[];
   allSubPositions: SP[];
   /** Existing category names, offered as suggestions. */
   categories: string[];
+  /** Other courses that can be picked as prerequisites (never includes this course). */
+  availableCourses: { id: string; title: string }[];
   initial?: {
     id: string;
     title: string;
@@ -53,6 +56,7 @@ export function CourseWizardDetails({
     passThreshold: number;
     roleIds: string[];
     subPositions: string[];
+    prerequisiteIds: string[];
   };
 }) {
   const router = useRouter();
@@ -62,6 +66,7 @@ export function CourseWizardDetails({
   const [passThreshold, setPassThreshold] = useState(initial?.passThreshold ?? 70);
   const [roleIds, setRoleIds] = useState<string[]>(initial?.roleIds ?? []);
   const [subPositions, setSubPositions] = useState<string[]>(initial?.subPositions ?? []);
+  const [prerequisiteIds, setPrerequisiteIds] = useState<string[]>(initial?.prerequisiteIds ?? []);
   const [saving, setSaving] = useState(false);
   const [reach, setReach] = useState<number | null>(null);
 
@@ -123,6 +128,7 @@ export function CourseWizardDetails({
         passThreshold: Number(passThreshold),
         roleIds,
         subPositions: traineeRoleSelected ? subPositions : [],
+        prerequisiteIds,
       }),
     });
     const data = await res.json();
@@ -201,6 +207,28 @@ export function CourseWizardDetails({
           </div>
         )}
       </div>
+
+      {availableCourses.length > 0 && (
+        <div className="gt-card p-6 space-y-3">
+          <div>
+            <label className="gt-label">Prerequisites <span className="text-[var(--muted)] font-normal">(optional)</span></label>
+            <p className="text-xs text-[var(--muted)] mb-2">Trainees must complete these courses before they can start this one.</p>
+            <div className="flex flex-wrap gap-2">
+              {availableCourses.map((c) => (
+                <Pill
+                  key={c.id}
+                  selected={prerequisiteIds.includes(c.id)}
+                  onToggle={() =>
+                    setPrerequisiteIds((s) => (s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id]))
+                  }
+                >
+                  {c.title}
+                </Pill>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <span className="text-xs text-[var(--muted)]">Saved as a draft — nothing reaches trainees until you publish on step 3.</span>

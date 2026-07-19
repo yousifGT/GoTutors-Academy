@@ -6,6 +6,8 @@ import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireCourseAccess } from "@/lib/course-access";
 import { assignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
+import { snapshotCourse } from "@/lib/course-version";
+import { wouldCreateCycle } from "@/lib/course-prereqs";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -17,6 +19,7 @@ const UpdateCourseSchema = z.object({
   published: z.boolean().optional(),
   roleIds: z.array(zId).optional(),
   subPositions: z.array(z.string().max(200)).optional(),
+  prerequisiteIds: z.array(zId).max(50).optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -31,6 +34,27 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
+  const existing = await prisma.course.findUnique({ where: { id: params.id }, select: { published: true } });
+  if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  if (body.prerequisiteIds !== undefined) {
+    const ids = [...new Set(body.prerequisiteIds)];
+    const found = await prisma.course.count({ where: { id: { in: ids } } });
+    if (found !== ids.length)
+      return NextResponse.json({ error: "Unknown prerequisite course" }, { status: 400 });
+    if (await wouldCreateCycle(params.id, ids))
+      return NextResponse.json(
+        { error: "That would create a circular prerequisite (a course can't require itself, directly or indirectly)" },
+        { status: 400 }
+      );
+    await prisma.coursePrerequisite.deleteMany({ where: { courseId: params.id } });
+    if (ids.length > 0) {
+      await prisma.coursePrerequisite.createMany({
+        data: ids.map((prerequisiteId) => ({ courseId: params.id, prerequisiteId })),
+      });
+    }
+  }
+
   const data: Record<string, unknown> = {};
   for (const k of ["title", "description", "passThreshold", "published"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
@@ -44,6 +68,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     });
   }
   const updated = await prisma.course.update({ where: { id: params.id }, data });
+  // Every draft->published transition captures an immutable version snapshot,
+  // so certificates can always point at exactly what trainees saw.
+  if (!existing.published && updated.published) {
+    await snapshotCourse(updated.id);
+  }
   // Publishing (or re-targeting a published course) enrols matching trainees.
   if (updated.published && (body.published !== undefined || body.roleIds !== undefined)) {
     await syncCourseEnrollments(updated.id);

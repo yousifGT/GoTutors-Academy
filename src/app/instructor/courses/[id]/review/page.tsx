@@ -20,6 +20,8 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
         },
       },
       roleAssignments: { include: { role: true } },
+      prerequisites: { include: { prerequisite: { select: { id: true, title: true } } } },
+      versions: { orderBy: { version: "desc" }, take: 5, select: { version: true, publishedAt: true } },
     },
   });
   if (!course) notFound();
@@ -84,10 +86,33 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
             </Link>
           )}
         </div>
+        {course.prerequisites.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span className="text-[var(--muted)]">Requires first:</span>
+            {course.prerequisites.map((p) => (
+              <span key={p.prerequisite.id} className="gt-badge bg-[var(--soft)]">🔒 {p.prerequisite.title}</span>
+            ))}
+          </div>
+        )}
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-[var(--muted)]">
           <span>Category: <span className="text-[var(--fg)] font-semibold">{course.category ?? "—"}</span></span>
           <span>Quiz pass threshold: <span className="text-[var(--fg)] font-semibold">{course.passThreshold}%</span></span>
+          {course.version > 0 && <span>Version: <span className="text-[var(--fg)] font-semibold">v{course.version}</span></span>}
         </div>
+        {course.versions.length > 0 && (
+          <details className="text-sm">
+            <summary className="cursor-pointer text-[var(--muted)]">Version history</summary>
+            <ul className="mt-2 space-y-1 text-[var(--muted)]">
+              {course.versions.map((v) => (
+                <li key={v.version}>
+                  v{v.version} — published {v.publishedAt.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                  {v.version === course.version ? " (current)" : ""}
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1 text-xs text-[var(--muted)]">Each publish stores a full snapshot; certificates record the version they were earned against.</p>
+          </details>
+        )}
       </div>
 
       <div className="gt-card p-6 space-y-3">

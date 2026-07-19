@@ -36,7 +36,8 @@ export async function maybeAwardCertificate(userId: string, courseId: string): P
     await prisma.$transaction(async (tx) => {
       const existing = await tx.certificate.findUnique({ where: { userId_courseId: { userId, courseId } } });
       if (existing) return;
-      await tx.certificate.create({ data: { userId, courseId, serial } });
+      // Pin the certificate to the course version it was earned against.
+      await tx.certificate.create({ data: { userId, courseId, serial, courseVersion: course.version } });
       const res = await tx.enrollment.updateMany({
         where: { userId, courseId },
         data: { completed: true, completedAt: new Date() },

@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/session";
 import { getCourseProgressForUser, nextUnlockedLesson } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
 import { EnrolButton } from "@/components/enrol-button";
+import { getMissingPrerequisites } from "@/lib/course-prereqs";
 
 export default async function CoursePage({ params }: { params: { courseId: string } }) {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN");
@@ -26,6 +27,27 @@ export default async function CoursePage({ params }: { params: { courseId: strin
         <div className="mt-4 max-w-xs"><EnrolButton courseId={course.id} label="Enrol now" /></div>
       </div>
     );
+  }
+
+  // Prerequisite gate: enrolled but locked until the required courses are done.
+  if (session.user.roleType !== "SUPER_ADMIN") {
+    const missing = await getMissingPrerequisites(session.user.id, course.id);
+    if (missing.length > 0) {
+      return (
+        <div className="gt-card p-6">
+          <h2 className="text-xl font-bold">🔒 {course.title} is locked</h2>
+          <p className="mt-1 text-[var(--muted)]">Complete these courses first:</p>
+          <ul className="mt-3 space-y-2">
+            {missing.map((m) => (
+              <li key={m.id}>
+                <Link href={`/trainee/courses/${m.id}`} className="gt-btn-ghost">{m.title} →</Link>
+              </li>
+            ))}
+          </ul>
+          <Link href="/trainee" className="text-sm text-picton mt-4 inline-block">← Back to dashboard</Link>
+        </div>
+      );
+    }
   }
 
   const progress = await getCourseProgressForUser(session.user.id, course.id);

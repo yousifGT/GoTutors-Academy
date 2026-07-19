@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { assignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
+import { snapshotCourse } from "@/lib/course-version";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -16,6 +17,7 @@ const CreateCourseSchema = z.object({
   published: z.boolean().optional(),
   roleIds: z.array(zId).optional(),
   subPositions: z.array(z.string().max(200)).optional(),
+  prerequisiteIds: z.array(zId).max(50).optional(),
 });
 
 export async function POST(req: Request) {
@@ -28,6 +30,13 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const { title, description, passThreshold, published, roleIds = [], subPositions = [] } = parsed.data;
 
+  const prerequisiteIds = [...new Set(parsed.data.prerequisiteIds ?? [])];
+  if (prerequisiteIds.length > 0) {
+    const found = await prisma.course.count({ where: { id: { in: prerequisiteIds } } });
+    if (found !== prerequisiteIds.length)
+      return NextResponse.json({ error: "Unknown prerequisite course" }, { status: 400 });
+  }
+
   const course = await prisma.course.create({
     data: {
       title,
@@ -37,8 +46,12 @@ export async function POST(req: Request) {
       published: !!published,
       authorId: session.user.id,
       roleAssignments: { create: assignmentRows(roleIds, subPositions) },
+      prerequisites: { create: prerequisiteIds.map((prerequisiteId) => ({ prerequisiteId })) },
     },
   });
-  if (course.published) await syncCourseEnrollments(course.id);
+  if (course.published) {
+    await snapshotCourse(course.id);
+    await syncCourseEnrollments(course.id);
+  }
   return NextResponse.json(course);
 }

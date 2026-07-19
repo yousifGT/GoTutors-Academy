@@ -19,6 +19,11 @@ export default async function NewCoursePage() {
       orderBy: { category: "asc" },
     }),
   ]);
+  const availableCourses = await prisma.course.findMany({
+    where: session.user.roleType === "SUPER_ADMIN" ? {} : { authorId: session.user.id },
+    select: { id: true, title: true },
+    orderBy: { title: "asc" },
+  });
   return (
     <div className="max-w-2xl space-y-5">
       <div>
@@ -30,6 +35,7 @@ export default async function NewCoursePage() {
         roles={roles.map((r) => ({ id: r.id, name: r.name, type: r.type }))}
         allSubPositions={subPositions.map((s) => ({ id: s.id, name: s.name, roleId: s.roleId }))}
         categories={categoryRows.map((c) => c.category as string)}
+        availableCourses={availableCourses}
       />
     </div>
   );

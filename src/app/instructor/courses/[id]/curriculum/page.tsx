@@ -39,6 +39,11 @@ export default async function CourseCurriculumPage({ params }: { params: { id: s
         ]}
       />
 
+      {course.published && (
+        <div className="rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm text-gold">
+          This course is live (v{course.version}) — trainees see changes immediately. Unpublish first for bigger reworks; each publish records a version snapshot.
+        </div>
+      )}
       <p className="text-sm text-[var(--muted)]">
         Drag <span className="text-[var(--fg)]">⠿</span> to reorder, click a title to rename, press Enter to add in bulk.
         {!course.published && " It all stays a draft — publish on the next step."}

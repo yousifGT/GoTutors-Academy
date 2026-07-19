@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { isLessonUnlocked } from "@/lib/course-progress";
+import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
 
@@ -27,6 +28,19 @@ export default async function LessonPage({ params }: { params: { courseId: strin
       select: { userId: true },
     });
     if (!enrolled) notFound();
+    // Course-level prerequisite gate — lessons stay closed until required courses are done.
+    const missing = await getMissingPrerequisites(userId, lesson.module.courseId);
+    if (missing.length > 0) {
+      return (
+        <div className="gt-card p-6">
+          <h2 className="text-xl font-bold">🔒 Course locked</h2>
+          <p className="mt-1 text-[var(--muted)]">
+            Complete {missing.map((m) => m.title).join(", ")} first to unlock this course.
+          </p>
+          <Link href={`/trainee/courses/${params.courseId}`} className="gt-btn-primary mt-4">Back to course</Link>
+        </div>
+      );
+    }
   }
 
   const unlocked = await isLessonUnlocked(userId, lesson.id);
