@@ -1,6 +1,7 @@
 import { requireRole } from "@/lib/session";
 import { centreReportRows } from "@/lib/centre-report";
 import { PageHeader } from "@/components/page-ui";
+import { ProgressBar } from "@/components/progress-bar";
 
 export default async function AdminReportsPage() {
   await requireRole("SUPER_ADMIN");
@@ -23,9 +24,14 @@ export default async function AdminReportsPage() {
               <td>{r.users}</td>
               <td>{r.enrolments}</td>
               <td>{r.completed}</td>
-              <td>{r.passRate}%</td>
-              <td className="text-mint">{r.passes}</td>
-              <td className="text-orange">{r.fails}</td>
+              <td className="w-48">
+                <div className="flex items-center gap-2">
+                  <ProgressBar percent={r.passRate} />
+                  <span className="w-10 text-right text-xs">{r.passRate}%</span>
+                </div>
+              </td>
+              <td><span className="gt-badge bg-mint/15 text-mint">{r.passes}</span></td>
+              <td><span className="gt-badge bg-orange/15 text-orange">{r.fails}</span></td>
             </tr>
           ))}
           {rows.length === 0 && <tr><td colSpan={7} className="text-center py-6 text-[var(--muted)]">No centres yet.</td></tr>}

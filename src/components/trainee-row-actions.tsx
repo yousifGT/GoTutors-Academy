@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 export function TraineeRowActions({ userId, active, editHref }: { userId: string; active: boolean; editHref?: string }) {
   const router = useRouter();
   async function remove() {
-    if (!confirm("Remove this user?")) return;
+    if (!confirm("Remove this user? This permanently deletes their account, enrolments and progress.")) return;
     await fetch(`/api/users/${userId}`, { method: "DELETE" });
     router.refresh();
   }
@@ -19,9 +19,9 @@ export function TraineeRowActions({ userId, active, editHref }: { userId: string
   }
   return (
     <div className="flex justify-end gap-2 items-center">
-      {editHref && <Link href={editHref} className="text-xs text-picton">Edit</Link>}
-      <button onClick={toggle} className="text-xs text-picton">{active ? "Deactivate" : "Activate"}</button>
-      <button onClick={remove} className="text-xs text-orange">Remove</button>
+      {editHref && <Link href={editHref} className="gt-btn-ghost text-xs">Edit</Link>}
+      <button onClick={toggle} className="gt-btn-ghost text-xs">{active ? "Deactivate" : "Activate"}</button>
+      <button onClick={remove} className="px-1 text-xs text-[var(--muted)] transition hover:text-orange">Remove</button>
     </div>
   );
 }
