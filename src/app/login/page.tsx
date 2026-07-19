@@ -19,11 +19,10 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  async function login(loginEmail: string, loginPassword: string) {
     setLoading(true);
     setError(null);
-    const res = await signIn("credentials", { email, password, redirect: false });
+    const res = await signIn("credentials", { email: loginEmail, password: loginPassword, redirect: false });
     if (res?.error) {
       setError("Invalid email or password.");
       setLoading(false);
@@ -31,6 +30,11 @@ export default function LoginPage() {
     }
     const me = await fetch("/api/me").then((r) => r.json());
     router.push(roleRedirect[me?.roleType] ?? "/");
+  }
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    await login(email, password);
   }
 
   return (
@@ -93,14 +97,28 @@ export default function LoginPage() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
 
-            <details className="mt-6 text-sm text-[var(--muted)]">
-              <summary className="cursor-pointer">Demo accounts</summary>
-              <ul className="mt-2 space-y-1">
-                <li><b>Super Admin:</b> super@gotutors.test / Password1!</li>
-                <li><b>Centre Admin:</b> centre@gotutors.test / Password1!</li>
-                <li><b>Instructor:</b> instructor@gotutors.test / Password1!</li>
-                <li><b>Trainee:</b> trainee@gotutors.test / Password1!</li>
-              </ul>
+            <details className="mt-6 text-sm text-[var(--muted)]" open>
+              <summary className="cursor-pointer">Demo accounts — one-click sign in</summary>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {[
+                  { label: "🔑 Super Admin", email: "super@gotutors.test" },
+                  { label: "🏫 Centre Admin", email: "centre@gotutors.test" },
+                  { label: "🧑‍🏫 Instructor", email: "instructor@gotutors.test" },
+                  { label: "🧑‍🎓 Trainee", email: "trainee@gotutors.test" },
+                ].map((d) => (
+                  <button
+                    key={d.email}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => login(d.email, "Password1!")}
+                    className="gt-btn-ghost justify-start text-sm"
+                    title={`${d.email} / Password1!`}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs">All use <code>Password1!</code> — hover a button to see its email.</p>
             </details>
           </form>
         </div>
