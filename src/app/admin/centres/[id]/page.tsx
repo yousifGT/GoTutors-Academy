@@ -54,6 +54,7 @@ export default async function CentreDetailPage({ params }: { params: { id: strin
       roleName: u.role.name,
       roleType: u.role.type,
       subPositions: effectiveSubPositions(u),
+      teacherPositions: u.teacherPositions,
       isTrained: u.isTrained,
       active: u.active,
       lastLoginAt: u.lastLoginAt?.toISOString() ?? null,

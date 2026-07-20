@@ -12,6 +12,7 @@ export type CentreMember = {
   roleName: string;
   roleType: string;
   subPositions: string[];
+  teacherPositions: string[];
   isTrained: boolean;
   active: boolean;
   lastLoginAt: string | null; // ISO
@@ -107,6 +108,7 @@ export function CentreDetailBoard({ members, courses }: { members: CentreMember[
                   </div>
                   <div className="mt-2.5 flex flex-1 flex-wrap content-start gap-1.5">
                     <RoleChip type={u.roleType} label={u.roleName} />
+                    {u.teacherPositions.map((tp) => <span key={tp} className="gt-badge bg-picton/15 text-picton">🎓 {tp}</span>)}
                     {u.roleType === "TRAINEE" && (u.isTrained
                       ? <span className="gt-badge bg-mint/15 text-mint">🏅 Trained</span>
                       : <span className="gt-badge bg-gold/15 text-gold">In training</span>)}

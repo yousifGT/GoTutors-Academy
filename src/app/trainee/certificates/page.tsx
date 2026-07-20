@@ -5,7 +5,7 @@ import { formatDate } from "@/lib/utils";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function CertificatesPage() {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN");
+  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
   const certs = await prisma.certificate.findMany({
     where: { userId: session.user.id },
     include: { course: true },

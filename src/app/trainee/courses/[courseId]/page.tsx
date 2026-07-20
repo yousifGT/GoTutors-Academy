@@ -9,7 +9,7 @@ import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { EmptyState, PageHeader } from "@/components/page-ui";
 
 export default async function CoursePage({ params }: { params: { courseId: string } }) {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN");
+  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
   const course = await prisma.course.findUnique({
     where: { id: params.courseId },
     include: {

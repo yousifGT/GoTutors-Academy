@@ -32,16 +32,22 @@ export async function syncCourseEnrollments(courseId: string): Promise<number> {
   }
   if (byRole.size === 0) return 0;
 
+  // Sub-position matches deliberately ignore the user's own role: a trainee
+  // promoted to teacher of one field moves to an instructor role but keeps
+  // their unfinished fields in subPositions and must keep receiving those
+  // courses. Whole-role assignments still require the exact trainee role.
   const users = await prisma.user.findMany({
     where: {
       active: true,
       enrollments: { none: { courseId } },
-      OR: [...byRole.entries()].map(([roleId, g]) => ({
-        roleId,
-        ...(g.wholeRole
-          ? {}
-          : { OR: [{ subPositions: { hasSome: g.subs } }, { subPosition: { in: g.subs } }] }),
-      })),
+      OR: [...byRole.entries()].map(([roleId, g]) =>
+        g.wholeRole
+          ? { roleId }
+          : {
+              role: { type: { in: ["TRAINEE", "INSTRUCTOR"] as const } },
+              OR: [{ subPositions: { hasSome: g.subs } }, { subPosition: { in: g.subs } }],
+            }
+      ),
     },
     select: { id: true },
   });
@@ -54,24 +60,35 @@ export async function syncCourseEnrollments(courseId: string): Promise<number> {
   return result.count;
 }
 
-/** Enrol an active trainee into every published course matching their role + sub-positions. */
+/**
+ * Enrol an active trainee into every published course matching their role +
+ * sub-positions. Also covers promoted teachers: an instructor who still has
+ * trainee sub-positions keeps picking up those fields' courses (matched
+ * through any trainee role, since their own role is no longer one).
+ */
 export async function syncUserEnrollments(userId: string): Promise<number> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: { role: { select: { type: true } } },
   });
-  if (!user || !user.active || user.role.type !== "TRAINEE") return 0;
+  if (!user || !user.active) return 0;
+  if (user.role.type !== "TRAINEE" && user.role.type !== "INSTRUCTOR") return 0;
 
   const names = effectiveSubPositions(user);
+  if (user.role.type === "INSTRUCTOR" && names.length === 0) return 0;
+
   const courses = await prisma.course.findMany({
     where: {
       published: true,
       enrollments: { none: { userId } },
       roleAssignments: {
-        some: {
-          roleId: user.roleId,
-          OR: [{ subPosition: null }, ...(names.length ? [{ subPosition: { in: names } }] : [])],
-        },
+        some:
+          user.role.type === "TRAINEE"
+            ? {
+                roleId: user.roleId,
+                OR: [{ subPosition: null }, ...(names.length ? [{ subPosition: { in: names } }] : [])],
+              }
+            : { role: { type: "TRAINEE" }, subPosition: { in: names } },
       },
     },
     select: { id: true },

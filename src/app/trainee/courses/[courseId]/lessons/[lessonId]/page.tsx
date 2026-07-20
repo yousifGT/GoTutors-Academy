@@ -9,7 +9,7 @@ import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
 
 export default async function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN");
+  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
   const userId = session.user.id;
 
   const lesson = await prisma.lesson.findUnique({

@@ -13,7 +13,11 @@ export async function recomputeIsTrained(userId: string): Promise<boolean> {
     where: { id: userId },
     include: { role: true },
   });
-  if (!user || user.role.type !== "TRAINEE") return user?.isTrained ?? false;
+  // Trainees train through their own role; promoted teachers (instructor role,
+  // remaining trainee sub-positions) keep training through any trainee role.
+  if (!user || (user.role.type !== "TRAINEE" && user.role.type !== "INSTRUCTOR")) {
+    return user?.isTrained ?? false;
+  }
   const subPositions = effectiveSubPositions(user);
   if (subPositions.length === 0) return user.isTrained;
 
@@ -21,7 +25,12 @@ export async function recomputeIsTrained(userId: string): Promise<boolean> {
   const required = await prisma.course.findMany({
     where: {
       published: true,
-      roleAssignments: { some: { roleId: user.roleId, subPosition: { in: subPositions } } },
+      roleAssignments: {
+        some:
+          user.role.type === "TRAINEE"
+            ? { roleId: user.roleId, subPosition: { in: subPositions } }
+            : { role: { type: "TRAINEE" }, subPosition: { in: subPositions } },
+      },
     },
     select: { id: true },
   });

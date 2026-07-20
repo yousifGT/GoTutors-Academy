@@ -21,6 +21,7 @@ export default async function AdminUsersPage() {
     roleType: u.role.type,
     position: u.position,
     subPositions: effectiveSubPositions(u),
+    teacherPositions: u.teacherPositions,
     isTrained: u.isTrained,
     active: u.active,
     centreName: u.centre?.name ?? null,

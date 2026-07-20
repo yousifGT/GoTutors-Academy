@@ -10,6 +10,7 @@ export type ProgressRow = {
   userId: string;
   traineeName: string;
   traineeEmail: string;
+  isTrained: boolean;
   courseId: string;
   courseTitle: string;
   percent: number;
@@ -133,7 +134,10 @@ export function InstructorProgressBoard({ rows, courses }: { rows: ProgressRow[]
                   >
                     <Avatar name={r.traineeName} />
                     <div className="min-w-0">
-                      <div className="truncate font-bold transition hover:text-picton">{r.traineeName}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-bold transition hover:text-picton">{r.traineeName}</span>
+                        {r.isTrained && <span className="shrink-0 text-sm" title="Fully trained">🏅</span>}
+                      </div>
                       <div className="truncate text-xs text-[var(--muted)]">{r.traineeEmail}</div>
                     </div>
                   </button>

@@ -7,7 +7,7 @@ import { ProgressBar } from "@/components/progress-bar";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function MyCoursesPage() {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN");
+  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
   const enrollments = await prisma.enrollment.findMany({
     where: { userId: session.user.id },
     include: { course: true },

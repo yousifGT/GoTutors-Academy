@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { formatDate, timeAgo } from "@/lib/utils";
@@ -14,6 +15,7 @@ type Overview = {
     roleType: string;
     position: string | null;
     subPositions: string[];
+    teacherPositions: string[];
     isTrained: boolean;
     active: boolean;
     centreName: string | null;
@@ -21,6 +23,8 @@ type Overview = {
     lastLoginAt: string | null;
     createdAt: string;
   };
+  fieldStatus: { name: string; total: number; done: number; trained: boolean }[];
+  canPromote: boolean;
   enrollments: { courseId: string; title: string; percent: number; done: number; total: number; completed: boolean; enrolledAt: string }[];
   certificates: { id: string; courseTitle: string; courseVersion: number | null; serial: string; issuedAt: string }[];
   authoredCourses: { id: string; title: string; published: boolean; enrolments: number }[];
@@ -54,21 +58,46 @@ function InfoTile({ label, children, wide = false }: { label: string; children: 
 }
 
 export function UserOverviewModal({ userId, onClose }: { userId: string; onClose: () => void }) {
+  const router = useRouter();
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("profile");
+  const [promoting, setPromoting] = useState(false);
+  const [promoteMsg, setPromoteMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/users/${userId}/overview`)
+  const load = useCallback(() => {
+    return fetch(`/api/users/${userId}/overview`)
       .then(async (r) => {
         if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Something went wrong loading this profile.");
         return r.json();
-      })
+      });
+  }, [userId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    load()
       .then((d) => { if (!cancelled) setData(d); })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [load]);
+
+  async function promote(field: string) {
+    if (!data) return;
+    if (!confirm(`Promote ${data.user.name} to ${field} teacher?\n\nTheir account becomes an instructor account. Training in their other fields continues unchanged, and all enrolments and certificates are kept.`)) return;
+    setPromoting(true);
+    setPromoteMsg(null);
+    const res = await fetch(`/api/users/${userId}/promote`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ subPosition: field }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setPromoting(false);
+    if (!res.ok) return setPromoteMsg({ kind: "err", text: body.error ?? "Promotion failed" });
+    setPromoteMsg({ kind: "ok", text: `Promoted to ${field} teacher 🎉` });
+    load().then(setData).catch(() => {});
+    router.refresh();
+  }
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
@@ -128,6 +157,9 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                   <div className="truncate text-sm text-ice/80">{u.email}</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <span className="gt-badge bg-white/15 text-white">{meta.icon} {u.roleName}</span>
+                    {u.teacherPositions.map((tp) => (
+                      <span key={tp} className="gt-badge bg-picton/30 text-white">🎓 Teaches {tp}</span>
+                    ))}
                     {isTrainee && (u.isTrained
                       ? <span className="gt-badge bg-mint/25 text-white">🏅 Trained</span>
                       : <span className="gt-badge bg-gold/25 text-white">In training</span>)}
@@ -206,26 +238,69 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
           )}
 
           {u && tab === "profile" && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <InfoTile label="📧 Email" wide>{u.email}</InfoTile>
-              <InfoTile label="📞 Phone">{u.phone || <span className="text-[var(--muted)]">Not set</span>}</InfoTile>
-              <InfoTile label="🏫 Centre">{u.centreName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
-              {isTrainee ? (
-                <InfoTile label="🧩 Sub-positions" wide>
-                  {u.subPositions.length > 0 ? (
+            <div className="space-y-2.5">
+              <div className="grid grid-cols-2 gap-2.5">
+                <InfoTile label="📧 Email" wide>{u.email}</InfoTile>
+                <InfoTile label="📞 Phone">{u.phone || <span className="text-[var(--muted)]">Not set</span>}</InfoTile>
+                <InfoTile label="🏫 Centre">{u.centreName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
+                {!isTrainee && u.teacherPositions.length === 0 && (
+                  <InfoTile label="💼 Position" wide>{u.position || <span className="text-[var(--muted)]">—</span>}</InfoTile>
+                )}
+                {u.teacherPositions.length > 0 && (
+                  <InfoTile label="🎓 Teaches" wide>
                     <span className="flex flex-wrap gap-1.5 pt-0.5">
-                      {u.subPositions.map((sp) => <span key={sp} className="gt-badge bg-magenta/15 text-magenta">{sp}</span>)}
+                      {u.teacherPositions.map((tp) => <span key={tp} className="gt-badge bg-picton/15 text-picton">🎓 {tp}</span>)}
                     </span>
-                  ) : <span className="text-[var(--muted)]">None yet</span>}
+                  </InfoTile>
+                )}
+                <InfoTile label="🧑‍💼 Supervisor">{u.supervisorName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
+                <InfoTile label="🕐 Last login">
+                  {u.lastLoginAt ? timeAgo(new Date(u.lastLoginAt)) : <span className="gt-badge bg-gold/15 text-gold">Never</span>}
                 </InfoTile>
-              ) : (
-                <InfoTile label="💼 Position" wide>{u.position || <span className="text-[var(--muted)]">—</span>}</InfoTile>
+                <InfoTile label="📅 Joined" wide>{formatDate(new Date(u.createdAt))}</InfoTile>
+              </div>
+
+              {/* Per-field training state + promotion */}
+              {data.fieldStatus.length > 0 && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--soft)]/40 p-3">
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">🧩 Training fields</div>
+                  <div className="mt-2 space-y-2.5">
+                    {data.fieldStatus.map((f) => (
+                      <div key={f.name} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="gt-badge bg-magenta/15 text-magenta">{f.name}</span>
+                          {f.trained ? (
+                            data.canPromote ? (
+                              <button
+                                onClick={() => promote(f.name)}
+                                disabled={promoting}
+                                className="gt-btn-primary text-xs"
+                              >
+                                {promoting ? "Promoting…" : `⬆ Promote to ${f.name} teacher`}
+                              </button>
+                            ) : (
+                              <span className="gt-badge bg-mint/15 text-mint">🏅 Trained — ready to promote</span>
+                            )
+                          ) : (
+                            <span className="text-xs text-[var(--muted)]">
+                              {f.total > 0 ? `${f.done}/${f.total} courses done` : "No courses defined yet"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="mt-2 flex items-center gap-3">
+                          <ProgressBar percent={f.total > 0 ? Math.round((f.done / f.total) * 100) : 0} />
+                          {f.trained && <span className="shrink-0 text-xs font-bold text-mint">🏅 Trained</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {promoteMsg && (
+                    <p className={`mt-2 text-sm ${promoteMsg.kind === "ok" ? "text-mint" : "text-orange"}`}>
+                      {promoteMsg.kind === "ok" ? "✓ " : "⚠ "}{promoteMsg.text}
+                    </p>
+                  )}
+                </div>
               )}
-              <InfoTile label="🧑‍💼 Supervisor">{u.supervisorName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
-              <InfoTile label="🕐 Last login">
-                {u.lastLoginAt ? timeAgo(new Date(u.lastLoginAt)) : <span className="gt-badge bg-gold/15 text-gold">Never</span>}
-              </InfoTile>
-              <InfoTile label="📅 Joined" wide>{formatDate(new Date(u.createdAt))}</InfoTile>
             </div>
           )}
 

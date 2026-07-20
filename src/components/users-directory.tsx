@@ -13,6 +13,7 @@ export type DirectoryUser = {
   roleType: string;
   position: string | null;
   subPositions: string[];
+  teacherPositions: string[];
   isTrained: boolean;
   active: boolean;
   centreName: string | null;
@@ -213,14 +214,16 @@ export function UsersDirectory({ users }: { users: DirectoryUser[] }) {
 
               <div className="mt-2.5 flex flex-1 flex-wrap content-start gap-1.5">
                 <RoleChip type={u.roleType} label={u.roleName} />
+                {u.teacherPositions.map((tp) => <span key={tp} className="gt-badge bg-picton/15 text-picton">🎓 {tp}</span>)}
                 {u.roleType === "TRAINEE" && (u.isTrained
                   ? <span className="gt-badge bg-mint/15 text-mint">🏅 Trained</span>
                   : <span className="gt-badge bg-gold/15 text-gold">In training</span>)}
-                {u.roleType === "TRAINEE"
-                  ? u.subPositions.slice(0, 2).map((sp) => <span key={sp} className="gt-badge bg-magenta/15 text-magenta">{sp}</span>)
-                  : u.position && <span className="gt-badge bg-[var(--soft)]">💼 {u.position}</span>}
-                {u.roleType === "TRAINEE" && u.subPositions.length > 2 && (
+                {u.subPositions.slice(0, 2).map((sp) => <span key={sp} className="gt-badge bg-magenta/15 text-magenta">{sp}</span>)}
+                {u.subPositions.length > 2 && (
                   <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">+{u.subPositions.length - 2}</span>
+                )}
+                {u.roleType !== "TRAINEE" && u.subPositions.length === 0 && u.position && (
+                  <span className="gt-badge bg-[var(--soft)]">💼 {u.position}</span>
                 )}
               </div>
 

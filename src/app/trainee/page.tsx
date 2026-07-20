@@ -8,7 +8,7 @@ import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { PageHeader, StatStrip, AttentionPanel, EmptyState, type AttentionItem } from "@/components/page-ui";
 
 export default async function TraineeDashboard() {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN");
+  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
   const userId = session.user.id;
 
   // Self-healing: pick up any published course matching this trainee's

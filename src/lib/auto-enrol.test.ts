@@ -50,7 +50,7 @@ describe("syncCourseEnrollments", () => {
     expect(where.enrollments).toEqual({ none: { courseId: "c1" } });
     expect(where.OR).toEqual([
       {
-        roleId: "trainee-role",
+        role: { type: { in: ["TRAINEE", "INSTRUCTOR"] } },
         OR: [
           { subPositions: { hasSome: ["English Tutor", "Maths Tutor"] } },
           { subPosition: { in: ["English Tutor", "Maths Tutor"] } },
@@ -84,13 +84,37 @@ describe("syncCourseEnrollments", () => {
 });
 
 describe("syncUserEnrollments", () => {
-  it("does nothing for non-trainees or inactive users", async () => {
-    db.user.findUnique.mockResolvedValue({ id: "u1", active: true, role: { type: "INSTRUCTOR" } });
+  it("does nothing for admins, inactive users, or instructors without trainee fields", async () => {
+    db.user.findUnique.mockResolvedValue({ id: "u1", active: true, subPosition: null, subPositions: [], role: { type: "CENTRE_ADMIN" } });
     expect(await syncUserEnrollments("u1")).toBe(0);
 
-    db.user.findUnique.mockResolvedValue({ id: "u1", active: false, role: { type: "TRAINEE" } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", active: false, subPosition: null, subPositions: [], role: { type: "TRAINEE" } });
+    expect(await syncUserEnrollments("u1")).toBe(0);
+
+    // A pure instructor (no remaining trainee sub-positions) gets nothing.
+    db.user.findUnique.mockResolvedValue({ id: "u1", active: true, subPosition: null, subPositions: [], role: { type: "INSTRUCTOR" } });
     expect(await syncUserEnrollments("u1")).toBe(0);
     expect(db.course.findMany).not.toHaveBeenCalled();
+  });
+
+  it("a promoted teacher still receives courses for their remaining trainee fields", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "u1",
+      active: true,
+      roleId: "instructor-role",
+      subPosition: null,
+      subPositions: ["English Tutor"], // still in training for English
+      role: { type: "INSTRUCTOR" },
+    });
+    db.course.findMany.mockResolvedValue([{ id: "c1" }]);
+
+    expect(await syncUserEnrollments("u1")).toBe(1);
+
+    // Matched through any trainee role's assignments, never whole-role.
+    expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some).toEqual({
+      role: { type: "TRAINEE" },
+      subPosition: { in: ["English Tutor"] },
+    });
   });
 
   it("enrols a trainee into every published course matching any of their sub-positions", async () => {

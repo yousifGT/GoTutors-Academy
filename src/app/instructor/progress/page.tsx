@@ -9,7 +9,7 @@ export default async function InstructorProgressPage() {
   const where = session.user.roleType === "SUPER_ADMIN" ? {} : { course: { authorId: session.user.id } };
   const enrollments = await prisma.enrollment.findMany({
     where,
-    include: { user: { select: { id: true, name: true, email: true } }, course: { select: { id: true, title: true } } },
+    include: { user: { select: { id: true, name: true, email: true, isTrained: true } }, course: { select: { id: true, title: true } } },
     orderBy: { enrolledAt: "desc" },
     take: 200,
   });
@@ -24,6 +24,7 @@ export default async function InstructorProgressPage() {
       userId: e.user.id,
       traineeName: e.user.name,
       traineeEmail: e.user.email,
+      isTrained: e.user.isTrained,
       courseId: e.course.id,
       courseTitle: e.course.title,
       percent: p?.percent ?? 0,

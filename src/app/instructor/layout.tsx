@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export default async function InstructorLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
-  const [unread, reviewQueue, reports] = await Promise.all([
+  const [unread, reviewQueue, reports, me] = await Promise.all([
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
     prisma.quizAttempt.count({
       where: {
@@ -16,12 +16,19 @@ export default async function InstructorLayout({ children }: { children: React.R
       },
     }),
     prisma.user.count({ where: { supervisorId: session.user.id } }),
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { subPosition: true, subPositions: true },
+    }),
   ]);
+  // A promoted teacher still training in other fields gets a link to their lessons.
+  const stillTraining = (me?.subPositions.length ?? 0) > 0 || !!me?.subPosition;
   const nav = [
     { href: "/instructor", label: "Dashboard", icon: "🏠" },
     { href: "/instructor/courses", label: "Courses", icon: "📚" },
     { href: "/instructor/review", label: "Review queue", badge: reviewQueue, icon: "📝" },
     { href: "/instructor/progress", label: "Trainee progress", icon: "📊" },
+    ...(stillTraining ? [{ href: "/trainee", label: "My learning", icon: "🎓" }] : []),
     { href: "/instructor/notifications", label: "Notifications", badge: unread, icon: "🔔" },
     ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
   ];

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { getFieldStatus } from "@/lib/field-training";
 
 /**
  * Read-only profile snapshot for the user-overview popup. Who may view whom:
@@ -44,7 +45,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
   if (!allowed) return NextResponse.json({ error: "You don't have access to this profile" }, { status: 403 });
 
-  const [enrollments, certificates, authoredCourses] = await Promise.all([
+  const canPromote =
+    (viewer.roleType === "SUPER_ADMIN" ||
+      (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && target.centreId === viewer.centreId)) &&
+    (target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR");
+
+  const [enrollments, certificates, authoredCourses, fieldStatus] = await Promise.all([
     prisma.enrollment.findMany({
       where: { userId: target.id },
       include: { course: { select: { id: true, title: true } } },
@@ -62,6 +68,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           orderBy: { updatedAt: "desc" },
         })
       : Promise.resolve([]),
+    target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR"
+      ? getFieldStatus(target)
+      : Promise.resolve([]),
   ]);
 
   const progressByKey = await getCourseProgressForUsers(
@@ -78,6 +87,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       roleType: target.role.type,
       position: target.position,
       subPositions: effectiveSubPositions(target),
+      teacherPositions: target.teacherPositions,
       isTrained: target.isTrained,
       active: target.active,
       centreName: target.centre?.name ?? null,
@@ -85,6 +95,8 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       lastLoginAt: target.lastLoginAt?.toISOString() ?? null,
       createdAt: target.createdAt.toISOString(),
     },
+    fieldStatus,
+    canPromote,
     enrollments: enrollments.map((e) => {
       const p = progressByKey.get(`${e.userId}:${e.courseId}`);
       return {

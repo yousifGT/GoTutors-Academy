@@ -32,6 +32,7 @@ enum NotificationType {
   TRAINEE_PASSED
   TRAINEE_FAILED
   RETRY_UNLOCK_NEEDED
+  PROMOTED_TEACHER
 }
 
 model Centre {
@@ -100,6 +101,8 @@ model User {
   position       String?
   subPosition    String?  @map("sub_position")
   subPositions   String[] @default([]) @map("sub_positions")
+  /// Sub-positions this user has been promoted to teach (graduated out of training for).
+  teacherPositions String[] @default([]) @map("teacher_positions")
   isTrained      Boolean  @default(false) @map("is_trained")
   centreId       String?
   roleId         String
