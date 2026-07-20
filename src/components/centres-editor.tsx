@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { EmptyState } from "@/components/page-ui";
@@ -127,20 +128,23 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
                   </div>
                 ) : (
                   <>
-                    <button
-                      onClick={() => startEdit(c)}
-                      className="text-left text-lg font-bold tracking-tight transition hover:text-picton"
-                      title="Click to edit"
+                    <Link
+                      href={`/admin/centres/${c.id}`}
+                      className="block text-left text-lg font-bold tracking-tight transition hover:text-picton"
+                      title="Open centre — people, progress & stats"
                     >
-                      {c.name}
-                    </button>
+                      {c.name} →
+                    </Link>
                     <p className="mt-0.5 text-sm text-[var(--muted)]">📍 {c.location || "No location set"}</p>
                   </>
                 )}
               </div>
-              <div className="mt-4 border-t border-[var(--border)] pt-3">
-                <div className="text-xl font-bold leading-tight">{c.users}</div>
-                <div className="text-xs text-[var(--muted)]">user{c.users === 1 ? "" : "s"} based here</div>
+              <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-3">
+                <div>
+                  <div className="text-xl font-bold leading-tight">{c.users}</div>
+                  <div className="text-xs text-[var(--muted)]">user{c.users === 1 ? "" : "s"} based here</div>
+                </div>
+                {!editing && <Link href={`/admin/centres/${c.id}`} className="gt-btn-ghost text-xs">Open →</Link>}
               </div>
             </div>
           );

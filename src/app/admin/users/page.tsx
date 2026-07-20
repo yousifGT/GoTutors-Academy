@@ -10,7 +10,7 @@ export default async function AdminUsersPage() {
   const users = await prisma.user.findMany({
     include: { role: true, centre: true },
     orderBy: { createdAt: "desc" },
-    take: 500,
+    take: 2000,
   });
 
   const rows: DirectoryUser[] = users.map((u) => ({

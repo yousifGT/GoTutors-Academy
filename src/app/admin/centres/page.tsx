@@ -11,7 +11,7 @@ export default async function CentresPage() {
   });
   return (
     <div className="space-y-5">
-      <PageHeader title="Centres" subtitle="The physical locations trainees belong to." />
+      <PageHeader title="Centres" subtitle="The physical locations trainees belong to — open one for its people and performance." />
       <CentresEditor
       centres={centres.map((c) => ({ id: c.id, name: c.name, location: c.location ?? "", users: c._count.users }))}
       />
