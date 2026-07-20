@@ -7,9 +7,12 @@ import { effectiveSubPositions } from "@/lib/sub-positions";
 
 /**
  * Read-only profile snapshot for the user-overview popup. Who may view whom:
+ *  - anyone       → themselves
  *  - SUPER_ADMIN  → anyone
  *  - CENTRE_ADMIN → users of their own (non-null) centre
- *  - INSTRUCTOR   → users enrolled in at least one of their courses
+ *  - INSTRUCTOR   → users of their own centre, plus anyone enrolled in one of
+ *                   their courses (cross-centre trainees on their courses)
+ *  - supervisors  → their direct supervisees
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -23,11 +26,14 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       supervisor: { select: { name: true } },
     },
   });
-  if (!target) return NextResponse.json({ error: "not found" }, { status: 404 });
+  if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const viewer = session.user;
-  let allowed = viewer.roleType === "SUPER_ADMIN";
-  if (!allowed && viewer.roleType === "CENTRE_ADMIN") {
+  let allowed =
+    viewer.roleType === "SUPER_ADMIN" ||
+    viewer.id === target.id ||
+    target.supervisorId === viewer.id;
+  if (!allowed && (viewer.roleType === "CENTRE_ADMIN" || viewer.roleType === "INSTRUCTOR")) {
     allowed = viewer.centreId != null && target.centreId === viewer.centreId;
   }
   if (!allowed && viewer.roleType === "INSTRUCTOR") {
@@ -36,7 +42,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     });
     allowed = shared > 0;
   }
-  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!allowed) return NextResponse.json({ error: "You don't have access to this profile" }, { status: 403 });
 
   const [enrollments, certificates, authoredCourses] = await Promise.all([
     prisma.enrollment.findMany({

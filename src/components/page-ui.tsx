@@ -78,6 +78,7 @@ const avatarSizes = {
   sm: "h-8 w-8 text-sm",
   md: "h-10 w-10",
   lg: "h-12 w-12 text-lg",
+  xl: "h-16 w-16 text-2xl",
 } as const;
 
 /** Gradient initial avatar used on every person row/card. */

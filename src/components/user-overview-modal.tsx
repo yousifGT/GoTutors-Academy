@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Avatar, RoleChip } from "@/components/page-ui";
+import { Avatar } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { formatDate, timeAgo } from "@/lib/utils";
 
@@ -28,11 +28,27 @@ type Overview = {
 
 type Tab = "profile" | "courses" | "certificates";
 
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+const ROLE_META: Record<string, { icon: string; gradient: string }> = {
+  SUPER_ADMIN: { icon: "🛡️", gradient: "from-navy via-royal to-magenta" },
+  CENTRE_ADMIN: { icon: "🏫", gradient: "from-navy via-royal to-gold" },
+  INSTRUCTOR: { icon: "🧑‍🏫", gradient: "from-navy via-royal to-picton" },
+  TRAINEE: { icon: "🎓", gradient: "from-navy via-royal to-picton" },
+};
+
+function HeroStat({ value, label }: { value: React.ReactNode; label: string }) {
   return (
-    <div className="flex items-start justify-between gap-4 py-2">
-      <span className="shrink-0 text-sm text-[var(--muted)]">{label}</span>
-      <span className="min-w-0 text-right text-sm font-medium">{children}</span>
+    <div className="rounded-xl bg-white/10 px-3 py-2.5 text-center backdrop-blur-sm">
+      <div className="text-xl font-bold leading-tight text-white">{value}</div>
+      <div className="text-[11px] uppercase tracking-wide text-ice/70">{label}</div>
+    </div>
+  );
+}
+
+function InfoTile({ label, children, wide = false }: { label: string; children: React.ReactNode; wide?: boolean }) {
+  return (
+    <div className={`rounded-xl border border-[var(--border)] bg-[var(--soft)]/40 p-3 ${wide ? "col-span-2" : ""}`}>
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">{label}</div>
+      <div className="mt-1 text-sm font-medium">{children}</div>
     </div>
   );
 }
@@ -46,7 +62,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
     let cancelled = false;
     fetch(`/api/users/${userId}/overview`)
       .then(async (r) => {
-        if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Failed to load");
+        if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.error ?? "Something went wrong loading this profile.");
         return r.json();
       })
       .then((d) => { if (!cancelled) setData(d); })
@@ -66,116 +82,181 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
 
   const u = data?.user;
   const isTrainee = u?.roleType === "TRAINEE";
-  const authors = (data?.authoredCourses.length ?? 0) > 0;
+  const showAuthored = !isTrainee && (data?.authoredCourses.length ?? 0) > 0;
+  const meta = ROLE_META[u?.roleType ?? "TRAINEE"] ?? ROLE_META.TRAINEE;
+  const avgProgress = data && data.enrollments.length
+    ? Math.round(data.enrollments.reduce((n, e) => n + e.percent, 0) / data.enrollments.length)
+    : 0;
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "profile", label: "Profile" },
-    { id: "courses", label: authors && !isTrainee ? "Courses authored" : "Courses", count: authors && !isTrainee ? data?.authoredCourses.length : data?.enrollments.length },
+    { id: "courses", label: showAuthored ? "Courses authored" : "Courses", count: showAuthored ? data?.authoredCourses.length : data?.enrollments.length },
     { id: "certificates", label: "Certificates", count: data?.certificates.length },
   ];
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-navy/60 p-4 backdrop-blur-sm"
+      className="gt-modal-backdrop fixed inset-0 z-50 grid place-items-center bg-navy/70 p-4 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
-        className="gt-card flex max-h-[85vh] w-full max-w-xl flex-col overflow-hidden"
+        className="gt-modal-panel gt-card flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="flex items-start gap-4 border-b border-[var(--border)] p-5">
+        {/* Hero header */}
+        <div className={`relative shrink-0 bg-gradient-to-br ${meta.gradient} p-6 text-white`}>
+          <div className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/3 h-40 w-40 rounded-full bg-cyan/20 blur-3xl" />
+          <button
+            onClick={onClose}
+            className="absolute right-4 top-4 grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm text-white transition hover:bg-white/25"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+
           {u ? (
             <>
-              <Avatar name={u.name} size="lg" />
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-lg font-bold tracking-tight">{u.name}</div>
-                <div className="truncate text-sm text-[var(--muted)]">{u.email}</div>
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <RoleChip type={u.roleType} label={u.roleName} />
-                  {isTrainee && (u.isTrained
-                    ? <span className="gt-badge bg-mint/15 text-mint">🏅 Trained</span>
-                    : <span className="gt-badge bg-gold/15 text-gold">In training</span>)}
-                  {!u.active && <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">Deactivated</span>}
+              <div className="flex items-center gap-4">
+                <div className="rounded-full ring-4 ring-white/25">
+                  <Avatar name={u.name} size="xl" />
                 </div>
+                <div className="min-w-0 flex-1 pr-10">
+                  <div className="truncate text-2xl font-bold tracking-tight">{u.name}</div>
+                  <div className="truncate text-sm text-ice/80">{u.email}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="gt-badge bg-white/15 text-white">{meta.icon} {u.roleName}</span>
+                    {isTrainee && (u.isTrained
+                      ? <span className="gt-badge bg-mint/25 text-white">🏅 Trained</span>
+                      : <span className="gt-badge bg-gold/25 text-white">In training</span>)}
+                    {u.centreName && <span className="gt-badge bg-white/15 text-white">📍 {u.centreName}</span>}
+                    {!u.active && <span className="gt-badge bg-orange/30 text-white">Deactivated</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                {showAuthored ? (
+                  <>
+                    <HeroStat value={data!.authoredCourses.length} label="Courses built" />
+                    <HeroStat value={data!.authoredCourses.filter((c) => c.published).length} label="Published" />
+                    <HeroStat value={data!.authoredCourses.reduce((n, c) => n + c.enrolments, 0)} label="Enrolments" />
+                  </>
+                ) : (
+                  <>
+                    <HeroStat value={data!.enrollments.length} label="Courses" />
+                    <HeroStat value={`${avgProgress}%`} label="Avg progress" />
+                    <HeroStat value={data!.certificates.length} label="Certificates" />
+                  </>
+                )}
               </div>
             </>
           ) : (
-            <div className="flex-1 py-2 text-sm text-[var(--muted)]">{error ?? "Loading…"}</div>
+            <div className="flex items-center gap-4">
+              {error ? (
+                <div className="py-4">
+                  <div className="text-lg font-bold">Can&apos;t open this profile</div>
+                  <div className="mt-1 text-sm text-ice/80">{error}</div>
+                </div>
+              ) : (
+                <>
+                  <div className="h-16 w-16 shrink-0 animate-pulse rounded-full bg-white/20" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-5 w-40 animate-pulse rounded bg-white/20" />
+                    <div className="h-3.5 w-56 animate-pulse rounded bg-white/15" />
+                    <div className="h-5 w-32 animate-pulse rounded-full bg-white/10" />
+                  </div>
+                </>
+              )}
+            </div>
           )}
-          <button onClick={onClose} className="gt-btn-ghost shrink-0 px-2.5 text-sm" aria-label="Close">✕</button>
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-[var(--border)] px-5 py-3">
-          {tabs.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${tab === t.id ? "bg-navy text-white shadow-soft" : "bg-[var(--soft)] hover:opacity-80"}`}
-            >
-              {t.label}
-              {t.count !== undefined && (
-                <span className={`ml-1.5 rounded-full px-1.5 text-xs font-bold ${tab === t.id ? "bg-white/20" : "bg-[var(--card)]"}`}>{t.count}</span>
-              )}
-            </button>
-          ))}
-        </div>
+        {!error && (
+          <div className="flex shrink-0 gap-2 border-b border-[var(--border)] px-5 py-3">
+            {tabs.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition ${tab === t.id ? "bg-navy text-white shadow-soft" : "bg-[var(--soft)] hover:opacity-80"}`}
+              >
+                {t.label}
+                {t.count !== undefined && (
+                  <span className={`ml-1.5 rounded-full px-1.5 text-xs font-bold ${tab === t.id ? "bg-white/20" : "bg-[var(--card)]"}`}>{t.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Body */}
-        <div className="min-h-[14rem] flex-1 overflow-y-auto p-5">
-          {!data && !error && <div className="py-10 text-center text-sm text-[var(--muted)]">Loading…</div>}
-          {error && <div className="py-10 text-center text-sm text-orange">⚠ {error}</div>}
+        <div className="min-h-[12rem] flex-1 overflow-y-auto p-5">
+          {!data && !error && (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => <div key={i} className="h-16 animate-pulse rounded-xl bg-[var(--soft)]/60" />)}
+            </div>
+          )}
+          {error && (
+            <div className="py-8 text-center">
+              <div className="text-4xl">🔒</div>
+              <p className="mt-3 text-sm text-[var(--muted)]">{error}</p>
+            </div>
+          )}
 
           {u && tab === "profile" && (
-            <div className="divide-y divide-[var(--border)]">
-              <InfoRow label="Email">{u.email}</InfoRow>
-              <InfoRow label="Phone">{u.phone || <span className="text-[var(--muted)]">—</span>}</InfoRow>
+            <div className="grid grid-cols-2 gap-2.5">
+              <InfoTile label="📧 Email" wide>{u.email}</InfoTile>
+              <InfoTile label="📞 Phone">{u.phone || <span className="text-[var(--muted)]">Not set</span>}</InfoTile>
+              <InfoTile label="🏫 Centre">{u.centreName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
               {isTrainee ? (
-                <InfoRow label="Sub-positions">
+                <InfoTile label="🧩 Sub-positions" wide>
                   {u.subPositions.length > 0 ? (
-                    <span className="flex flex-wrap justify-end gap-1.5">
+                    <span className="flex flex-wrap gap-1.5 pt-0.5">
                       {u.subPositions.map((sp) => <span key={sp} className="gt-badge bg-magenta/15 text-magenta">{sp}</span>)}
                     </span>
                   ) : <span className="text-[var(--muted)]">None yet</span>}
-                </InfoRow>
+                </InfoTile>
               ) : (
-                <InfoRow label="Position">{u.position || <span className="text-[var(--muted)]">—</span>}</InfoRow>
+                <InfoTile label="💼 Position" wide>{u.position || <span className="text-[var(--muted)]">—</span>}</InfoTile>
               )}
-              <InfoRow label="Centre">{u.centreName ?? <span className="text-[var(--muted)]">—</span>}</InfoRow>
-              <InfoRow label="Supervisor">{u.supervisorName ?? <span className="text-[var(--muted)]">—</span>}</InfoRow>
-              <InfoRow label="Last login">{u.lastLoginAt ? timeAgo(new Date(u.lastLoginAt)) : <span className="gt-badge bg-gold/15 text-gold">Never</span>}</InfoRow>
-              <InfoRow label="Joined">{formatDate(new Date(u.createdAt))}</InfoRow>
+              <InfoTile label="🧑‍💼 Supervisor">{u.supervisorName ?? <span className="text-[var(--muted)]">—</span>}</InfoTile>
+              <InfoTile label="🕐 Last login">
+                {u.lastLoginAt ? timeAgo(new Date(u.lastLoginAt)) : <span className="gt-badge bg-gold/15 text-gold">Never</span>}
+              </InfoTile>
+              <InfoTile label="📅 Joined" wide>{formatDate(new Date(u.createdAt))}</InfoTile>
             </div>
           )}
 
           {data && tab === "courses" && (
-            authors && !isTrainee ? (
-              data.authoredCourses.length === 0 ? (
-                <p className="py-10 text-center text-sm text-[var(--muted)]">No courses authored yet.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {data.authoredCourses.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] p-3.5">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold">{c.title}</div>
-                        <div className="text-xs text-[var(--muted)]">{c.enrolments} enrolment{c.enrolments === 1 ? "" : "s"}</div>
-                      </div>
-                      <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
-                        {c.published ? "Published" : "Draft"}
-                      </span>
+            showAuthored ? (
+              <div className="space-y-2.5">
+                {data.authoredCourses.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] p-3.5 transition hover:border-picton/50">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-picton/15 text-lg text-picton">📚</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">{c.title}</div>
+                      <div className="text-xs text-[var(--muted)]">{c.enrolments} enrolment{c.enrolments === 1 ? "" : "s"}</div>
                     </div>
-                  ))}
-                </div>
-              )
+                    <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                      {c.published ? "Published" : "Draft"}
+                    </span>
+                  </div>
+                ))}
+              </div>
             ) : data.enrollments.length === 0 ? (
-              <p className="py-10 text-center text-sm text-[var(--muted)]">Not enrolled in any courses yet.</p>
+              <div className="py-8 text-center">
+                <div className="text-4xl">📭</div>
+                <p className="mt-3 text-sm text-[var(--muted)]">Not enrolled in any courses yet.</p>
+              </div>
             ) : (
               <div className="space-y-2.5">
                 {data.enrollments.map((e) => (
-                  <div key={e.courseId} className="rounded-xl border border-[var(--border)] p-3.5">
+                  <div
+                    key={e.courseId}
+                    className={`rounded-xl border border-[var(--border)] border-l-4 p-3.5 transition hover:border-picton/50 ${e.completed ? "border-l-mint/60" : e.percent === 0 ? "border-l-orange/60" : "border-l-gold/60"}`}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <div className="truncate text-sm font-semibold">{e.title}</div>
                       {e.completed
@@ -200,12 +281,15 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
 
           {data && tab === "certificates" && (
             data.certificates.length === 0 ? (
-              <p className="py-10 text-center text-sm text-[var(--muted)]">No certificates earned yet.</p>
+              <div className="py-8 text-center">
+                <div className="text-4xl">📜</div>
+                <p className="mt-3 text-sm text-[var(--muted)]">No certificates earned yet.</p>
+              </div>
             ) : (
               <div className="space-y-2.5">
                 {data.certificates.map((c) => (
-                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-[var(--border)] p-3.5">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/15 text-lg text-gold">📜</div>
+                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-gold/30 bg-gold/5 p-3.5 transition hover:border-gold/60">
+                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gold/15 text-xl text-gold">🏆</div>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-semibold">
                         {c.courseTitle}
@@ -213,7 +297,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                       </div>
                       <div className="text-xs text-[var(--muted)]">Issued {formatDate(new Date(c.issuedAt))} · {c.serial}</div>
                     </div>
-                    <a href={`/api/certificates/${c.id}/download`} target="_blank" className="gt-btn-ghost shrink-0 text-xs">Download</a>
+                    <a href={`/api/certificates/${c.id}/download`} target="_blank" className="gt-btn-ghost shrink-0 text-xs">⬇ Download</a>
                   </div>
                 ))}
               </div>

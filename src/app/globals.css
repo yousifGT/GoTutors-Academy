@@ -127,3 +127,19 @@ body {
     background: color-mix(in srgb, var(--soft) 45%, transparent);
   }
 }
+
+/* Modal entrance — backdrop fades, panel pops. */
+@keyframes gt-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes gt-pop-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.gt-modal-backdrop {
+  animation: gt-fade-in 0.15s ease-out;
+}
+.gt-modal-panel {
+  animation: gt-pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
