@@ -10,9 +10,9 @@ import { effectiveSubPositions } from "@/lib/sub-positions";
  *  - anyone       → themselves
  *  - SUPER_ADMIN  → anyone
  *  - CENTRE_ADMIN → users of their own (non-null) centre
- *  - INSTRUCTOR   → users of their own centre, plus anyone enrolled in one of
- *                   their courses (cross-centre trainees on their courses)
- *  - supervisors  → their direct supervisees
+ *  - INSTRUCTOR   → only trainees enrolled in one of their courses
+ *  - anyone set as a user's supervisor → that supervisee
+ *    (supervisor is a field on the user, not a role)
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     viewer.roleType === "SUPER_ADMIN" ||
     viewer.id === target.id ||
     target.supervisorId === viewer.id;
-  if (!allowed && (viewer.roleType === "CENTRE_ADMIN" || viewer.roleType === "INSTRUCTOR")) {
+  if (!allowed && viewer.roleType === "CENTRE_ADMIN") {
     allowed = viewer.centreId != null && target.centreId === viewer.centreId;
   }
   if (!allowed && viewer.roleType === "INSTRUCTOR") {
