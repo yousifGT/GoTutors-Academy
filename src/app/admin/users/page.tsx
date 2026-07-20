@@ -6,6 +6,7 @@ import { ListSearch } from "@/components/list-search";
 import { timeAgo } from "@/lib/utils";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader, EmptyState, Avatar, RoleChip } from "@/components/page-ui";
+import { UserOverviewTrigger } from "@/components/user-overview-trigger";
 
 export default async function AdminUsersPage({ searchParams }: { searchParams: { q?: string } }) {
   await requireRole("SUPER_ADMIN");
@@ -49,13 +50,15 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: {
             {users.map((u) => (
               <tr key={u.id}>
                 <td>
-                  <div className="flex items-center gap-3">
-                    <Avatar name={u.name} size="sm" />
-                    <div className="min-w-0">
-                      <div className="font-medium">{u.name}{!u.active && <span className="gt-badge ml-2 bg-[var(--soft)] text-[var(--muted)]">Inactive</span>}</div>
-                      <div className="text-xs text-[var(--muted)]">{u.email}</div>
+                  <UserOverviewTrigger userId={u.id}>
+                    <div className="flex items-center gap-3">
+                      <Avatar name={u.name} size="sm" />
+                      <div className="min-w-0">
+                        <div className="font-medium transition hover:text-picton">{u.name}{!u.active && <span className="gt-badge ml-2 bg-[var(--soft)] text-[var(--muted)]">Inactive</span>}</div>
+                        <div className="text-xs text-[var(--muted)]">{u.email}</div>
+                      </div>
                     </div>
-                  </div>
+                  </UserOverviewTrigger>
                 </td>
                 <td><RoleChip type={u.role.type} label={u.role.name} /></td>
                 <td>

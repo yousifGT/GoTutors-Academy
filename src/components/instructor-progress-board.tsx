@@ -2,10 +2,12 @@
 import { useMemo, useState } from "react";
 import { Avatar, EmptyState, StatCard } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
+import { UserOverviewModal } from "@/components/user-overview-modal";
 import { timeAgo } from "@/lib/utils";
 
 export type ProgressRow = {
   id: string;
+  userId: string;
   traineeName: string;
   traineeEmail: string;
   courseId: string;
@@ -35,6 +37,7 @@ export function InstructorProgressBoard({ rows, courses }: { rows: ProgressRow[]
   const [courseId, setCourseId] = useState<string>("all");
   const [status, setStatus] = useState<Status>("all");
   const [q, setQ] = useState("");
+  const [openUserId, setOpenUserId] = useState<string | null>(null);
 
   const stats = useMemo(() => {
     const trainees = new Set(rows.map((r) => r.traineeEmail)).size;
@@ -122,13 +125,18 @@ export function InstructorProgressBoard({ rows, courses }: { rows: ProgressRow[]
                 className={`gt-card flex flex-col p-5 transition hover:border-picton/50 ${s === "not-started" ? "border-l-4 border-l-orange/50" : ""}`}
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setOpenUserId(r.userId)}
+                    className="flex min-w-0 items-center gap-3 text-left transition hover:opacity-80"
+                    title="View trainee profile"
+                  >
                     <Avatar name={r.traineeName} />
                     <div className="min-w-0">
-                      <div className="truncate font-bold">{r.traineeName}</div>
+                      <div className="truncate font-bold transition hover:text-picton">{r.traineeName}</div>
                       <div className="truncate text-xs text-[var(--muted)]">{r.traineeEmail}</div>
                     </div>
-                  </div>
+                  </button>
                   <span className={`gt-badge shrink-0 ${STATUS_META[s].chip}`}>{STATUS_META[s].label}</span>
                 </div>
                 <div className="mt-3 flex-1">
@@ -149,6 +157,8 @@ export function InstructorProgressBoard({ rows, courses }: { rows: ProgressRow[]
           })}
         </div>
       )}
+
+      {openUserId && <UserOverviewModal userId={openUserId} onClose={() => setOpenUserId(null)} />}
     </div>
   );
 }

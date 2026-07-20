@@ -1,37 +1,84 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { centreUserScope } from "@/lib/scope";
-import { PageHeader, StatCard, EmptyState } from "@/components/page-ui";
+import { getCourseProgressForUsers } from "@/lib/course-progress";
+import { PageHeader, StatCard } from "@/components/page-ui";
+import { CentreReportBoard, CourseReport, TraineeReport } from "@/components/centre-report-board";
 
 export default async function CentreReportsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
   const userWhere = centreUserScope(session.user);
 
-  const [trainees, allAttempts, byCourse] = await Promise.all([
-    prisma.user.findMany({ where: { ...userWhere, role: { type: "TRAINEE" } }, select: { id: true } }),
-    prisma.quizAttempt.findMany({
-      where: { user: userWhere },
-      select: { passed: true, score: true },
+  const [trainees, enrollments, attempts] = await Promise.all([
+    prisma.user.findMany({
+      where: { ...userWhere, role: { type: "TRAINEE" } },
+      select: { id: true, name: true, email: true, isTrained: true },
+      orderBy: { name: "asc" },
     }),
-    prisma.enrollment.groupBy({
-      by: ["courseId"],
+    prisma.enrollment.findMany({
       where: { user: userWhere },
-      _count: { _all: true },
+      select: { userId: true, courseId: true, completed: true, course: { select: { id: true, title: true } } },
     }),
+    prisma.quizAttempt.findMany({ where: { user: userWhere }, select: { userId: true, passed: true } }),
   ]);
 
-  const passed = allAttempts.filter((a) => a.passed).length;
-  const failed = allAttempts.length - passed;
-  const passRate = allAttempts.length ? Math.round((passed / allAttempts.length) * 100) : 0;
+  const progressByKey = await getCourseProgressForUsers(
+    enrollments.map((e) => ({ userId: e.userId, courseId: e.courseId }))
+  );
+  const percentOf = (userId: string, courseId: string) => progressByKey.get(`${userId}:${courseId}`)?.percent ?? 0;
 
-  const courses = await prisma.course.findMany({
-    where: { id: { in: byCourse.map((g) => g.courseId) } },
-    select: { id: true, title: true },
+  // Headline stats
+  const passed = attempts.filter((a) => a.passed).length;
+  const failed = attempts.length - passed;
+  const passRate = attempts.length ? Math.round((passed / attempts.length) * 100) : 0;
+  const avgProgress = enrollments.length
+    ? Math.round(enrollments.reduce((n, e) => n + percentOf(e.userId, e.courseId), 0) / enrollments.length)
+    : 0;
+
+  // Per-course rollup
+  const courseMap = new Map<string, CourseReport & { percentSum: number }>();
+  for (const e of enrollments) {
+    const c = courseMap.get(e.courseId) ?? { id: e.course.id, title: e.course.title, enrolled: 0, completed: 0, avgPercent: 0, percentSum: 0 };
+    c.enrolled += 1;
+    if (e.completed) c.completed += 1;
+    c.percentSum += percentOf(e.userId, e.courseId);
+    courseMap.set(e.courseId, c);
+  }
+  const courses: CourseReport[] = [...courseMap.values()]
+    .map(({ percentSum, ...c }) => ({ ...c, avgPercent: c.enrolled ? Math.round(percentSum / c.enrolled) : 0 }))
+    .sort((a, b) => b.enrolled - a.enrolled);
+
+  // Per-trainee rollup
+  const attemptsByUser = new Map<string, { passes: number; fails: number }>();
+  for (const a of attempts) {
+    const t = attemptsByUser.get(a.userId) ?? { passes: 0, fails: 0 };
+    if (a.passed) t.passes += 1; else t.fails += 1;
+    attemptsByUser.set(a.userId, t);
+  }
+  const enrolmentsByUser = new Map<string, { userId: string; courseId: string; completed: boolean }[]>();
+  for (const e of enrollments) {
+    const arr = enrolmentsByUser.get(e.userId) ?? [];
+    arr.push(e);
+    enrolmentsByUser.set(e.userId, arr);
+  }
+  const traineeReports: TraineeReport[] = trainees.map((t) => {
+    const es = enrolmentsByUser.get(t.id) ?? [];
+    const quiz = attemptsByUser.get(t.id) ?? { passes: 0, fails: 0 };
+    return {
+      id: t.id,
+      name: t.name,
+      email: t.email,
+      isTrained: t.isTrained,
+      enrolled: es.length,
+      completedCourses: es.filter((e) => e.completed).length,
+      avgPercent: es.length ? Math.round(es.reduce((n, e) => n + percentOf(e.userId, e.courseId), 0) / es.length) : 0,
+      passes: quiz.passes,
+      fails: quiz.fails,
+    };
   });
-  const titleMap = new Map(courses.map((c) => [c.id, c.title]));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-5">
       <PageHeader
         title="Reports"
         subtitle="Quiz and enrolment performance for your centre."
@@ -39,38 +86,11 @@ export default async function CentreReportsPage() {
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Trainees" value={trainees.length} icon="👥" tone="navy" />
-        <StatCard label="Pass rate" value={`${passRate}%`} icon="🎯" tone="mint" />
-        <StatCard label="Total passes" value={passed} icon="✅" tone="picton" />
-        <StatCard label="Total fails" value={failed} icon="❌" tone="orange" />
+        <StatCard label="Avg progress" value={`${avgProgress}%`} icon="📈" tone="picton" hint="Across all enrolments" />
+        <StatCard label="Pass rate" value={`${passRate}%`} icon="🎯" tone="mint" hint={`${passed} passed · ${failed} failed`} />
+        <StatCard label="Quiz attempts" value={attempts.length} icon="📝" tone="gold" />
       </div>
-
-      {byCourse.length === 0 ? (
-        <EmptyState icon="📊" title="No enrolment data" hint="Numbers appear here once trainees are enrolled in courses." />
-      ) : (
-        <div className="gt-card p-5">
-          <h3 className="font-bold">Enrolments by course</h3>
-          <div className="mt-4 space-y-3">
-            {(() => {
-              const sorted = [...byCourse].sort((a, b) => b._count._all - a._count._all);
-              const max = sorted[0]?._count._all ?? 1;
-              return sorted.map((g) => (
-                <div key={g.courseId}>
-                  <div className="flex items-center justify-between gap-3 text-sm">
-                    <span className="truncate font-medium">{titleMap.get(g.courseId) ?? g.courseId}</span>
-                    <span className="shrink-0 font-bold">{g._count._all}</span>
-                  </div>
-                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-[var(--soft)]">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-picton to-cyan"
-                      style={{ width: `${Math.max(6, Math.round((g._count._all / max) * 100))}%` }}
-                    />
-                  </div>
-                </div>
-              ));
-            })()}
-          </div>
-        </div>
-      )}
+      <CentreReportBoard courses={courses} trainees={traineeReports} />
     </div>
   );
 }
