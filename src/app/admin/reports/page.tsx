@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { requireRole } from "@/lib/session";
 import { centreReportRows } from "@/lib/centre-report";
 import { PageHeader, StatStrip, EmptyState } from "@/components/page-ui";
@@ -27,7 +28,12 @@ export default async function AdminReportsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {rows.map((r) => (
-            <div key={r.id} className="gt-card flex flex-col p-5 transition hover:border-picton/50">
+            <Link
+              key={r.id}
+              href={`/admin/centres/${r.id}`}
+              className="gt-card group flex flex-col p-5 transition hover:border-picton/50"
+              title="Open the full centre breakdown — people, courses, completions"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gold/15 text-xl text-gold">🏫</div>
                 <div className="text-right">
@@ -36,28 +42,31 @@ export default async function AdminReportsPage() {
                 </div>
               </div>
               <div className="mt-3 min-w-0 flex-1">
-                <div className="text-lg font-bold tracking-tight">{r.name}</div>
+                <div className="text-lg font-bold tracking-tight transition group-hover:text-picton">{r.name}</div>
                 <div className="mt-2"><ProgressBar percent={r.passRate} /></div>
                 <div className="mt-2 flex gap-2">
                   <span className="gt-badge bg-mint/15 text-mint">✓ {r.passes} passed</span>
                   <span className="gt-badge bg-orange/15 text-orange">✗ {r.fails} failed</span>
                 </div>
               </div>
-              <div className="mt-4 flex gap-5 border-t border-[var(--border)] pt-3">
-                <div>
-                  <div className="text-xl font-bold leading-tight">{r.users}</div>
-                  <div className="text-xs text-[var(--muted)]">user{r.users === 1 ? "" : "s"}</div>
+              <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-3">
+                <div className="flex gap-5">
+                  <div>
+                    <div className="text-xl font-bold leading-tight">{r.users}</div>
+                    <div className="text-xs text-[var(--muted)]">user{r.users === 1 ? "" : "s"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-bold leading-tight">{r.enrolments}</div>
+                    <div className="text-xs text-[var(--muted)]">enrolment{r.enrolments === 1 ? "" : "s"}</div>
+                  </div>
+                  <div>
+                    <div className="text-xl font-bold leading-tight">{r.completed}</div>
+                    <div className="text-xs text-[var(--muted)]">completed</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-xl font-bold leading-tight">{r.enrolments}</div>
-                  <div className="text-xs text-[var(--muted)]">enrolment{r.enrolments === 1 ? "" : "s"}</div>
-                </div>
-                <div>
-                  <div className="text-xl font-bold leading-tight">{r.completed}</div>
-                  <div className="text-xs text-[var(--muted)]">completed</div>
-                </div>
+                <span className="text-xs text-[var(--muted)] opacity-0 transition group-hover:opacity-100">Full breakdown →</span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}

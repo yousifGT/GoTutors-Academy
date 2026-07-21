@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { centreUserScope } from "@/lib/scope";
+import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { PageHeader, StatCard } from "@/components/page-ui";
 import { CentreReportBoard, CourseReport, TraineeReport } from "@/components/centre-report-board";
@@ -17,7 +18,22 @@ export default async function CentreReportsPage() {
     }),
     prisma.enrollment.findMany({
       where: { user: userWhere },
-      select: { userId: true, courseId: true, completed: true, course: { select: { id: true, title: true } } },
+      select: {
+        userId: true,
+        courseId: true,
+        completed: true,
+        course: { select: { id: true, title: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            subPosition: true,
+            subPositions: true,
+            role: { select: { name: true, type: true } },
+          },
+        },
+      },
     }),
     prisma.quizAttempt.findMany({ where: { user: userWhere }, select: { userId: true, passed: true } }),
   ]);
@@ -35,13 +51,23 @@ export default async function CentreReportsPage() {
     ? Math.round(enrollments.reduce((n, e) => n + percentOf(e.userId, e.courseId), 0) / enrollments.length)
     : 0;
 
-  // Per-course rollup
+  // Per-course rollup, carrying the full enrollee roster for the drilldown popup.
   const courseMap = new Map<string, CourseReport & { percentSum: number }>();
   for (const e of enrollments) {
-    const c = courseMap.get(e.courseId) ?? { id: e.course.id, title: e.course.title, enrolled: 0, completed: 0, avgPercent: 0, percentSum: 0 };
+    const c = courseMap.get(e.courseId) ?? { id: e.course.id, title: e.course.title, enrolled: 0, completed: 0, avgPercent: 0, percentSum: 0, enrollees: [] };
     c.enrolled += 1;
     if (e.completed) c.completed += 1;
     c.percentSum += percentOf(e.userId, e.courseId);
+    c.enrollees.push({
+      userId: e.user.id,
+      name: e.user.name,
+      email: e.user.email,
+      roleName: e.user.role.name,
+      roleType: e.user.role.type,
+      subPositions: effectiveSubPositions(e.user),
+      percent: percentOf(e.userId, e.courseId),
+      completed: e.completed,
+    });
     courseMap.set(e.courseId, c);
   }
   const courses: CourseReport[] = [...courseMap.values()]

@@ -3,6 +3,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { Avatar, EmptyState } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
+import { CourseEnrolleesModal, CourseEnrollee } from "@/components/course-enrollees-modal";
+import { UserOverviewModal } from "@/components/user-overview-modal";
 
 export type CourseReport = {
   id: string;
@@ -10,6 +12,7 @@ export type CourseReport = {
   enrolled: number;
   completed: number;
   avgPercent: number;
+  enrollees: CourseEnrollee[];
 };
 
 export type TraineeReport = {
@@ -26,6 +29,9 @@ export type TraineeReport = {
 
 export function CentreReportBoard({ courses, trainees }: { courses: CourseReport[]; trainees: TraineeReport[] }) {
   const [tab, setTab] = useState<"courses" | "trainees">("courses");
+  const [openCourseId, setOpenCourseId] = useState<string | null>(null);
+  const [openUserId, setOpenUserId] = useState<string | null>(null);
+  const openCourse = courses.find((c) => c.id === openCourseId);
 
   return (
     <div className="space-y-4">
@@ -52,7 +58,13 @@ export function CentreReportBoard({ courses, trainees }: { courses: CourseReport
             {courses.map((c) => {
               const completionRate = c.enrolled ? Math.round((c.completed / c.enrolled) * 100) : 0;
               return (
-                <div key={c.id} className="gt-card flex flex-col p-5 transition hover:border-picton/50">
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setOpenCourseId(c.id)}
+                  className="gt-card group flex flex-col p-5 text-left transition hover:border-picton/50"
+                  title="See everyone enrolled and their progress"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-picton/15 text-xl text-picton">📚</div>
                     <div className="text-right">
@@ -61,21 +73,24 @@ export function CentreReportBoard({ courses, trainees }: { courses: CourseReport
                     </div>
                   </div>
                   <div className="mt-3 min-w-0 flex-1">
-                    <div className="truncate text-lg font-bold tracking-tight" title={c.title}>{c.title}</div>
+                    <div className="truncate text-lg font-bold tracking-tight transition group-hover:text-picton" title={c.title}>{c.title}</div>
                     <div className="mt-2"><ProgressBar percent={c.avgPercent} /></div>
                     <div className="mt-1 text-xs text-[var(--muted)]">{c.avgPercent}% average lesson progress</div>
                   </div>
-                  <div className="mt-4 flex gap-5 border-t border-[var(--border)] pt-3">
-                    <div>
-                      <div className="text-xl font-bold leading-tight">{c.enrolled}</div>
-                      <div className="text-xs text-[var(--muted)]">enrolled</div>
+                  <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-3">
+                    <div className="flex gap-5">
+                      <div>
+                        <div className="text-xl font-bold leading-tight">{c.enrolled}</div>
+                        <div className="text-xs text-[var(--muted)]">enrolled</div>
+                      </div>
+                      <div>
+                        <div className="text-xl font-bold leading-tight">{c.completed}</div>
+                        <div className="text-xs text-[var(--muted)]">completed</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xl font-bold leading-tight">{c.completed}</div>
-                      <div className="text-xs text-[var(--muted)]">completed</div>
-                    </div>
+                    <span className="text-xs text-[var(--muted)] opacity-0 transition group-hover:opacity-100">Who&apos;s on it →</span>
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -128,6 +143,16 @@ export function CentreReportBoard({ courses, trainees }: { courses: CourseReport
           </div>
         )
       )}
+
+      {openCourse && !openUserId && (
+        <CourseEnrolleesModal
+          title={openCourse.title}
+          enrollees={openCourse.enrollees}
+          onClose={() => setOpenCourseId(null)}
+          onOpenUser={(id) => setOpenUserId(id)}
+        />
+      )}
+      {openUserId && <UserOverviewModal userId={openUserId} onClose={() => setOpenUserId(null)} />}
     </div>
   );
 }

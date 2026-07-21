@@ -64,13 +64,27 @@ export default async function CentreDetailPage({ params }: { params: { id: strin
     };
   });
 
-  // Per-course rollup
+  // Per-course rollup, carrying the enrollee roster for the drilldown popup.
+  const userById = new Map(users.map((u) => [u.id, u]));
   const courseMap = new Map<string, CentreCourse & { percentSum: number }>();
   for (const e of enrollments) {
-    const c = courseMap.get(e.courseId) ?? { id: e.course.id, title: e.course.title, enrolled: 0, completed: 0, avgPercent: 0, percentSum: 0 };
+    const c = courseMap.get(e.courseId) ?? { id: e.course.id, title: e.course.title, enrolled: 0, completed: 0, avgPercent: 0, percentSum: 0, enrollees: [] };
     c.enrolled += 1;
     if (e.completed) c.completed += 1;
     c.percentSum += percentOf(e.userId, e.courseId);
+    const u = userById.get(e.userId);
+    if (u) {
+      c.enrollees.push({
+        userId: u.id,
+        name: u.name,
+        email: u.email,
+        roleName: u.role.name,
+        roleType: u.role.type,
+        subPositions: effectiveSubPositions(u),
+        percent: percentOf(e.userId, e.courseId),
+        completed: e.completed,
+      });
+    }
     courseMap.set(e.courseId, c);
   }
   const courses: CentreCourse[] = [...courseMap.values()]
