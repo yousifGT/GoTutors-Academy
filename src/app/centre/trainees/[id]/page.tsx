@@ -111,15 +111,18 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
             const groupRows = rows.filter(({ e }) => groupOf(e) === k);
             const doneCount = groupRows.filter(({ e }) => e.completed).length;
             return (
-              <div key={k}>
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  {k === GENERAL
-                    ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
-                    : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+              <details key={k} open={doneCount < groupRows.length} className="group/sec">
+                <summary className="mb-2 flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-1 py-1 transition hover:bg-[var(--soft)]/40 [&::-webkit-details-marker]:hidden">
+                  <span className="flex items-center gap-2">
+                    <span className="text-[10px] text-[var(--muted)] transition-transform group-open/sec:rotate-90">▶</span>
+                    {k === GENERAL
+                      ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
+                      : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+                  </span>
                   <span className={`text-xs font-bold ${doneCount === groupRows.length ? "text-mint" : "text-[var(--muted)]"}`}>
                     {doneCount}/{groupRows.length} completed{doneCount === groupRows.length ? " 🏅" : ""}
                   </span>
-                </div>
+                </summary>
                 <div className="space-y-3">
                   {groupRows.map(({ e, progress }) => {
                     const totalSeconds = e.course.modules
@@ -170,7 +173,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                     );
                   })}
                 </div>
-              </div>
+              </details>
             );
           })}
           {rows.length === 0 && <EmptyState icon="📚" title="No enrolments yet" hint="Courses matching their sub-positions appear here once published." />}

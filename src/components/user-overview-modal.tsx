@@ -348,15 +348,18 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                       const items = data.enrollments.filter((e) => groupOf(e) === k);
                       const doneCount = items.filter((i) => i.completed).length;
                       return (
-                        <section key={k}>
-                          <div className="flex items-center justify-between gap-2">
-                            {k === GENERAL
-                              ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
-                              : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+                        <details key={k} open={doneCount < items.length} className="group/sec">
+                          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 rounded-lg px-1 py-0.5 transition hover:bg-[var(--soft)]/40 [&::-webkit-details-marker]:hidden">
+                            <span className="flex items-center gap-2">
+                              <span className="text-[10px] text-[var(--muted)] transition-transform group-open/sec:rotate-90">▶</span>
+                              {k === GENERAL
+                                ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
+                                : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+                            </span>
                             <span className={`text-xs font-bold ${doneCount === items.length ? "text-mint" : "text-[var(--muted)]"}`}>
                               {doneCount}/{items.length} completed{doneCount === items.length ? " 🏅" : ""}
                             </span>
-                          </div>
+                          </summary>
                           <div className="mt-2 space-y-2.5">
                             {items.map((e) => (
                               <div
@@ -392,7 +395,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                               </div>
                             ))}
                           </div>
-                        </section>
+                        </details>
                       );
                     })}
                   </div>
