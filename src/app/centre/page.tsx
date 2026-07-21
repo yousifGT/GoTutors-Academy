@@ -66,7 +66,7 @@ export default async function CentreDashboard() {
       icon: "🔒",
       text: `${lockedUsers.length} trainee${lockedUsers.length === 1 ? " is" : "s are"} locked out of a quiz`,
       detail: `${lockedUsers.slice(0, 3).map((u) => u.user.name).join(", ")}${lockedUsers.length > 3 ? "…" : ""} — unlock retries from their profile.`,
-      href: "/centre/trainees",
+      href: "/centre/review",
       action: "See who",
       tone: "orange",
     });
@@ -76,7 +76,7 @@ export default async function CentreDashboard() {
       icon: "🧩",
       text: `${noPosition.length} active trainee${noPosition.length === 1 ? " has" : "s have"} no sub-position`,
       detail: "They won't be auto-enrolled in any position-targeted course until one is set.",
-      href: "/centre/trainees",
+      href: "/centre/review",
       action: "Assign positions",
       tone: "gold",
     });
@@ -86,7 +86,7 @@ export default async function CentreDashboard() {
       icon: "👻",
       text: `${neverLoggedIn.length} trainee${neverLoggedIn.length === 1 ? " has" : "s have"} never signed in`,
       detail: "Created 3+ days ago — they may need their credentials re-sent.",
-      href: "/centre/trainees",
+      href: "/centre/review",
       action: "Review",
       tone: "gold",
     });
@@ -98,7 +98,7 @@ export default async function CentreDashboard() {
       icon: "🐌",
       text: `${stalled.length} trainee${stalled.length === 1 ? " is" : "s are"} stalled mid-training`,
       detail: "Unfinished courses and no sign-in for 14+ days.",
-      href: "/centre/trainees",
+      href: "/centre/review",
       action: "Follow up",
       tone: "picton",
     });

@@ -23,6 +23,57 @@ type FieldUser = {
   role: { type: string };
 };
 
+/**
+ * Batched variant: per-field status for many users in two queries (all
+ * matching courses once, all certificates once). Map key is the user id.
+ */
+export async function getFieldStatusForUsers(users: FieldUser[]): Promise<Map<string, FieldStatus[]>> {
+  const result = new Map<string, FieldStatus[]>();
+  const allFields = [...new Set(users.flatMap((u) => effectiveSubPositions(u)))];
+  if (allFields.length === 0) {
+    for (const u of users) result.set(u.id, []);
+    return result;
+  }
+
+  const courses = await prisma.course.findMany({
+    where: {
+      published: true,
+      roleAssignments: { some: { role: { type: "TRAINEE" }, subPosition: { in: allFields } } },
+    },
+    select: {
+      id: true,
+      roleAssignments: {
+        where: { role: { type: "TRAINEE" }, subPosition: { in: allFields } },
+        select: { roleId: true, subPosition: true },
+      },
+    },
+  });
+
+  const certs = await prisma.certificate.findMany({
+    where: { userId: { in: users.map((u) => u.id) }, courseId: { in: courses.map((c) => c.id) } },
+    select: { userId: true, courseId: true },
+  });
+  const certSet = new Set(certs.map((c) => `${c.userId}:${c.courseId}`));
+
+  for (const user of users) {
+    const fields = effectiveSubPositions(user);
+    result.set(
+      user.id,
+      fields.map((name) => {
+        // Trainees match through their own role; promoted teachers through any trainee role.
+        const required = courses.filter((c) =>
+          c.roleAssignments.some(
+            (ra) => ra.subPosition === name && (user.role.type !== "TRAINEE" || ra.roleId === user.roleId)
+          )
+        );
+        const done = required.filter((c) => certSet.has(`${user.id}:${c.id}`)).length;
+        return { name, total: required.length, done, trained: required.length > 0 && done === required.length };
+      })
+    );
+  }
+  return result;
+}
+
 export async function getFieldStatus(user: FieldUser): Promise<FieldStatus[]> {
   const fields = effectiveSubPositions(user);
   if (fields.length === 0) return [];

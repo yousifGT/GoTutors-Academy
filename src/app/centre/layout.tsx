@@ -11,6 +11,7 @@ export default async function CentreLayout({ children }: { children: React.React
   const nav = [
     { href: "/centre", label: "Dashboard", icon: "🏠" },
     { href: "/centre/trainees", label: "Trainees", icon: "👥" },
+    { href: "/centre/review", label: "Review", icon: "🛎️" },
     { href: "/centre/reports", label: "Reports", icon: "📊" },
     { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔" },
     ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
