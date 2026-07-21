@@ -6,6 +6,7 @@ import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireCourseAccess } from "@/lib/course-access";
 import { assignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
+import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
 import { wouldCreateCycle } from "@/lib/course-prereqs";
 import { z } from "zod";
@@ -55,6 +56,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  // Publish flips and audience rewrites change what "fully trained" requires,
+  // so capture the affected fields before AND after to refresh the flag both ways.
+  const publishFlipping = body.published !== undefined && body.published !== existing.published;
+  const audienceChanging = body.roleIds !== undefined;
+  const fieldsBefore = publishFlipping || audienceChanging ? await courseTraineeFields(params.id) : [];
+
   const data: Record<string, unknown> = {};
   for (const k of ["title", "description", "passThreshold", "published"] as const) {
     if (body[k] !== undefined) data[k] = body[k];
@@ -77,6 +84,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (updated.published && (body.published !== undefined || body.roleIds !== undefined)) {
     await syncCourseEnrollments(updated.id);
   }
+  if (publishFlipping || (audienceChanging && updated.published)) {
+    const fieldsAfter = audienceChanging ? await courseTraineeFields(params.id) : fieldsBefore;
+    await recomputeIsTrainedForFields([...fieldsBefore, ...fieldsAfter]);
+  }
   return NextResponse.json(updated);
 }
 
@@ -87,6 +98,11 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const denied = await requireCourseAccess(session.user, params.id);
   if (denied) return denied;
+  // Deleting a published course shrinks the requirement for its fields —
+  // someone missing only this course becomes fully trained.
+  const course = await prisma.course.findUnique({ where: { id: params.id }, select: { published: true } });
+  const fields = course?.published ? await courseTraineeFields(params.id) : [];
   await prisma.course.delete({ where: { id: params.id } });
+  await recomputeIsTrainedForFields(fields);
   return NextResponse.json({ ok: true });
 }

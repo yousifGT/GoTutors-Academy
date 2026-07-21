@@ -1,6 +1,36 @@
 import { prisma } from "@/lib/prisma";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 
+/** The trainee sub-positions a course counts towards (its trainee-targeted assignments). */
+export async function courseTraineeFields(courseId: string): Promise<string[]> {
+  const rows = await prisma.courseRoleAssignment.findMany({
+    where: { courseId, subPosition: { not: null }, role: { type: "TRAINEE" } },
+    select: { subPosition: true },
+  });
+  return [...new Set(rows.map((r) => r.subPosition as string))];
+}
+
+/**
+ * Recompute isTrained for every user holding any of these sub-positions.
+ * Call whenever the REQUIREMENT changes rather than a user's own progress —
+ * a course being published, unpublished, re-targeted or deleted changes what
+ * "finished everything" means for those fields, so the stored flag would
+ * otherwise go stale in either direction.
+ */
+export async function recomputeIsTrainedForFields(fields: string[]): Promise<number> {
+  const names = [...new Set(fields.filter(Boolean))];
+  if (names.length === 0) return 0;
+  const users = await prisma.user.findMany({
+    where: {
+      role: { type: { in: ["TRAINEE", "INSTRUCTOR"] } },
+      OR: [{ subPositions: { hasSome: names } }, { subPosition: { in: names } }],
+    },
+    select: { id: true },
+  });
+  for (const u of users) await recomputeIsTrained(u.id);
+  return users.length;
+}
+
 /**
  * Recompute whether a trainee has completed every course assigned to their sub-positions
  * and set User.isTrained accordingly. Idempotent.

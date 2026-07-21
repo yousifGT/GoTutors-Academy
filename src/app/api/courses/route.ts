@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { assignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
+import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
@@ -52,6 +53,8 @@ export async function POST(req: Request) {
   if (course.published) {
     await snapshotCourse(course.id);
     await syncCourseEnrollments(course.id);
+    // A newly published course raises the bar for its fields — refresh flags.
+    await recomputeIsTrainedForFields(await courseTraineeFields(course.id));
   }
   return NextResponse.json(course);
 }
