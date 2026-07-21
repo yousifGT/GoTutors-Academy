@@ -53,7 +53,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const [enrollments, certificates, authoredCourses, fieldStatus] = await Promise.all([
     prisma.enrollment.findMany({
       where: { userId: target.id },
-      include: { course: { select: { id: true, title: true } } },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            roleAssignments: { select: { subPosition: true, role: { select: { name: true } } } },
+          },
+        },
+      },
       orderBy: { enrolledAt: "desc" },
     }),
     prisma.certificate.findMany({
@@ -102,6 +110,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       return {
         courseId: e.course.id,
         title: e.course.title,
+        // Who the course is for: its sub-position fields plus any whole-role audiences.
+        fields: [...new Set(e.course.roleAssignments.filter((ra) => ra.subPosition).map((ra) => ra.subPosition as string))],
+        roleWide: [...new Set(e.course.roleAssignments.filter((ra) => ra.subPosition === null).map((ra) => ra.role.name))],
         percent: p?.percent ?? 0,
         done: p?.completed ?? 0,
         total: p?.total ?? 0,

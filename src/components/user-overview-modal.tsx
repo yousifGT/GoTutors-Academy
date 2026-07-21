@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
+import { tutorTitleFor } from "@/lib/sub-positions";
 import { formatDate, timeAgo } from "@/lib/utils";
 
 type Overview = {
@@ -25,7 +26,7 @@ type Overview = {
   };
   fieldStatus: { name: string; total: number; done: number; trained: boolean }[];
   canPromote: boolean;
-  enrollments: { courseId: string; title: string; percent: number; done: number; total: number; completed: boolean; enrolledAt: string }[];
+  enrollments: { courseId: string; title: string; fields: string[]; roleWide: string[]; percent: number; done: number; total: number; completed: boolean; enrolledAt: string }[];
   certificates: { id: string; courseTitle: string; courseVersion: number | null; serial: string; issuedAt: string }[];
   authoredCourses: { id: string; title: string; published: boolean; enrolments: number }[];
 };
@@ -83,7 +84,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
 
   async function promote(field: string) {
     if (!data) return;
-    if (!confirm(`Promote ${data.user.name} to ${field}?\n\nThey move up to the Tutor role — one rung above trainee, without instructor/course-authoring access. Training in their other fields continues unchanged, and all enrolments and certificates are kept.`)) return;
+    if (!confirm(`Promote ${data.user.name} to ${tutorTitleFor(field)}?\n\nThey move up to the Tutor role — one rung above trainee, without instructor/course-authoring access. Training in their other fields continues unchanged, and all enrolments and certificates are kept.`)) return;
     setPromoting(true);
     setPromoteMsg(null);
     const res = await fetch(`/api/users/${userId}/promote`, {
@@ -94,7 +95,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
     const body = await res.json().catch(() => ({}));
     setPromoting(false);
     if (!res.ok) return setPromoteMsg({ kind: "err", text: body.error ?? "Promotion failed" });
-    setPromoteMsg({ kind: "ok", text: `Promoted to ${field} 🎉` });
+    setPromoteMsg({ kind: "ok", text: `Promoted to ${tutorTitleFor(field)} 🎉` });
     load().then(setData).catch(() => {});
     router.refresh();
   }
@@ -276,7 +277,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                                 disabled={promoting}
                                 className="gt-btn-primary text-xs"
                               >
-                                {promoting ? "Promoting…" : `⬆ Promote to ${f.name}`}
+                                {promoting ? "Promoting…" : `⬆ Promote to ${tutorTitleFor(f.name)}`}
                               </button>
                             ) : (
                               <span className="gt-badge bg-mint/15 text-mint">🏅 Trained — ready to promote</span>
@@ -326,31 +327,77 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                 <p className="mt-3 text-sm text-[var(--muted)]">Not enrolled in any courses yet.</p>
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {data.enrollments.map((e) => (
-                  <div
-                    key={e.courseId}
-                    className={`rounded-xl border border-[var(--border)] border-l-4 p-3.5 transition hover:border-picton/50 ${e.completed ? "border-l-mint/60" : e.percent === 0 ? "border-l-orange/60" : "border-l-gold/60"}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="truncate text-sm font-semibold">{e.title}</div>
-                      {e.completed
-                        ? <span className="gt-badge shrink-0 bg-mint/15 text-mint">Completed</span>
-                        : e.percent === 0
-                          ? <span className="gt-badge shrink-0 bg-orange/15 text-orange">Not started</span>
-                          : <span className="gt-badge shrink-0 bg-gold/15 text-gold">In progress</span>}
-                    </div>
-                    <div className="mt-2 flex items-center gap-3">
-                      <ProgressBar percent={e.percent} />
-                      <span className="w-10 shrink-0 text-right text-xs font-bold">{e.percent}%</span>
-                    </div>
-                    <div className="mt-1.5 flex justify-between text-xs text-[var(--muted)]">
-                      <span>{e.total > 0 ? `${e.done}/${e.total} lessons` : "No lessons yet"}</span>
-                      <span>Enrolled {timeAgo(new Date(e.enrolledAt))}</span>
-                    </div>
+              (() => {
+                // Group courses under the training field they serve: the user's
+                // own field first, else the course's first field, else General.
+                const GENERAL = "__general__";
+                const userFields = data.fieldStatus.map((f) => f.name);
+                const groupOf = (e: (typeof data.enrollments)[number]) =>
+                  e.fields.find((f) => userFields.includes(f)) ?? e.fields[0] ?? GENERAL;
+                const keys: string[] = [];
+                for (const f of userFields) if (data.enrollments.some((e) => groupOf(e) === f)) keys.push(f);
+                for (const e of data.enrollments) {
+                  const g = groupOf(e);
+                  if (g !== GENERAL && !keys.includes(g)) keys.push(g);
+                }
+                if (data.enrollments.some((e) => groupOf(e) === GENERAL)) keys.push(GENERAL);
+
+                return (
+                  <div className="space-y-4">
+                    {keys.map((k) => {
+                      const items = data.enrollments.filter((e) => groupOf(e) === k);
+                      const doneCount = items.filter((i) => i.completed).length;
+                      return (
+                        <section key={k}>
+                          <div className="flex items-center justify-between gap-2">
+                            {k === GENERAL
+                              ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
+                              : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+                            <span className={`text-xs font-bold ${doneCount === items.length ? "text-mint" : "text-[var(--muted)]"}`}>
+                              {doneCount}/{items.length} completed{doneCount === items.length ? " 🏅" : ""}
+                            </span>
+                          </div>
+                          <div className="mt-2 space-y-2.5">
+                            {items.map((e) => (
+                              <div
+                                key={e.courseId}
+                                className={`rounded-xl border border-[var(--border)] border-l-4 p-3.5 transition hover:border-picton/50 ${e.completed ? "border-l-mint/60" : e.percent === 0 ? "border-l-orange/60" : "border-l-gold/60"}`}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="truncate text-sm font-semibold">{e.title}</div>
+                                  {e.completed
+                                    ? <span className="gt-badge shrink-0 bg-mint/15 text-mint">Completed</span>
+                                    : e.percent === 0
+                                      ? <span className="gt-badge shrink-0 bg-orange/15 text-orange">Not started</span>
+                                      : <span className="gt-badge shrink-0 bg-gold/15 text-gold">In progress</span>}
+                                </div>
+                                {(e.fields.length > 0 || e.roleWide.length > 0) && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {e.fields.map((f) => (
+                                      <span key={f} className={`gt-badge ${f === k ? "bg-magenta/15 text-magenta" : "bg-[var(--soft)] text-[var(--muted)]"}`}>{f}</span>
+                                    ))}
+                                    {e.roleWide.map((r) => (
+                                      <span key={r} className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">{r} · everyone</span>
+                                    ))}
+                                  </div>
+                                )}
+                                <div className="mt-2 flex items-center gap-3">
+                                  <ProgressBar percent={e.percent} />
+                                  <span className="w-10 shrink-0 text-right text-xs font-bold">{e.percent}%</span>
+                                </div>
+                                <div className="mt-1.5 flex justify-between text-xs text-[var(--muted)]">
+                                  <span>{e.total > 0 ? `${e.done}/${e.total} lessons` : "No lessons yet"}</span>
+                                  <span>Enrolled {timeAgo(new Date(e.enrolledAt))}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+                      );
+                    })}
                   </div>
-                ))}
-              </div>
+                );
+              })()
             )
           )}
 

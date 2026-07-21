@@ -4,7 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseJson } from "@/lib/validate";
-import { effectiveSubPositions } from "@/lib/sub-positions";
+import { effectiveSubPositions, tutorTitleFor } from "@/lib/sub-positions";
 import { getFieldStatus } from "@/lib/field-training";
 import { audit } from "@/lib/audit";
 
@@ -80,13 +80,15 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   }
 
   const remaining = fields.filter((f) => f !== field);
+  // The training field's name becomes a tutor title: "Maths Trainee" → "Maths Tutor".
+  const tutorTitle = tutorTitleFor(field);
   const updated = await prisma.user.update({
     where: { id: target.id },
     data: {
       roleId: newRoleId,
       subPositions: remaining,
       subPosition: null, // legacy column is superseded by the arrays
-      teacherPositions: [...new Set([...target.teacherPositions, field])],
+      teacherPositions: [...new Set([...target.teacherPositions, tutorTitle])],
       // Nothing left to train → fully trained by definition; otherwise keep
       // the flag for the remaining fields (recomputed on next certificate).
       ...(remaining.length === 0 ? { isTrained: true } : {}),
@@ -99,7 +101,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       userId: target.id,
       centreId: target.centreId,
       type: "PROMOTED_TEACHER",
-      title: `🎉 You've been promoted — you're now a ${field}!`,
+      title: `🎉 You've been promoted — you're now a ${tutorTitle}!`,
       body: remaining.length > 0
         ? `Your ${remaining.join(", ")} training continues as before.`
         : "All your training fields are complete. Congratulations!",
@@ -111,7 +113,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     actorId: viewer.id,
     action: "user.promoted_teacher",
     target: target.id,
-    metadata: { field, remainingFields: remaining, roleUpgraded: newRoleId !== target.roleId },
+    metadata: { field, tutorTitle, remainingFields: remaining, roleUpgraded: newRoleId !== target.roleId },
   });
 
   return NextResponse.json({ ok: true, user: updated });

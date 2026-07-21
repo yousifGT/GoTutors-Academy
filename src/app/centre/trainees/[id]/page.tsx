@@ -23,6 +23,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
           course: {
             include: {
               modules: { orderBy: { order: "asc" }, include: { lessons: { orderBy: { order: "asc" } } } },
+              roleAssignments: { select: { subPosition: true, role: { select: { name: true } } } },
             },
           },
         },
@@ -44,6 +45,24 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
       progress: await getCourseProgressForUser(user.id, e.courseId),
     }))
   );
+
+  // Group courses under the training field they serve — the trainee's own
+  // field first, else the course's first field, else "General".
+  const GENERAL = "__general__";
+  const userFields = effectiveSubPositions(user);
+  const courseFields = (e: (typeof user.enrollments)[number]) =>
+    [...new Set(e.course.roleAssignments.filter((ra) => ra.subPosition).map((ra) => ra.subPosition as string))];
+  const groupOf = (e: (typeof user.enrollments)[number]) => {
+    const fields = courseFields(e);
+    return fields.find((f) => userFields.includes(f)) ?? fields[0] ?? GENERAL;
+  };
+  const groupKeys: string[] = [];
+  for (const f of userFields) if (rows.some(({ e }) => groupOf(e) === f)) groupKeys.push(f);
+  for (const { e } of rows) {
+    const g = groupOf(e);
+    if (g !== GENERAL && !groupKeys.includes(g)) groupKeys.push(g);
+  }
+  if (rows.some(({ e }) => groupOf(e) === GENERAL)) groupKeys.push(GENERAL);
 
   const lockedAttempts = await prisma.quizAttempt.findMany({
     where: { userId: user.id, locked: true },
@@ -87,43 +106,71 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
 
       <section>
         <h3 className="text-lg font-bold mb-2">Course progress</h3>
-        <div className="space-y-4">
-          {rows.map(({ e, progress }) => {
-            const totalSeconds = e.course.modules
-              .flatMap((m) => m.lessons)
-              .reduce((sum, l) => sum + (progressByLesson.get(l.id)?.timeSpent ?? 0), 0);
+        <div className="space-y-5">
+          {groupKeys.map((k) => {
+            const groupRows = rows.filter(({ e }) => groupOf(e) === k);
+            const doneCount = groupRows.filter(({ e }) => e.completed).length;
             return (
-              <details key={e.id} className="gt-card p-4">
-                <summary className="flex flex-wrap items-center justify-between gap-3 cursor-pointer list-none">
-                  <div>
-                    <div className="font-semibold">{e.course.title}</div>
-                    <div className="text-xs text-[var(--muted)]">Time spent: {Math.round(totalSeconds / 60)} min</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-40"><ProgressBar percent={progress?.percent ?? 0} /></div>
-                    <span className="text-xs w-10 text-right">{progress?.percent ?? 0}%</span>
-                    {e.completed ? <span className="gt-badge bg-mint/15 text-mint">Completed</span> : <span className="gt-badge bg-gold/15 text-gold">In progress</span>}
-                  </div>
-                </summary>
-                <div className="mt-3 divide-y divide-[var(--border)]">
-                  {e.course.modules.flatMap((m, mi) =>
-                    m.lessons.map((l, li) => {
-                      const p = progressByLesson.get(l.id);
-                      return (
-                        <div key={l.id} className="py-2 flex items-center justify-between text-sm">
-                          <div>
-                            <span className="text-[var(--muted)] mr-2">{mi + 1}.{li + 1}</span>
-                            {l.title}
-                          </div>
-                          <div className="flex gap-2">
-                            <span className={`gt-badge ${p?.videoWatched ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Video</span>
-                            <span className={`gt-badge ${p?.quizPassed ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Quiz</span>
-                          </div>
-                        </div>
-                      );
-                    }))}
+              <div key={k}>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  {k === GENERAL
+                    ? <span className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">📚 General</span>
+                    : <span className="gt-badge bg-magenta/15 text-magenta">🧩 {k}</span>}
+                  <span className={`text-xs font-bold ${doneCount === groupRows.length ? "text-mint" : "text-[var(--muted)]"}`}>
+                    {doneCount}/{groupRows.length} completed{doneCount === groupRows.length ? " 🏅" : ""}
+                  </span>
                 </div>
-              </details>
+                <div className="space-y-3">
+                  {groupRows.map(({ e, progress }) => {
+                    const totalSeconds = e.course.modules
+                      .flatMap((m) => m.lessons)
+                      .reduce((sum, l) => sum + (progressByLesson.get(l.id)?.timeSpent ?? 0), 0);
+                    const fields = courseFields(e);
+                    const roleWide = [...new Set(e.course.roleAssignments.filter((ra) => ra.subPosition === null).map((ra) => ra.role.name))];
+                    return (
+                      <details key={e.id} className="gt-card p-4">
+                        <summary className="flex flex-wrap items-center justify-between gap-3 cursor-pointer list-none">
+                          <div className="min-w-0">
+                            <div className="font-semibold">{e.course.title}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-1">
+                              {fields.map((f) => (
+                                <span key={f} className={`gt-badge ${f === k ? "bg-magenta/15 text-magenta" : "bg-[var(--soft)] text-[var(--muted)]"}`}>{f}</span>
+                              ))}
+                              {roleWide.map((r) => (
+                                <span key={r} className="gt-badge bg-navy/10 text-navy dark:bg-ice/10 dark:text-ice">{r} · everyone</span>
+                              ))}
+                              <span className="text-xs text-[var(--muted)]">· Time spent: {Math.round(totalSeconds / 60)} min</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="w-40"><ProgressBar percent={progress?.percent ?? 0} /></div>
+                            <span className="text-xs w-10 text-right">{progress?.percent ?? 0}%</span>
+                            {e.completed ? <span className="gt-badge bg-mint/15 text-mint">Completed</span> : <span className="gt-badge bg-gold/15 text-gold">In progress</span>}
+                          </div>
+                        </summary>
+                        <div className="mt-3 divide-y divide-[var(--border)]">
+                          {e.course.modules.flatMap((m, mi) =>
+                            m.lessons.map((l, li) => {
+                              const p = progressByLesson.get(l.id);
+                              return (
+                                <div key={l.id} className="py-2 flex items-center justify-between text-sm">
+                                  <div>
+                                    <span className="text-[var(--muted)] mr-2">{mi + 1}.{li + 1}</span>
+                                    {l.title}
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <span className={`gt-badge ${p?.videoWatched ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Video</span>
+                                    <span className={`gt-badge ${p?.quizPassed ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>Quiz</span>
+                                  </div>
+                                </div>
+                              );
+                            }))}
+                        </div>
+                      </details>
+                    );
+                  })}
+                </div>
+              </div>
             );
           })}
           {rows.length === 0 && <EmptyState icon="📚" title="No enrolments yet" hint="Courses matching their sub-positions appear here once published." />}

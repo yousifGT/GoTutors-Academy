@@ -17,6 +17,16 @@ export function isValidSubPosition(value: unknown): value is SubPosition {
 }
 
 /**
+ * The tutor title a training field promotes into: "Maths Trainee" → "Maths
+ * Tutor", "Maths" → "Maths Tutor", and "Maths Tutor" stays as-is (no
+ * "Tutor Tutor"). Used by the promote flow and its labels.
+ */
+export function tutorTitleFor(field: string): string {
+  const base = field.replace(/\s+(trainee|tutor)\s*$/i, "").trim();
+  return `${base || field} Tutor`;
+}
+
+/**
  * A trainee's sub-positions live in User.subPositions (multi). The legacy
  * single-value User.subPosition column stays readable so accounts created
  * before the multi-position change keep matching until they are next edited.
