@@ -60,12 +60,8 @@ export async function getFieldStatusForUsers(users: FieldUser[]): Promise<Map<st
     result.set(
       user.id,
       fields.map((name) => {
-        // Trainees match through their own role; promoted teachers through any trainee role.
-        const required = courses.filter((c) =>
-          c.roleAssignments.some(
-            (ra) => ra.subPosition === name && (user.role.type !== "TRAINEE" || ra.roleId === user.roleId)
-          )
-        );
+        // Matched by sub-position name (the query already limits to trainee-type roles).
+        const required = courses.filter((c) => c.roleAssignments.some((ra) => ra.subPosition === name));
         const done = required.filter((c) => certSet.has(`${user.id}:${c.id}`)).length;
         return { name, total: required.length, done, trained: required.length > 0 && done === required.length };
       })
@@ -78,12 +74,9 @@ export async function getFieldStatus(user: FieldUser): Promise<FieldStatus[]> {
   const fields = effectiveSubPositions(user);
   if (fields.length === 0) return [];
 
-  // Trainees match courses through their own role; promoted teachers (now on
-  // an instructor role) match their remaining fields through any trainee role.
-  const assignmentFilter =
-    user.role.type === "TRAINEE"
-      ? { roleId: user.roleId, subPosition: { in: fields } }
-      : { role: { type: "TRAINEE" as const }, subPosition: { in: fields } };
+  // Matched by sub-position name across trainee-type roles, so the count
+  // survives moving between rungs (Trainee → Tutor → Instructor).
+  const assignmentFilter = { role: { type: "TRAINEE" as const }, subPosition: { in: fields } };
 
   const courses = await prisma.course.findMany({
     where: { published: true, roleAssignments: { some: assignmentFilter } },

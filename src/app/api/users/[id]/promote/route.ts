@@ -11,12 +11,15 @@ import { audit } from "@/lib/audit";
 const PromoteSchema = z.object({ subPosition: z.string().min(1).max(200) });
 
 /**
- * Promote a user to TEACHER of one field (sub-position) they are fully trained
- * in. Per-field: someone can become a Maths teacher while still an English
- * trainee. Effects:
+ * Promote a user to TUTOR of one field (sub-position) they are fully trained
+ * in. Per-field: someone can become a Maths Tutor while still an English
+ * trainee. The ladder is Trainee → Tutor → (Supervisor) → Instructor; this
+ * button only ever climbs the first rung — Instructor (course authoring) stays
+ * a manual appointment by super/centre admins on the edit page. Effects:
  *  - the field moves from subPositions (training) to teacherPositions
- *  - a trainee-role account is upgraded to the instructor role on first
- *    promotion; remaining trainee fields keep auto-enrolling via subPositions
+ *  - a plain trainee account moves onto the "Tutor" role on first promotion
+ *    (created on demand as a trainee-type role, so no authoring rights);
+ *    remaining trainee fields keep auto-enrolling via subPositions
  *  - existing enrolments and certificates are untouched
  *
  * Allowed: super admins for anyone; centre admins for users in their centre.
@@ -38,7 +41,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!allowed) return NextResponse.json({ error: "You can't promote this user" }, { status: 403 });
 
   if (target.role.type !== "TRAINEE" && target.role.type !== "INSTRUCTOR") {
-    return NextResponse.json({ error: "Only trainees (or teachers still in training) can be promoted" }, { status: 400 });
+    return NextResponse.json({ error: "Only trainees (or tutors still in training) can be promoted" }, { status: 400 });
   }
 
   const parsed = await parseJson(req, PromoteSchema);
@@ -58,12 +61,22 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     );
   }
 
-  // First promotion upgrades the account itself to an instructor role.
+  // Promotion lands on the dedicated Tutor role — one rung up from trainee,
+  // NOT instructor (course authoring stays a manual appointment). Instructors
+  // finishing a leftover field just keep their role.
   let newRoleId = target.roleId;
+  let landingType: string = target.role.type;
   if (target.role.type === "TRAINEE") {
-    const instructorRole = await prisma.role.findFirst({ where: { type: "INSTRUCTOR" }, orderBy: { name: "asc" } });
-    if (!instructorRole) return NextResponse.json({ error: "No instructor role exists to promote into" }, { status: 400 });
-    newRoleId = instructorRole.id;
+    let tutorRole = await prisma.role.findFirst({ where: { name: { equals: "Tutor", mode: "insensitive" } } });
+    tutorRole ??= await prisma.role.create({
+      data: {
+        name: "Tutor",
+        type: "TRAINEE",
+        description: "Fully trained in at least one field — the rung between trainee and instructor.",
+      },
+    });
+    newRoleId = tutorRole.id;
+    landingType = tutorRole.type;
   }
 
   const remaining = fields.filter((f) => f !== field);
@@ -86,11 +99,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       userId: target.id,
       centreId: target.centreId,
       type: "PROMOTED_TEACHER",
-      title: `🎉 You've been promoted — you're now a ${field} teacher!`,
+      title: `🎉 You've been promoted — you're now a ${field}!`,
       body: remaining.length > 0
         ? `Your ${remaining.join(", ")} training continues as before.`
-        : "All your training fields are complete. Welcome to the teaching team!",
-      link: "/instructor",
+        : "All your training fields are complete. Congratulations!",
+      link: landingType === "INSTRUCTOR" ? "/instructor" : "/trainee",
     },
   });
 

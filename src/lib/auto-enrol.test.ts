@@ -97,7 +97,7 @@ describe("syncUserEnrollments", () => {
     expect(db.course.findMany).not.toHaveBeenCalled();
   });
 
-  it("a promoted teacher still receives courses for their remaining trainee fields", async () => {
+  it("a promoted tutor/instructor still receives courses for their remaining trainee fields", async () => {
     db.user.findUnique.mockResolvedValue({
       id: "u1",
       active: true,
@@ -112,8 +112,7 @@ describe("syncUserEnrollments", () => {
 
     // Matched through any trainee role's assignments, never whole-role.
     expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some).toEqual({
-      role: { type: "TRAINEE" },
-      subPosition: { in: ["English Tutor"] },
+      OR: [{ role: { type: "TRAINEE" }, subPosition: { in: ["English Tutor"] } }],
     });
   });
 
@@ -133,10 +132,9 @@ describe("syncUserEnrollments", () => {
     const where = db.course.findMany.mock.calls[0][0].where;
     expect(where.published).toBe(true);
     expect(where.enrollments).toEqual({ none: { userId: "u1" } });
-    expect(where.roleAssignments.some.roleId).toBe("trainee-role");
     expect(where.roleAssignments.some.OR).toEqual([
-      { subPosition: null },
-      { subPosition: { in: ["Maths Tutor", "English Tutor"] } },
+      { roleId: "trainee-role", subPosition: null },
+      { role: { type: "TRAINEE" }, subPosition: { in: ["Maths Tutor", "English Tutor"] } },
     ]);
     expect(db.enrollment.createMany).toHaveBeenCalledWith({
       data: [
@@ -160,7 +158,7 @@ describe("syncUserEnrollments", () => {
 
     expect(await syncUserEnrollments("u1")).toBe(0);
     expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some.OR).toEqual([
-      { subPosition: null },
+      { roleId: "trainee-role", subPosition: null },
     ]);
     expect(db.enrollment.createMany).not.toHaveBeenCalled();
   });

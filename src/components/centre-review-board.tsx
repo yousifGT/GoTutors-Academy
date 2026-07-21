@@ -117,7 +117,7 @@ export function CentreReviewBoard({
     <div className="space-y-8">
       {promote.length > 0 && (
         <section className="space-y-3">
-          <SectionHeader icon="🏅" bubble="bg-mint/15 text-mint" title="Ready to promote" count={promote.length} hint="Finished every course in a field — one click away from teaching it." />
+          <SectionHeader icon="🏅" bubble="bg-mint/15 text-mint" title="Ready to promote" count={promote.length} hint="Finished every course in a field — one click from becoming its tutor." />
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {promote.map((p) => (
               <div key={p.id} className="gt-card flex flex-col border-l-4 border-l-mint/60 p-4 transition hover:border-picton/50">

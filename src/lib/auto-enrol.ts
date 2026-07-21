@@ -77,6 +77,10 @@ export async function syncUserEnrollments(userId: string): Promise<number> {
   const names = effectiveSubPositions(user);
   if (user.role.type === "INSTRUCTOR" && names.length === 0) return 0;
 
+  // Whole-role courses need the user's exact role; sub-position courses match
+  // by field name across trainee-type roles, so a Tutor (a different
+  // trainee-type role) keeps receiving their remaining fields' courses.
+  const subMatch = names.length ? [{ role: { type: "TRAINEE" as const }, subPosition: { in: names } }] : [];
   const courses = await prisma.course.findMany({
     where: {
       published: true,
@@ -84,11 +88,8 @@ export async function syncUserEnrollments(userId: string): Promise<number> {
       roleAssignments: {
         some:
           user.role.type === "TRAINEE"
-            ? {
-                roleId: user.roleId,
-                OR: [{ subPosition: null }, ...(names.length ? [{ subPosition: { in: names } }] : [])],
-              }
-            : { role: { type: "TRAINEE" }, subPosition: { in: names } },
+            ? { OR: [{ roleId: user.roleId, subPosition: null }, ...subMatch] }
+            : { OR: subMatch },
       },
     },
     select: { id: true },

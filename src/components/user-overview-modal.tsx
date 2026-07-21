@@ -83,7 +83,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
 
   async function promote(field: string) {
     if (!data) return;
-    if (!confirm(`Promote ${data.user.name} to ${field} teacher?\n\nTheir account becomes an instructor account. Training in their other fields continues unchanged, and all enrolments and certificates are kept.`)) return;
+    if (!confirm(`Promote ${data.user.name} to ${field}?\n\nThey move up to the Tutor role — one rung above trainee, without instructor/course-authoring access. Training in their other fields continues unchanged, and all enrolments and certificates are kept.`)) return;
     setPromoting(true);
     setPromoteMsg(null);
     const res = await fetch(`/api/users/${userId}/promote`, {
@@ -94,7 +94,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
     const body = await res.json().catch(() => ({}));
     setPromoting(false);
     if (!res.ok) return setPromoteMsg({ kind: "err", text: body.error ?? "Promotion failed" });
-    setPromoteMsg({ kind: "ok", text: `Promoted to ${field} teacher 🎉` });
+    setPromoteMsg({ kind: "ok", text: `Promoted to ${field} 🎉` });
     load().then(setData).catch(() => {});
     router.refresh();
   }
@@ -158,7 +158,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     <span className="gt-badge bg-white/15 text-white">{meta.icon} {u.roleName}</span>
                     {u.teacherPositions.map((tp) => (
-                      <span key={tp} className="gt-badge bg-picton/30 text-white">🎓 Teaches {tp}</span>
+                      <span key={tp} className="gt-badge bg-picton/30 text-white">🎓 {tp}</span>
                     ))}
                     {isTrainee && (u.isTrained
                       ? <span className="gt-badge bg-mint/25 text-white">🏅 Trained</span>
@@ -247,7 +247,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                   <InfoTile label="💼 Position" wide>{u.position || <span className="text-[var(--muted)]">—</span>}</InfoTile>
                 )}
                 {u.teacherPositions.length > 0 && (
-                  <InfoTile label="🎓 Teaches" wide>
+                  <InfoTile label="🎓 Tutor of" wide>
                     <span className="flex flex-wrap gap-1.5 pt-0.5">
                       {u.teacherPositions.map((tp) => <span key={tp} className="gt-badge bg-picton/15 text-picton">🎓 {tp}</span>)}
                     </span>
@@ -276,7 +276,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                                 disabled={promoting}
                                 className="gt-btn-primary text-xs"
                               >
-                                {promoting ? "Promoting…" : `⬆ Promote to ${f.name} teacher`}
+                                {promoting ? "Promoting…" : `⬆ Promote to ${f.name}`}
                               </button>
                             ) : (
                               <span className="gt-badge bg-mint/15 text-mint">🏅 Trained — ready to promote</span>
