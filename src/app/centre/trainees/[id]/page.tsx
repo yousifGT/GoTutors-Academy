@@ -46,23 +46,25 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
     }))
   );
 
-  // Group courses under the training field they serve — the trainee's own
-  // field first, else the course's first field, else "General".
+  // Group courses under the training fields they serve. A course counting
+  // towards several of the trainee's fields appears under EACH of them
+  // (mirroring how training completion is counted); courses serving none of
+  // their fields go under the course's own first field, else "General".
   const GENERAL = "__general__";
   const userFields = effectiveSubPositions(user);
   const courseFields = (e: (typeof user.enrollments)[number]) =>
     [...new Set(e.course.roleAssignments.filter((ra) => ra.subPosition).map((ra) => ra.subPosition as string))];
-  const groupOf = (e: (typeof user.enrollments)[number]) => {
+  const groupsOf = (e: (typeof user.enrollments)[number]) => {
     const fields = courseFields(e);
-    return fields.find((f) => userFields.includes(f)) ?? fields[0] ?? GENERAL;
+    const mine = fields.filter((f) => userFields.includes(f));
+    return mine.length > 0 ? mine : [fields[0] ?? GENERAL];
   };
   const groupKeys: string[] = [];
-  for (const f of userFields) if (rows.some(({ e }) => groupOf(e) === f)) groupKeys.push(f);
+  for (const f of userFields) if (rows.some(({ e }) => groupsOf(e).includes(f))) groupKeys.push(f);
   for (const { e } of rows) {
-    const g = groupOf(e);
-    if (g !== GENERAL && !groupKeys.includes(g)) groupKeys.push(g);
+    for (const g of groupsOf(e)) if (g !== GENERAL && !groupKeys.includes(g)) groupKeys.push(g);
   }
-  if (rows.some(({ e }) => groupOf(e) === GENERAL)) groupKeys.push(GENERAL);
+  if (rows.some(({ e }) => groupsOf(e).includes(GENERAL))) groupKeys.push(GENERAL);
 
   const lockedAttempts = await prisma.quizAttempt.findMany({
     where: { userId: user.id, locked: true },
@@ -108,7 +110,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
         <h3 className="text-lg font-bold mb-2">Course progress</h3>
         <div className="space-y-5">
           {groupKeys.map((k) => {
-            const groupRows = rows.filter(({ e }) => groupOf(e) === k);
+            const groupRows = rows.filter(({ e }) => groupsOf(e).includes(k));
             const doneCount = groupRows.filter(({ e }) => e.completed).length;
             return (
               <details key={k} open={doneCount < groupRows.length} className="group/sec">

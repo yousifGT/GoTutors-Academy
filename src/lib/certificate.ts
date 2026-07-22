@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import crypto from "crypto";
 import { notifyCentreAndInstructor } from "@/lib/notify";
 import { recomputeIsTrained } from "@/lib/training";
+import { autoPromoteTrainedFields } from "@/lib/promotion";
 
 /**
  * Award a course-completion certificate iff the user has finished every lesson in
@@ -56,6 +57,9 @@ export async function maybeAwardCertificate(userId: string, courseId: string): P
   if (!awarded) return;
 
   await recomputeIsTrained(userId);
+  // If this was the last course of a training field, the trainee is upgraded
+  // to that field's tutor automatically (trainee→tutor rung only).
+  await autoPromoteTrainedFields(userId);
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, centreId: true } });
   if (user?.centreId) {
     await notifyCentreAndInstructor({

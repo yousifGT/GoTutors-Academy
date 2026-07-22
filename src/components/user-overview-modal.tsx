@@ -328,24 +328,28 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
               </div>
             ) : (
               (() => {
-                // Group courses under the training field they serve: the user's
-                // own field first, else the course's first field, else General.
+                // Group courses under the training fields they serve. A course
+                // counting towards several of the person's fields appears under
+                // EACH of them (mirroring how training completion is counted);
+                // courses serving none of their fields go under the course's
+                // own first field, else General.
                 const GENERAL = "__general__";
                 const userFields = data.fieldStatus.map((f) => f.name);
-                const groupOf = (e: (typeof data.enrollments)[number]) =>
-                  e.fields.find((f) => userFields.includes(f)) ?? e.fields[0] ?? GENERAL;
+                const groupsOf = (e: (typeof data.enrollments)[number]) => {
+                  const mine = e.fields.filter((f) => userFields.includes(f));
+                  return mine.length > 0 ? mine : [e.fields[0] ?? GENERAL];
+                };
                 const keys: string[] = [];
-                for (const f of userFields) if (data.enrollments.some((e) => groupOf(e) === f)) keys.push(f);
+                for (const f of userFields) if (data.enrollments.some((e) => groupsOf(e).includes(f))) keys.push(f);
                 for (const e of data.enrollments) {
-                  const g = groupOf(e);
-                  if (g !== GENERAL && !keys.includes(g)) keys.push(g);
+                  for (const g of groupsOf(e)) if (g !== GENERAL && !keys.includes(g)) keys.push(g);
                 }
-                if (data.enrollments.some((e) => groupOf(e) === GENERAL)) keys.push(GENERAL);
+                if (data.enrollments.some((e) => groupsOf(e).includes(GENERAL))) keys.push(GENERAL);
 
                 return (
                   <div className="space-y-4">
                     {keys.map((k) => {
-                      const items = data.enrollments.filter((e) => groupOf(e) === k);
+                      const items = data.enrollments.filter((e) => groupsOf(e).includes(k));
                       const doneCount = items.filter((i) => i.completed).length;
                       return (
                         <details key={k} open={doneCount < items.length} className="group/sec">

@@ -11,6 +11,7 @@ const db = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/notify", () => ({ notifyCentreAndInstructor: vi.fn() }));
 vi.mock("@/lib/training", () => ({ recomputeIsTrained: vi.fn() }));
+vi.mock("@/lib/promotion", () => ({ autoPromoteTrainedFields: vi.fn().mockResolvedValue([]) }));
 
 import { Prisma } from "@prisma/client";
 import { maybeAwardCertificate } from "./certificate";
