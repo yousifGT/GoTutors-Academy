@@ -6,13 +6,19 @@ import { EmptyState } from "@/components/page-ui";
 
 type Centre = { id: string; name: string; location: string; users: number };
 
-export function CentresEditor({ centres }: { centres: Centre[] }) {
+export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[]; centreAdminRoleId: string | null }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+
+  // Optional first centre-admin login created alongside the centre.
+  const [withAdmin, setWithAdmin] = useState(false);
+  const [adminName, setAdminName] = useState("");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -25,21 +31,52 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
 
   async function add() {
     if (!name.trim()) return;
+    // If the admin section is filled, validate before creating anything.
+    if (withAdmin) {
+      if (!centreAdminRoleId) return flash("err", "No Centre Admin role exists to attach an admin to");
+      if (!adminName.trim() || !adminEmail.trim() || adminPassword.length < 8) {
+        return flash("err", "Centre admin needs a name, email and password (8+ chars)");
+      }
+    }
     setBusy(true);
     const res = await fetch("/api/centres", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ name: name.trim(), location: location.trim() }),
     });
-    setBusy(false);
     if (!res.ok) {
+      setBusy(false);
       const d = await res.json().catch(() => ({}));
       return flash("err", d.error ?? "Failed to add centre");
     }
-    setName("");
-    setLocation("");
+    const centre = await res.json();
+
+    // Optionally create the first centre-admin login for the new centre.
+    if (withAdmin && centreAdminRoleId) {
+      const ares = await fetch("/api/users", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: adminName.trim(),
+          email: adminEmail.trim(),
+          password: adminPassword,
+          roleId: centreAdminRoleId,
+          centreId: centre.id,
+        }),
+      });
+      if (!ares.ok) {
+        setBusy(false);
+        const d = await ares.json().catch(() => ({}));
+        // Centre exists; only the admin failed — say so clearly so they can retry from the centre page.
+        return flash("err", `Centre created, but the admin login failed: ${d.error ?? "unknown error"}. Add one from the centre page.`);
+      }
+    }
+
+    setBusy(false);
+    setName(""); setLocation("");
+    setWithAdmin(false); setAdminName(""); setAdminEmail(""); setAdminPassword("");
     setAdding(false);
-    flash("ok", "Centre added");
+    flash("ok", withAdmin ? "Centre and admin login created" : "Centre added");
     router.refresh();
   }
 
@@ -152,19 +189,52 @@ export function CentresEditor({ centres }: { centres: Centre[] }) {
 
         {/* Add-centre card */}
         {adding ? (
-          <div className="gt-card border-picton/50 p-5">
+          <div className="gt-card border-picton/50 p-5 sm:col-span-2 xl:col-span-1">
             <h3 className="font-bold">New centre</h3>
             <div className="mt-3 space-y-3">
               <div>
                 <label className="gt-label">Name</label>
-                <input autoFocus className="gt-input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); if (e.key === "Escape") setAdding(false); }} placeholder="e.g. Manchester Hub" />
+                <input autoFocus className="gt-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Manchester Hub" />
               </div>
               <div>
                 <label className="gt-label">Location</label>
-                <input className="gt-input" value={location} onChange={(e) => setLocation(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} placeholder="City / address" />
+                <input className="gt-input" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="City / address" />
               </div>
+
+              {/* Optional first centre-admin login */}
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={withAdmin}
+                  onChange={(e) => setWithAdmin(e.target.checked)}
+                  disabled={!centreAdminRoleId}
+                />
+                Also create a centre admin login
+              </label>
+              {!centreAdminRoleId && (
+                <p className="text-xs text-orange">No Centre Admin role found — create one under Roles &amp; sub-positions first.</p>
+              )}
+              {withAdmin && (
+                <div className="space-y-2.5 rounded-xl border border-[var(--border)] bg-[var(--soft)]/40 p-3">
+                  <p className="text-xs text-[var(--muted)]">This person can log in and manage the centre&apos;s trainees. You can add more admins later.</p>
+                  <div>
+                    <label className="gt-label">Admin name</label>
+                    <input className="gt-input" value={adminName} onChange={(e) => setAdminName(e.target.value)} placeholder="e.g. Casey Centre" />
+                  </div>
+                  <div>
+                    <label className="gt-label">Admin email</label>
+                    <input type="email" className="gt-input" value={adminEmail} onChange={(e) => setAdminEmail(e.target.value)} placeholder="casey@gotutors.example" />
+                  </div>
+                  <div>
+                    <label className="gt-label">Initial password</label>
+                    <input className="gt-input" value={adminPassword} onChange={(e) => setAdminPassword(e.target.value)} placeholder="8+ characters — share it with them" />
+                    <p className="mt-1 text-xs text-[var(--muted)]">They can change it later from their profile.</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <button onClick={add} disabled={busy || !name.trim()} className="gt-btn-primary">Add centre</button>
+                <button onClick={add} disabled={busy || !name.trim()} className="gt-btn-primary">{busy ? "Saving…" : "Add centre"}</button>
                 <button onClick={() => setAdding(false)} className="gt-btn-ghost">Cancel</button>
               </div>
             </div>

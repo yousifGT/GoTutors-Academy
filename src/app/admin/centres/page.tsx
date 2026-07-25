@@ -5,15 +5,19 @@ import { PageHeader } from "@/components/page-ui";
 
 export default async function CentresPage() {
   await requireRole("SUPER_ADMIN");
-  const centres = await prisma.centre.findMany({
-    include: { _count: { select: { users: true } } },
-    orderBy: { name: "asc" },
-  });
+  const [centres, centreAdminRole] = await Promise.all([
+    prisma.centre.findMany({
+      include: { _count: { select: { users: true } } },
+      orderBy: { name: "asc" },
+    }),
+    prisma.role.findFirst({ where: { type: "CENTRE_ADMIN" }, orderBy: { name: "asc" }, select: { id: true } }),
+  ]);
   return (
     <div className="space-y-5">
       <PageHeader title="Centres" subtitle="The physical locations trainees belong to — open one for its people and performance." />
       <CentresEditor
       centres={centres.map((c) => ({ id: c.id, name: c.name, location: c.location ?? "", users: c._count.users }))}
+      centreAdminRoleId={centreAdminRole?.id ?? null}
       />
     </div>
   );

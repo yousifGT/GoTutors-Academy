@@ -5,13 +5,14 @@ import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader, StatCard } from "@/components/page-ui";
 import { CentreDetailBoard, CentreMember, CentreCourse } from "@/components/centre-detail-board";
+import { CentreManageBar } from "@/components/centre-manage-bar";
 
 export default async function CentreDetailPage({ params }: { params: { id: string } }) {
   await requireRole("SUPER_ADMIN");
   const centre = await prisma.centre.findUnique({ where: { id: params.id } });
   if (!centre) notFound();
 
-  const [users, enrollments, attempts, certificates] = await Promise.all([
+  const [users, enrollments, attempts, certificates, centreAdminRole, instructorRole] = await Promise.all([
     prisma.user.findMany({
       where: { centreId: centre.id },
       include: { role: { select: { name: true, type: true } } },
@@ -23,6 +24,8 @@ export default async function CentreDetailPage({ params }: { params: { id: strin
     }),
     prisma.quizAttempt.findMany({ where: { user: { centreId: centre.id } }, select: { userId: true, passed: true } }),
     prisma.certificate.count({ where: { user: { centreId: centre.id } } }),
+    prisma.role.findFirst({ where: { type: "CENTRE_ADMIN" }, orderBy: { name: "asc" }, select: { id: true } }),
+    prisma.role.findFirst({ where: { type: "INSTRUCTOR" }, orderBy: { name: "asc" }, select: { id: true } }),
   ]);
 
   const progressByKey = await getCourseProgressForUsers(
@@ -100,6 +103,15 @@ export default async function CentreDetailPage({ params }: { params: { id: strin
         backLabel="Centres"
         title={centre.name}
         subtitle={centre.location ? `📍 ${centre.location}` : "No location set"}
+        actions={
+          <CentreManageBar
+            centreId={centre.id}
+            name={centre.name}
+            location={centre.location ?? ""}
+            centreAdminRoleId={centreAdminRole?.id ?? null}
+            instructorRoleId={instructorRole?.id ?? null}
+          />
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Members" value={users.length} icon="👥" tone="navy" hint={`${trainees.length} trainee${trainees.length === 1 ? "" : "s"} · ${users.length - trainees.length} staff`} />
