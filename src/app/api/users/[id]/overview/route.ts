@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getFieldStatus } from "@/lib/field-training";
+import { canManageUser } from "@/lib/scope";
 
 /**
  * Read-only profile snapshot for the user-overview popup. Who may view whom:
@@ -49,6 +50,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     (viewer.roleType === "SUPER_ADMIN" ||
       (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && target.centreId === viewer.centreId)) &&
     (target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR");
+
+  // Who may reset this person's password / edit them — same rule the PATCH
+  // endpoint enforces: super admins anyone, centre admins their own trainees.
+  const canManage = canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId });
 
   const [enrollments, certificates, authoredCourses, fieldStatus] = await Promise.all([
     prisma.enrollment.findMany({
@@ -105,6 +110,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
     fieldStatus,
     canPromote,
+    canManage,
     enrollments: enrollments.map((e) => {
       const p = progressByKey.get(`${e.userId}:${e.courseId}`);
       return {

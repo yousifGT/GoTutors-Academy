@@ -26,6 +26,7 @@ type Overview = {
   };
   fieldStatus: { name: string; total: number; done: number; trained: boolean }[];
   canPromote: boolean;
+  canManage: boolean;
   enrollments: { courseId: string; title: string; fields: string[]; roleWide: string[]; percent: number; done: number; total: number; completed: boolean; enrolledAt: string }[];
   certificates: { id: string; courseTitle: string; courseVersion: number | null; serial: string; issuedAt: string }[];
   authoredCourses: { id: string; title: string; published: boolean; enrolments: number }[];
@@ -65,6 +66,10 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
   const [tab, setTab] = useState<Tab>("profile");
   const [promoting, setPromoting] = useState(false);
   const [promoteMsg, setPromoteMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetting, setResetting] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const load = useCallback(() => {
     return fetch(`/api/users/${userId}/overview`)
@@ -81,6 +86,37 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, [load]);
+
+  function generatePassword() {
+    // Readable initial password (no ambiguous chars like 0/O/1/l). Uses the
+    // Web Crypto RNG. It's a temporary password the user changes on first login.
+    const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const lower = "abcdefghijkmnpqrstuvwxyz";
+    const digits = "23456789";
+    const rand = (s: string) => s[Math.floor((crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32) * s.length)];
+    const pw =
+      rand(upper) +
+      Array.from({ length: 4 }, () => rand(lower)).join("") +
+      "-" +
+      Array.from({ length: 3 }, () => rand(digits)).join("") +
+      rand(lower);
+    setNewPassword(pw);
+  }
+
+  async function resetPassword() {
+    if (newPassword.length < 8) return setResetMsg({ kind: "err", text: "Password must be at least 8 characters" });
+    setResetting(true);
+    setResetMsg(null);
+    const res = await fetch(`/api/users/${userId}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: newPassword }),
+    });
+    const body = await res.json().catch(() => ({}));
+    setResetting(false);
+    if (!res.ok) return setResetMsg({ kind: "err", text: body.error ?? "Reset failed" });
+    setResetMsg({ kind: "ok", text: "Password reset ✓ — share the new one with them" });
+  }
 
   async function promote(field: string) {
     if (!data) return;
@@ -299,6 +335,45 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                     <p className={`mt-2 text-sm ${promoteMsg.kind === "ok" ? "text-mint" : "text-orange"}`}>
                       {promoteMsg.kind === "ok" ? "✓ " : "⚠ "}{promoteMsg.text}
                     </p>
+                  )}
+                </div>
+              )}
+
+              {/* Password reset — super admins (anyone) and centre admins (own trainees) */}
+              {data.canManage && (
+                <div className="rounded-xl border border-[var(--border)] bg-[var(--soft)]/40 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">🔑 Password</div>
+                    {!resetOpen && (
+                      <button onClick={() => { setResetOpen(true); setResetMsg(null); }} className="gt-btn-ghost text-xs">Reset password</button>
+                    )}
+                  </div>
+                  {resetOpen && (
+                    <div className="mt-2 space-y-2">
+                      <div className="flex gap-2">
+                        <input
+                          className="gt-input"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="New password (8+ characters)"
+                          autoFocus
+                        />
+                        <button onClick={generatePassword} className="gt-btn-ghost shrink-0 text-xs" title="Generate a random one">🎲 Generate</button>
+                      </div>
+                      <p className="text-xs text-[var(--muted)]">Sets a new password immediately. Share it with {u.name.split(" ")[0]}; they can change it from their profile.</p>
+                      <div className="flex items-center gap-2">
+                        <button onClick={resetPassword} disabled={resetting || newPassword.length < 8} className="gt-btn-primary text-xs">
+                          {resetting ? "Saving…" : "Set password"}
+                        </button>
+                        <button onClick={() => { setResetOpen(false); setNewPassword(""); setResetMsg(null); }} className="gt-btn-ghost text-xs">Cancel</button>
+                        {resetMsg && (
+                          <span className={`text-xs ${resetMsg.kind === "ok" ? "text-mint" : "text-orange"}`}>{resetMsg.text}</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {!resetOpen && resetMsg?.kind === "ok" && (
+                    <p className="mt-1 text-xs text-mint">{resetMsg.text}</p>
                   )}
                 </div>
               )}
