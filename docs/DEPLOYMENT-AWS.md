@@ -47,16 +47,27 @@ Rough monthly cost at small scale: RDS `db.t4g.micro` ~£12, App Runner (1 vCPU/
    ```
 4. Create the schema and seed from your machine (Windows cmd, in the project folder):
    ```
-   set DATABASE_URL=postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=public&sslmode=require
+   set "DATABASE_URL=postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=public&sslmode=require"
    npx prisma db push
    npx tsx prisma/seed.ts
    ```
+   **The quotes around the whole `NAME=VALUE` are required, not cosmetic.** `&` is a
+   command separator in cmd, so the unquoted form silently truncates the URL at
+   `?schema=public` and then tries to run `sslmode=require` as a command. Two more
+   cmd notes: `set` lasts only for that window, so run the `npx` commands in the
+   same one; and if the master password contains URL-special characters they must
+   be percent-encoded (`@` → `%40`, `#` → `%23`, `/` → `%2F`, `:` → `%3A`) or the
+   connection string parses wrong. Generating a password without those characters
+   avoids the problem entirely.
 5. **Migrating your existing local data** instead of reseeding (optional):
    ```
-   pg_dump --no-owner --no-privileges -d "postgresql://postgres:postgres@localhost:5432/gotutors" -f gotutors.sql
+   pg_dump --no-owner --no-privileges -d "postgresql://postgres:postgres@localhost:5433/gotutors" -f gotutors.sql
    psql "postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?sslmode=require" -f gotutors.sql
    ```
    (Install PostgreSQL client tools on Windows if `pg_dump` is missing.)
+   Local port is **5433** — `docker-compose.yml` maps `5433:5432` on purpose so the
+   dev database never collides with anything else on 5432. Start it first with
+   `docker compose up -d`.
 
 ---
 
@@ -154,7 +165,7 @@ docker build -t gotutors-academy .
 docker tag gotutors-academy:latest <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 docker push <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 ```
-App Runner auto-deploys the new image. If the Prisma schema changed, run `npx prisma db push` against the RDS `DATABASE_URL` first (from your machine), then push the image.
+App Runner auto-deploys the new image. If the Prisma schema changed, run `npx prisma db push` against the RDS `DATABASE_URL` first (from your machine, using the quoted `set` form from step 1.4), then push the image.
 
 ---
 
