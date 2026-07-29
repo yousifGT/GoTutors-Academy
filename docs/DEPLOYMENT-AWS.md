@@ -43,31 +43,65 @@ Rough monthly cost at small scale: RDS `db.t4g.micro` ~£12, App Runner (1 vCPU/
    - Add rule: PostgreSQL (5432), Source: **My IP** (so you can run migrations from your machine).
 3. Note the **endpoint** (e.g. `gotutors-db.xxxx.eu-west-2.rds.amazonaws.com`). Your production connection string:
    ```
-   DATABASE_URL="postgresql://gotutors:YOUR_PASSWORD@gotutors-db.xxxx.eu-west-2.rds.amazonaws.com:5432/postgres?schema=public&sslmode=require"
+   DATABASE_URL="postgresql://gotutors:YOUR_PASSWORD@gotutors-db.xxxx.eu-west-2.rds.amazonaws.com:5432/postgres?schema=academy&sslmode=require"
    ```
-4. Create the schema and seed from your machine (Windows cmd, in the project folder):
+   The `schema=academy` is deliberate: Academy's tables live in their own
+   PostgreSQL schema rather than `public`, so a second app can later share this
+   instance in its own schema (`platform`, `app2`, …) without its migrations
+   touching Academy's tables — while cross-schema reporting queries still work,
+   because it is all one database. Choosing this now costs nothing; changing it
+   later is a data migration.
+4. Create the schema from your machine (Windows cmd, in the project folder):
    ```
-   set "DATABASE_URL=postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=public&sslmode=require"
+   set "DATABASE_URL=postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=academy&sslmode=require"
    npx prisma db push
-   npx tsx prisma/seed.ts
    ```
    In **PowerShell** (prompt starts with `PS`) that `set` line does nothing useful —
    `set` is an alias for `Set-Variable` there, which Prisma won't see. Use instead:
    ```
-   $env:DATABASE_URL="postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=public&sslmode=require"
+   $env:DATABASE_URL="postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=academy&sslmode=require"
    ```
    `&` inside double quotes is safe in PowerShell, so no escaping is needed. Or type
    `cmd` first to get a Command Prompt and use the `set` form as written.
 
    **The quotes around the whole `NAME=VALUE` are required, not cosmetic.** `&` is a
    command separator in cmd, so the unquoted form silently truncates the URL at
-   `?schema=public` and then tries to run `sslmode=require` as a command. Two more
+   `?schema=academy` and then tries to run `sslmode=require` as a command. Two more
    cmd notes: `set` lasts only for that window, so run the `npx` commands in the
    same one; and if the master password contains URL-special characters they must
    be percent-encoded (`@` → `%40`, `#` → `%23`, `/` → `%2F`, `:` → `%3A`) or the
    connection string parses wrong. Generating a password without those characters
    avoids the problem entirely.
-5. **Migrating your existing local data** instead of reseeding (optional):
+
+   A common failure here is `P1001: Can't reach database server`. That is
+   networking, not Prisma: either the instance is not publicly accessible, or
+   `gotutors-db-sg` has no inbound PostgreSQL rule for **your current** IP — and a
+   rule pinned to an old address looks correct while blocking you, so re-select
+   **My IP** after changing network or location. Check the path before retrying:
+   ```
+   powershell -Command "Test-NetConnection YOUR-ENDPOINT -Port 5432"
+   ```
+   Also note `echo %DATABASE_URL%` is a misleading way to verify the variable: cmd
+   expands it before parsing the line, so the `&` in the URL splits the command and
+   the output looks truncated even when the variable is correct. Use `set DATABASE_URL`
+   (no `%` signs) instead.
+5. **Create the first Super Admin.** A fresh database has no accounts, and the app
+   has no way to create the first one through the UI — creating users requires
+   being signed in. Do **not** run `prisma/seed.ts` here: that is for fresh
+   development installs and it writes demo centres, courses and `*@gotutors.test`
+   logins. Instead, with `DATABASE_URL` still pointing at RDS:
+   ```
+   npm run db:create-admin
+   ```
+   It prompts for email, full name and a password (the password is not echoed, so
+   it stays out of shell history and screenshots), writes the permission
+   catalogue, the four roles with their default grants and the trainee
+   sub-positions, and creates exactly one Super Admin — no demo data. For an
+   unattended run, set `ADMIN_EMAIL`, `ADMIN_NAME` and `ADMIN_PASSWORD` instead.
+   Re-running leaves an existing account untouched; `npm run db:create-admin -- --force`
+   resets its name and password. Sign in at `/login`, then build the real centres,
+   courses and users from `/admin`.
+6. **Migrating your existing local data** instead of starting empty (optional):
    ```
    pg_dump --no-owner --no-privileges -d "postgresql://postgres:postgres@localhost:5433/gotutors" -f gotutors.sql
    psql "postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?sslmode=require" -f gotutors.sql
@@ -76,6 +110,18 @@ Rough monthly cost at small scale: RDS `db.t4g.micro` ~£12, App Runner (1 vCPU/
    Local port is **5433** — `docker-compose.yml` maps `5433:5432` on purpose so the
    dev database never collides with anything else on 5432. Start it first with
    `docker compose up -d`.
+
+   ⚠️ **The schemas differ.** The local dev database keeps Academy in `public`,
+   while RDS uses `academy` (step 1.3). `pg_dump` schema-qualifies every statement,
+   so the restore above would recreate the tables in `public` on RDS and the app —
+   reading `academy` — would see an empty database. Remap the dump before restoring:
+   ```
+   pg_dump --no-owner --no-privileges --schema=public -d "postgresql://postgres:postgres@localhost:5433/gotutors" -f gotutors.sql
+   ```
+   then replace `public.` with `academy.` and `SET search_path = public` with
+   `SET search_path = academy` in `gotutors.sql` before running `psql`. Verify with
+   `SELECT count(*) FROM academy."User";` afterwards. Note this also brings across
+   the demo `*@gotutors.test` accounts, which the step 7 checklist has you delete.
 
 ---
 
@@ -184,8 +230,8 @@ App Runner auto-deploys the new image. If the Prisma schema changed, run `npx pr
 - [ ] Rotate the master DB password and the `gotutors-app` access keys; store them in **SSM Parameter Store (SecureString)**.
 - [ ] CloudWatch: App Runner logs are automatic — add an **alarm** on 5xx rate and on RDS `FreeStorageSpace`.
 - [ ] Set the **budget alert** if you skipped step 0.
-- [ ] Re-run the seed **only never** in production (it's for fresh installs) — real accounts come from the Users/Trainees pages.
-- [ ] Delete the demo one-click logins before going live: they're in `src/app/login/page.tsx` (the "Demo accounts" block), and change/remove the seeded `*@gotutors.test` users.
+- [ ] Never run `prisma/seed.ts` against production (it's for fresh dev installs) — bootstrap with `npm run db:create-admin` (step 1.5), then create real accounts from the Users/Trainees pages.
+- [ ] Delete the demo one-click logins before going live: they're in `src/app/login/page.tsx` (the "Demo accounts" block). If you restored a dump from local rather than starting empty, also remove the `*@gotutors.test` users it carried across.
 
 ---
 

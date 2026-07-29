@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
+    "db:create-admin": "tsx prisma/create-admin.ts",
     "db:studio": "prisma studio"
   },
   "dependencies": {
