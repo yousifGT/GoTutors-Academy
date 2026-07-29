@@ -14,6 +14,22 @@ export async function POST(req: Request) {
   if (!(await userHasPermission(session.user.id, PERMISSIONS.COURSE_EDIT)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  // Without S3, saveUploadedVideo writes to the local filesystem — which on a
+  // container host is wiped by every redeploy, restart and scale event. The
+  // lesson would keep pointing at a /uploads/videos URL whose file no longer
+  // exists, so the upload appears to succeed and then quietly loses the video.
+  // Refuse instead; setting UPLOAD_BACKEND=s3 turns uploads back on with no
+  // code change. Local development keeps working off the disk as before.
+  if (process.env.NODE_ENV === "production" && process.env.UPLOAD_BACKEND !== "s3") {
+    return NextResponse.json(
+      {
+        error:
+          "Video file uploads are turned off because no durable file storage is configured. Add the video as a YouTube, Vimeo or Loom link instead.",
+      },
+      { status: 503 },
+    );
+  }
+
   // Cap uploads at 5 per minute per user
   const rl = rateLimit(`upload:${session.user.id}`, 5, 60);
   if (!rl.ok) return tooMany(rl.retryAfterSec);
