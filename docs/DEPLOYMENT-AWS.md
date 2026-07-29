@@ -51,6 +51,14 @@ Rough monthly cost at small scale: RDS `db.t4g.micro` ~£12, App Runner (1 vCPU/
    npx prisma db push
    npx tsx prisma/seed.ts
    ```
+   In **PowerShell** (prompt starts with `PS`) that `set` line does nothing useful —
+   `set` is an alias for `Set-Variable` there, which Prisma won't see. Use instead:
+   ```
+   $env:DATABASE_URL="postgresql://gotutors:YOUR_PASSWORD@...:5432/postgres?schema=public&sslmode=require"
+   ```
+   `&` inside double quotes is safe in PowerShell, so no escaping is needed. Or type
+   `cmd` first to get a Command Prompt and use the `set` form as written.
+
    **The quotes around the whole `NAME=VALUE` are required, not cosmetic.** `&` is a
    command separator in cmd, so the unquoted form silently truncates the URL at
    `?schema=public` and then tries to run `sslmode=require` as a command. Two more
