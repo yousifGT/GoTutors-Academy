@@ -173,7 +173,36 @@ The repo now includes a production `Dockerfile`.
 
 ---
 
-## 4. App hosting — App Runner
+## 4. App hosting — ECS Express Mode (App Runner is closed to new customers)
+
+> **App Runner stopped accepting new customers on 30 April 2026.** Existing
+> services keep running, but a new account cannot create one, so the steps below
+> are only usable if you already have App Runner services. AWS's replacement is
+> **Amazon ECS Express Mode**, which this project now runs on.
+>
+> Express Mode takes the same ECR image and asks for the same things — port
+> 3000, the same environment variables, health check `/api/health` — so the rest
+> of this guide is unchanged. What differs:
+>
+> - **ECS → Express Mode → Image URI** (choose *Image tag* `latest`, not digest,
+>   so deploys don't need the service edited each time), and let it create the
+>   `ecsTaskExecutionRole` and `ecsInfrastructureRoleForExpressServices` roles.
+> - Port, environment variables, CPU/memory and auto scaling live under
+>   **Additional configurations**. **Set maximum tasks to 2–3** — the default of
+>   20 is a large bill if anything scales out unexpectedly.
+> - It provisions an **Application Load Balancer, a certificate and an HTTPS
+>   `*.on.aws` URL** automatically, so TLS needs no work. Budget roughly
+>   **$16–19/month for the load balancer** on top of Fargate; App Runner bundled
+>   that in.
+> - It runs **inside your VPC**, so grant the database access from the service's
+>   own security group (see step 7) rather than from an IP.
+> - **There is no deploy-on-push.** After `docker push`, run **Update service →
+>   Force new deployment**, or ECS keeps running the old image.
+> - Custom domains are documented under
+>   [Updating resources outside of Express Mode](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/express-service-advanced-customization.html):
+>   add your hostname as an *OR* condition on the existing listener rule — keeping
+>   the `.on.aws` value — attach an ACM certificate issued **in this region** to
+>   the HTTPS:443 listener, then point DNS at the load balancer.
 
 1. Console → **App Runner → Create service**:
    - Source: **Container registry → Amazon ECR** → pick `gotutors-academy:latest`.
@@ -197,7 +226,16 @@ The repo now includes a production `Dockerfile`.
      | `RATE_LIMIT_WINDOW_SEC` | `60` |
 
      (Better long-term: store secrets in **SSM Parameter Store** and reference them — App Runner supports `Secrets` sources for env vars.)
-   - Health check: HTTP, path `/login`.
+   - Health check: HTTP, path **`/api/health`**.
+
+     Not `/login`. That page is static and renders without a database, so it
+     reports healthy no matter what — a deployment once served it happily for a
+     day while the container could not reach RDS at all. `/api/health` runs
+     `SELECT 1` against the database and validates the environment variables,
+     returning 503 if either is wrong, so a task that cannot actually serve
+     requests is taken out of service and a bad deploy rolls back on its own.
+     The trade-off is deliberate: if the database goes away, the tasks are
+     marked unhealthy rather than staying up serving errors.
 3. Create & deploy. First deploy takes ~5 minutes. You'll get a URL like `https://xxxx.eu-west-2.awsapprunner.com` — set `NEXTAUTH_URL` to exactly that (Service → Configuration → Edit → redeploy) and log in to verify.
 4. Allow App Runner to reach RDS: RDS security group → add inbound rule PostgreSQL 5432 with source `0.0.0.0/0` **temporarily**, or better: give the App Runner service a **VPC connector** (App Runner → Networking → Outgoing → VPC) into the RDS VPC, then restrict the DB security group to that connector's security group. The VPC connector route is the production-correct one.
 
@@ -219,7 +257,31 @@ docker build -t gotutors-academy .
 docker tag gotutors-academy:latest <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 docker push <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 ```
-App Runner auto-deploys the new image. If the Prisma schema changed, run `npx prisma db push` against the RDS `DATABASE_URL` first (from your machine, using the quoted `set` form from step 1.4), then push the image.
+The `docker login` line from step 3 is needed again first — the ECR token lasts
+12 hours.
+
+On **Express Mode**, pushing does not deploy: finish with **ECS → your service →
+Update service → Force new deployment**. (App Runner did redeploy on push, if
+you are on an existing App Runner service.)
+
+If the Prisma schema changed, run `npx prisma db push` against the RDS
+`DATABASE_URL` first (from your machine, using the quoted `set` form from step
+1.4), then push the image.
+
+Then confirm the deployment actually works, rather than merely running:
+
+```
+npm run smoke -- https://your-domain
+```
+
+It checks that the health endpoint reports the database reachable and the
+configuration valid, that the login page renders, that a mutating API request
+gets past the CSRF origin check, and that redirects stay on the public
+hostname. Read-only and unauthenticated, so it is safe against production. Two
+bugs previously reached production and sat there — an unreachable database and
+every write being rejected as cross-origin — because "the service is running"
+was taken to mean "the service works". This takes a few seconds and catches
+both.
 
 ---
 

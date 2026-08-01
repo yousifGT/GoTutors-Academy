@@ -18,16 +18,40 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+
+  /**
+   * NextAuth reports every failed sign-in the same way, so a wrong password and
+   * an unreachable database are indistinguishable from here. Ask the health
+   * endpoint which it was: telling someone their details are wrong during an
+   * outage sends them hunting a problem they don't have.
+   */
+  async function describeSignInFailure(failures: number): Promise<string> {
+    try {
+      const health = await fetch("/api/health", { cache: "no-store" });
+      if (!health.ok) {
+        return "Sign-in is temporarily unavailable — the service can't reach its database. Your details are fine; please try again shortly.";
+      }
+    } catch {
+      return "Sign-in is temporarily unavailable. Please try again shortly.";
+    }
+    return failures >= 3
+      ? "Invalid email or password. Repeated attempts are rate-limited, so wait a minute before trying again."
+      : "Invalid email or password.";
+  }
 
   async function login(loginEmail: string, loginPassword: string) {
     setLoading(true);
     setError(null);
     const res = await signIn("credentials", { email: loginEmail, password: loginPassword, redirect: false });
     if (res?.error) {
-      setError("Invalid email or password.");
+      const failures = attempts + 1;
+      setAttempts(failures);
+      setError(await describeSignInFailure(failures));
       setLoading(false);
       return;
     }
+    setAttempts(0);
     const me = await fetch("/api/me").then((r) => r.json());
     router.push(roleRedirect[me?.roleType] ?? "/");
   }
