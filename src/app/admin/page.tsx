@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { timeAgo } from "@/lib/utils";
+import { auditDetail, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, type AttentionItem, type FeedItem } from "@/components/page-ui";
 
 /** Action-first super-admin dashboard: platform-wide blockers, broken courses and live activity. */
@@ -41,6 +42,14 @@ export default async function AdminDashboard() {
       }),
       prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 5 }),
     ]);
+
+  // Promotion writes a bare user id as the target; everything else writes a
+  // readable label. Resolve only the ids so entries read as people, not cuids.
+  const auditPeopleRows = await prisma.user.findMany({
+    where: { id: { in: userIdTargets(auditEntries.map((l) => l.target)) } },
+    select: { id: true, name: true, email: true },
+  });
+  const auditPeople = new Map(auditPeopleRows.map((u) => [u.id, u]));
 
   const courseCount = await prisma.course.count();
   const firstName = session.user.name?.split(" ")[0] ?? "there";
@@ -133,13 +142,24 @@ export default async function AdminDashboard() {
             <EmptyState icon="🧾" title="No audit entries yet" hint="Sensitive actions are recorded here as they happen." />
           ) : (
           <div className="gt-card divide-y divide-[var(--border)] p-0">
-            {auditEntries.map((l) => (
-              <div key={l.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                <span className="gt-badge bg-magenta/15 text-magenta shrink-0">{l.action}</span>
-                <span className="min-w-0 flex-1 truncate">{l.target ?? "—"}</span>
-                <span className="shrink-0 text-xs text-[var(--muted)]">{timeAgo(l.createdAt)}</span>
-              </div>
-            ))}
+            {auditEntries.map((l) => {
+              const who = looksLikeUserId(l.target) ? auditPeople.get(l.target!) : undefined;
+              const detail = auditDetail(l.metadata);
+              return (
+                <div key={l.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
+                  <span className="gt-badge bg-magenta/15 text-magenta shrink-0">{l.action}</span>
+                  <span className="min-w-0 flex-1 truncate">
+                    {who ? (
+                      <Link href={`/admin/users?q=${encodeURIComponent(who.email)}`} className="hover:text-picton transition">{who.name}</Link>
+                    ) : (
+                      l.target ?? "—"
+                    )}
+                    {detail && <span className="ml-2 text-xs text-[var(--muted)]">{detail}</span>}
+                  </span>
+                  <span className="shrink-0 text-xs text-[var(--muted)]">{timeAgo(l.createdAt)}</span>
+                </div>
+              );
+            })}
           </div>
           )}
           <div>

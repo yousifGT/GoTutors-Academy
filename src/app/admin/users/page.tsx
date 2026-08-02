@@ -5,7 +5,12 @@ import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 import { UsersDirectory, DirectoryUser } from "@/components/users-directory";
 
-export default async function AdminUsersPage() {
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  // Set by the counts on the Roles page, so a number links to the people it counts.
+  searchParams?: { field?: string; role?: string; q?: string };
+}) {
   await requireRole("SUPER_ADMIN");
   const users = await prisma.user.findMany({
     include: { role: true, centre: true },
@@ -38,7 +43,7 @@ export default async function AdminUsersPage() {
       {rows.length === 0 ? (
         <EmptyState icon="👥" title="No users yet" hint="Add your first user to get started." />
       ) : (
-        <UsersDirectory users={rows} />
+        <UsersDirectory users={rows} initialField={searchParams?.field} initialRole={searchParams?.role} initialQuery={searchParams?.q} />
       )}
     </div>
   );

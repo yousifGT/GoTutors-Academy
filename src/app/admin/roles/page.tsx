@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { RolesManager } from "@/components/roles-manager";
 import { PageHeader } from "@/components/page-ui";
-import { effectiveSubPositions } from "@/lib/sub-positions";
+import { effectiveSubPositions, tutorTitleFor } from "@/lib/sub-positions";
 
 export default async function RolesPage() {
   await requireRole("SUPER_ADMIN");
@@ -23,18 +23,32 @@ export default async function RolesPage() {
 
   const userCountByRole = new Map(userCountsRaw.map((g) => [g.roleId, g._count._all]));
   const courseCountBySub = new Map(courseCountsRaw.map((g) => [`${g.roleId}:${g.subPosition}`, g._count._all]));
-  // Sub-positions are multi-valued (plus the legacy single column), so count
-  // holders in app code rather than with a column groupBy.
-  const usersWithSubs = await prisma.user.findMany({
-    where: { OR: [{ subPosition: { not: null } }, { subPositions: { isEmpty: false } }] },
-    select: { roleId: true, subPosition: true, subPositions: true },
+  // Each field has two populations, and counting only the first made the page
+  // lie: promotion moves a completed field out of subPositions into
+  // teacherPositions, so every promoted tutor vanished and well-staffed fields
+  // read "0 users".
+  //
+  // Counted by field NAME rather than roleId:name, because a promoted tutor sits
+  // on a different role (Tutor) to the sub-position's own (Trainee) — and because
+  // that is already how auto-enrol and field-training match fields.
+  const usersWithFields = await prisma.user.findMany({
+    where: {
+      OR: [
+        { subPosition: { not: null } },
+        { subPositions: { isEmpty: false } },
+        { teacherPositions: { isEmpty: false } },
+      ],
+    },
+    select: { subPosition: true, subPositions: true, teacherPositions: true },
   });
-  const usageBySub = new Map<string, number>();
-  for (const u of usersWithSubs) {
-    for (const name of effectiveSubPositions(u)) {
-      const key = `${u.roleId}:${name}`;
-      usageBySub.set(key, (usageBySub.get(key) ?? 0) + 1);
-    }
+  const trainingByField = new Map<string, number>();
+  const tutoringByTitle = new Map<string, number>();
+  for (const u of usersWithFields) {
+    for (const name of effectiveSubPositions(u)) trainingByField.set(name, (trainingByField.get(name) ?? 0) + 1);
+    // teacherPositions holds the tutor TITLE, which only equals the field name
+    // when the field already ends in "Tutor" ("Head of Centre" becomes
+    // "Head of Centre Tutor"), so match through the same transform.
+    for (const title of u.teacherPositions) tutoringByTitle.set(title, (tutoringByTitle.get(title) ?? 0) + 1);
   }
 
   return (
@@ -53,7 +67,8 @@ export default async function RolesPage() {
         name: s.name,
         roleId: s.roleId,
         roleName: s.role.name,
-        userCount: usageBySub.get(`${s.roleId}:${s.name}`) ?? 0,
+        trainingCount: trainingByField.get(s.name) ?? 0,
+        tutoringCount: tutoringByTitle.get(tutorTitleFor(s.name)) ?? 0,
         courseCount: courseCountBySub.get(`${s.roleId}:${s.name}`) ?? 0,
       }))}
       />

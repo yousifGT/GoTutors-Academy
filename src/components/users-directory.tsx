@@ -34,13 +34,25 @@ const ROLE_LABEL: Record<string, string> = {
   SUPER_ADMIN: "Super Admins",
 };
 
-export function UsersDirectory({ users }: { users: DirectoryUser[] }) {
-  const [q, setQ] = useState("");
-  const [roleType, setRoleType] = useState<string>("all");
+export function UsersDirectory({
+  users,
+  initialField,
+  initialRole,
+  initialQuery,
+}: {
+  users: DirectoryUser[];
+  initialField?: string;
+  initialRole?: string;
+  initialQuery?: string;
+}) {
+  const [q, setQ] = useState(initialQuery ?? "");
+  const [roleType, setRoleType] = useState<string>(initialRole ?? "all");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [trained, setTrained] = useState<TrainedFilter>("all");
   const [centre, setCentre] = useState<string>("all");
-  const [sub, setSub] = useState<string>("all");
+  // Seeded from the URL so the counts on the Roles page can link straight to
+  // the people they represent.
+  const [sub, setSub] = useState<string>(initialField ?? "all");
   const [sort, setSort] = useState<SortKey>("newest");
   const [page, setPage] = useState(1);
   const [openUserId, setOpenUserId] = useState<string | null>(null);
@@ -62,8 +74,11 @@ export function UsersDirectory({ users }: { users: DirectoryUser[] }) {
     () => [...new Set(users.map((u) => u.centreName ?? "No centre"))].sort(),
     [users]
   );
+  // A field has two populations: people training in it (subPositions) and
+  // people qualified to tutor it (teacherPositions). Offering only the first
+  // made promoted tutors unfindable by the field they actually tutor.
   const subPositions = useMemo(
-    () => [...new Set(users.flatMap((u) => u.subPositions))].sort(),
+    () => [...new Set(users.flatMap((u) => [...u.subPositions, ...u.teacherPositions]))].sort(),
     [users]
   );
 
@@ -77,9 +92,9 @@ export function UsersDirectory({ users }: { users: DirectoryUser[] }) {
       if (trained === "trained" && !(u.roleType === "TRAINEE" && u.isTrained)) return false;
       if (trained === "in-training" && !(u.roleType === "TRAINEE" && !u.isTrained)) return false;
       if (centre !== "all" && (u.centreName ?? "No centre") !== centre) return false;
-      if (sub !== "all" && !u.subPositions.includes(sub)) return false;
+      if (sub !== "all" && !u.subPositions.includes(sub) && !u.teacherPositions.includes(sub)) return false;
       if (needle) {
-        const hay = `${u.name} ${u.email} ${u.roleName} ${u.position ?? ""} ${u.subPositions.join(" ")} ${u.centreName ?? ""}`.toLowerCase();
+        const hay = `${u.name} ${u.email} ${u.roleName} ${u.position ?? ""} ${u.subPositions.join(" ")} ${u.teacherPositions.join(" ")} ${u.centreName ?? ""}`.toLowerCase();
         if (!hay.includes(needle)) return false;
       }
       return true;

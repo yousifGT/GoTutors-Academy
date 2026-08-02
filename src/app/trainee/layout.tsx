@@ -1,9 +1,17 @@
 import { requireRole } from "@/lib/session";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
+import { SUPER_ADMIN_TITLE, superAdminNav } from "@/lib/nav";
 
 export default async function TraineeLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
+  if (session.user.roleType === "SUPER_ADMIN") {
+    return (
+      <DashboardShell user={session.user} nav={await superAdminNav()} title={SUPER_ADMIN_TITLE}>
+        {children}
+      </DashboardShell>
+    );
+  }
   const reports = await prisma.user.count({ where: { supervisorId: session.user.id } });
   const nav = [
     { href: "/trainee", label: "Dashboard", icon: "🏠" },

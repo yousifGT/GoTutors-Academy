@@ -2,14 +2,19 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { PageHeader, EmptyState, Avatar } from "@/components/page-ui";
+import { auditDetail, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
+import Link from "next/link";
 
 export default async function AuditPage() {
   await requireRole("SUPER_ADMIN");
   const logs = await prisma.auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 200 });
 
-  const actorIds = Array.from(new Set(logs.map((l) => l.actorId).filter(Boolean) as string[]));
-  const actors = await prisma.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true, email: true } });
-  const actorMap = new Map(actors.map((a) => [a.id, a]));
+  // Actors and targets are both user ids, so resolve them in one query. Targets
+  // are only sometimes ids — most call sites already write a readable label.
+  const actorIds = logs.map((l) => l.actorId).filter(Boolean) as string[];
+  const ids = Array.from(new Set([...actorIds, ...userIdTargets(logs.map((l) => l.target))]));
+  const people = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } });
+  const actorMap = new Map(people.map((a) => [a.id, a]));
 
   return (
     <div className="space-y-4">
@@ -23,6 +28,8 @@ export default async function AuditPage() {
           <tbody>
             {logs.map((l) => {
               const a = l.actorId ? actorMap.get(l.actorId) : undefined;
+              const targetUser = looksLikeUserId(l.target) ? actorMap.get(l.target!) : undefined;
+              const detail = auditDetail(l.metadata);
               return (
                 <tr key={l.id}>
                   <td className="whitespace-nowrap text-xs text-[var(--muted)]" title={formatDate(l.createdAt)}>{timeAgo(l.createdAt)}</td>
@@ -36,7 +43,17 @@ export default async function AuditPage() {
                     </div>
                   ) : <span className="text-[var(--muted)]">—</span>}</td>
                   <td><span className="gt-badge bg-magenta/15 text-magenta">{l.action}</span></td>
-                  <td>{l.target ?? "—"}</td>
+                  <td>
+                    {targetUser ? (
+                      <Link href={`/admin/users?q=${encodeURIComponent(targetUser.email)}`} className="font-medium hover:text-picton transition">
+                        {targetUser.name}
+                        <span className="block text-xs font-normal text-[var(--muted)]">{targetUser.email}</span>
+                      </Link>
+                    ) : (
+                      l.target ?? "—"
+                    )}
+                    {detail && <span className="ml-2 gt-badge bg-picton/15 text-picton">{detail}</span>}
+                  </td>
                   <td className="max-w-[18rem] truncate font-mono text-xs text-[var(--muted)]" title={l.metadata ? JSON.stringify(l.metadata) : undefined}>{l.metadata ? JSON.stringify(l.metadata) : "—"}</td>
                 </tr>
               );

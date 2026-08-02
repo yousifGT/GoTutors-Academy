@@ -1,10 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { EmptyState, RoleChip } from "@/components/page-ui";
+import { tutorTitleFor } from "@/lib/sub-positions";
 
 type Role = { id: string; name: string; type: string; description: string | null; userCount: number };
-type SubPosition = { id: string; name: string; roleId: string; roleName: string; userCount: number; courseCount: number };
+type SubPosition = { id: string; name: string; roleId: string; roleName: string; trainingCount: number; tutoringCount: number; courseCount: number };
 
 const TYPE_STYLE: Record<string, { icon: string; bubble: string }> = {
   SUPER_ADMIN: { icon: "🛡️", bubble: "bg-magenta/15 text-magenta" },
@@ -141,8 +143,9 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
 
   async function deleteSubPosition(sp: SubPosition) {
     let text = `Delete sub-position "${sp.name}" (${sp.roleName})?`;
-    if (sp.userCount > 0) {
-      text += `\n\n⚠️ ${sp.userCount} user(s) currently have this sub-position. Reassign them first — the server will reject this deletion.`;
+    const holders = sp.trainingCount + sp.tutoringCount;
+    if (holders > 0) {
+      text += `\n\n⚠️ ${holders} user(s) currently train in or tutor this field. Reassign them first — the server will reject this deletion.`;
     }
     if (!confirm(text)) return;
     setBusy(true);
@@ -222,8 +225,10 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                 <div className="mt-4 flex items-end justify-between gap-3 border-t border-[var(--border)] pt-3">
                   <div className="flex gap-5">
                     <div>
-                      <div className="text-xl font-bold leading-tight">{r.userCount}</div>
-                      <div className="text-xs text-[var(--muted)]">user{r.userCount === 1 ? "" : "s"}</div>
+                      <Link href={`/admin/users?role=${encodeURIComponent(r.type)}`} className="group block">
+                        <div className="text-xl font-bold leading-tight group-hover:text-picton transition">{r.userCount}</div>
+                        <div className="text-xs text-[var(--muted)] group-hover:text-picton transition">user{r.userCount === 1 ? "" : "s"}</div>
+                      </Link>
                     </div>
                     <button
                       onClick={() => { setActiveRoleId(r.id); setEditingSubId(null); setTab("subs"); }}
@@ -351,11 +356,18 @@ export function RolesManager({ roles, subPositions }: { roles: Role[]; subPositi
                       </button>
                     )}
                   </div>
+                  {/* Two populations per field: still training in it, and
+                      qualified to tutor it. The same person is often one on this
+                      card and the other on the next. */}
                   <div className="mt-4 flex gap-5 border-t border-[var(--border)] pt-3">
-                    <div>
-                      <div className="text-xl font-bold leading-tight">{s.userCount}</div>
-                      <div className="text-xs text-[var(--muted)]">user{s.userCount === 1 ? "" : "s"}</div>
-                    </div>
+                    <Link href={`/admin/users?field=${encodeURIComponent(s.name)}`} className="group">
+                      <div className="text-xl font-bold leading-tight group-hover:text-picton transition">{s.trainingCount}</div>
+                      <div className="text-xs text-[var(--muted)] group-hover:text-picton transition">training</div>
+                    </Link>
+                    <Link href={`/admin/users?field=${encodeURIComponent(tutorTitleFor(s.name))}`} className="group">
+                      <div className="text-xl font-bold leading-tight group-hover:text-picton transition">{s.tutoringCount}</div>
+                      <div className="text-xs text-[var(--muted)] group-hover:text-picton transition">tutoring</div>
+                    </Link>
                     <div>
                       <div className="text-xl font-bold leading-tight">{s.courseCount}</div>
                       <div className="text-xs text-[var(--muted)]">course{s.courseCount === 1 ? "" : "s"} auto-enrol</div>

@@ -1,18 +1,29 @@
 import { requireRole } from "@/lib/session";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
+import { SUPER_ADMIN_TITLE, superAdminNav } from "@/lib/nav";
 
 export default async function InstructorLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  // Course editing only exists under /instructor, so super admins are sent here
+  // from the admin Courses page. Keep their own navigation rather than swapping
+  // them into the instructor shell, which looked like a silent role change.
+  if (session.user.roleType === "SUPER_ADMIN") {
+    return (
+      <DashboardShell user={session.user} nav={await superAdminNav()} title={SUPER_ADMIN_TITLE}>
+        {children}
+      </DashboardShell>
+    );
+  }
   const [unread, reviewQueue, reports, me] = await Promise.all([
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
+    // Super admins returned above with their own shell, so this badge only ever
+    // counts the instructor's own courses.
     prisma.quizAttempt.count({
       where: {
         needsReview: true,
         reviewedAt: null,
-        ...(session.user.roleType === "SUPER_ADMIN"
-          ? {}
-          : { quiz: { lesson: { module: { course: { authorId: session.user.id } } } } }),
+        quiz: { lesson: { module: { course: { authorId: session.user.id } } } },
       },
     }),
     prisma.user.count({ where: { supervisorId: session.user.id } }),

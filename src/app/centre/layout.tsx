@@ -1,9 +1,17 @@
 import { requireRole } from "@/lib/session";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
+import { SUPER_ADMIN_TITLE, superAdminNav } from "@/lib/nav";
 
 export default async function CentreLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  if (session.user.roleType === "SUPER_ADMIN") {
+    return (
+      <DashboardShell user={session.user} nav={await superAdminNav()} title={SUPER_ADMIN_TITLE}>
+        {children}
+      </DashboardShell>
+    );
+  }
   const [unread, reports] = await Promise.all([
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
     prisma.user.count({ where: { supervisorId: session.user.id } }),
