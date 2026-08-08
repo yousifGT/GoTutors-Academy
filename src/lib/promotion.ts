@@ -37,7 +37,9 @@ export async function promoteToTutor(
     return { ok: false, error: `${target.name} is not training as ${field}`, status: 400 };
   }
 
-  const status = (await getFieldStatus(target)).find((f) => f.name === field);
+  // Field status now covers both populations, so pin this to the training entry —
+  // matching by name alone could pick up a field they already tutor.
+  const status = (await getFieldStatus(target)).find((f) => f.name === field && f.held === "training");
   if (!status || !status.trained) {
     return {
       ok: false,
@@ -120,7 +122,11 @@ export async function autoPromoteTrainedFields(userId: string): Promise<string[]
   });
   if (!user || user.role.type !== "TRAINEE") return [];
 
-  const trained = (await getFieldStatus(user)).filter((f) => f.trained).map((f) => f.name);
+  // Only fields still in training are promotable; a field they already tutor is
+  // reported as trained too, and trying to promote it would fail as "not training".
+  const trained = (await getFieldStatus(user))
+    .filter((f) => f.held === "training" && f.trained)
+    .map((f) => f.name);
   const promoted: string[] = [];
   for (const field of trained) {
     const res = await promoteToTutor(userId, field, { auto: true });

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   course: { findUnique: vi.fn(), findMany: vi.fn() },
   user: { findUnique: vi.fn(), findMany: vi.fn() },
+  subPosition: { findMany: vi.fn() },
   enrollment: { createMany: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -12,6 +13,12 @@ import { syncCourseEnrollments, syncUserEnrollments } from "./auto-enrol";
 beforeEach(() => {
   vi.clearAllMocks();
   db.enrollment.createMany.mockImplementation(async ({ data }: any) => ({ count: data.length }));
+  // The fields that exist, used to map stored tutor titles back to field names.
+  db.subPosition.findMany.mockResolvedValue([
+    { name: "English Tutor" },
+    { name: "Maths Tutor" },
+    { name: "Head of Centre" },
+  ]);
 });
 
 describe("syncCourseEnrollments", () => {
@@ -54,6 +61,7 @@ describe("syncCourseEnrollments", () => {
         OR: [
           { subPositions: { hasSome: ["English Tutor", "Maths Tutor"] } },
           { subPosition: { in: ["English Tutor", "Maths Tutor"] } },
+          { teacherPositions: { hasSome: ["English Tutor", "Maths Tutor"] } },
         ],
       },
     ]);
@@ -161,5 +169,87 @@ describe("syncUserEnrollments", () => {
       { roleId: "trainee-role", subPosition: null },
     ]);
     expect(db.enrollment.createMany).not.toHaveBeenCalled();
+  });
+});
+
+// The gap this closes: promotion moves a completed field out of subPositions into
+// teacherPositions, so a tutor matched nothing and a newly published course in
+// their own field never reached them — silently, with no way to complete it.
+describe("syncUserEnrollments for a promoted tutor", () => {
+  it("enrols them into a new course in a field they tutor", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "t1",
+      active: true,
+      roleId: "tutor-role",
+      subPosition: null,
+      subPositions: [],
+      teacherPositions: ["Maths Tutor"],
+      role: { type: "TRAINEE" },
+    });
+    db.course.findMany.mockResolvedValue([{ id: "new-maths" }]);
+
+    expect(await syncUserEnrollments("t1")).toBe(1);
+    const assignmentOr = db.course.findMany.mock.calls[0][0].where.roleAssignments.some.OR;
+    expect(assignmentOr).toEqual(
+      expect.arrayContaining([{ role: { type: "TRAINEE" }, subPosition: { in: ["Maths Tutor"] } }])
+    );
+    expect(db.enrollment.createMany).toHaveBeenCalledWith({
+      data: [{ userId: "t1", courseId: "new-maths" }],
+      skipDuplicates: true,
+    });
+  });
+
+  it("covers training and tutored fields together, without duplicates", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "t2",
+      active: true,
+      roleId: "tutor-role",
+      subPosition: null,
+      subPositions: ["English Tutor"],
+      teacherPositions: ["Maths Tutor"],
+      role: { type: "TRAINEE" },
+    });
+    db.course.findMany.mockResolvedValue([]);
+
+    await syncUserEnrollments("t2");
+    const assignmentOr = db.course.findMany.mock.calls[0][0].where.roleAssignments.some.OR;
+    const subMatch = assignmentOr.find((c: any) => c.subPosition);
+    expect(subMatch.subPosition.in.sort()).toEqual(["English Tutor", "Maths Tutor"]);
+  });
+
+  // "Head of Centre" is stored as "Head of Centre Tutor", so a naive reverse of
+  // the transform would look for a field that doesn't exist.
+  it("maps a title back to its field when the two differ", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "t3",
+      active: true,
+      roleId: "tutor-role",
+      subPosition: null,
+      subPositions: [],
+      teacherPositions: ["Head of Centre Tutor"],
+      role: { type: "TRAINEE" },
+    });
+    db.course.findMany.mockResolvedValue([]);
+
+    await syncUserEnrollments("t3");
+    const assignmentOr = db.course.findMany.mock.calls[0][0].where.roleAssignments.some.OR;
+    expect(assignmentOr.find((c: any) => c.subPosition).subPosition.in).toEqual(["Head of Centre"]);
+  });
+
+  it("ignores a title whose field no longer exists", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "t4",
+      active: true,
+      roleId: "tutor-role",
+      subPosition: null,
+      subPositions: [],
+      teacherPositions: ["Deleted Field Tutor"],
+      role: { type: "TRAINEE" },
+    });
+    db.course.findMany.mockResolvedValue([]);
+
+    await syncUserEnrollments("t4");
+    const assignmentOr = db.course.findMany.mock.calls[0][0].where.roleAssignments.some.OR;
+    expect(assignmentOr.some((c: any) => c.subPosition)).toBe(false);
   });
 });

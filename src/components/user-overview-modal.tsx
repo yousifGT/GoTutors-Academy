@@ -24,7 +24,15 @@ type Overview = {
     lastLoginAt: string | null;
     createdAt: string;
   };
-  fieldStatus: { name: string; total: number; done: number; trained: boolean }[];
+  fieldStatus: {
+    name: string;
+    total: number;
+    done: number;
+    trained: boolean;
+    held: "training" | "tutoring";
+    retraining: boolean;
+    lastCertifiedAt: string | null;
+  }[];
   canPromote: boolean;
   canManage: boolean;
   enrollments: { courseId: string; title: string; fields: string[]; roleWide: string[]; percent: number; done: number; total: number; completed: boolean; enrolledAt: string }[];
@@ -300,13 +308,25 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
               {/* Per-field training state + promotion */}
               {data.fieldStatus.length > 0 && (
                 <div className="rounded-xl border border-[var(--border)] bg-[var(--soft)]/40 p-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">🧩 Training fields</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">🧩 Fields</div>
                   <div className="mt-2 space-y-2.5">
                     {data.fieldStatus.map((f) => (
                       <div key={f.name} className="rounded-xl border border-[var(--border)] bg-[var(--card)] p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="gt-badge bg-magenta/15 text-magenta">{f.name}</span>
-                          {f.trained ? (
+                          <span className={`gt-badge ${f.held === "tutoring" ? "bg-picton/15 text-picton" : "bg-magenta/15 text-magenta"}`}>
+                            {f.held === "tutoring" ? "🎓 " : ""}{f.name}
+                          </span>
+                          {/* A tutored field that has gained a requirement: the title
+                              stands, but it needs finishing before they qualify again. */}
+                          {f.retraining ? (
+                            <span className="gt-badge bg-orange/15 text-orange">
+                              ⚠ Retraining — {f.done}/{f.total} courses done
+                            </span>
+                          ) : f.trained && f.held === "tutoring" ? (
+                            // Already qualified — promotion has happened; offering it
+                            // again would be rejected by the server as "not training".
+                            <span className="gt-badge bg-picton/15 text-picton">🎓 Tutoring this field</span>
+                          ) : f.trained ? (
                             data.canPromote ? (
                               <button
                                 onClick={() => promote(f.name)}
@@ -326,8 +346,13 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                         </div>
                         <div className="mt-2 flex items-center gap-3">
                           <ProgressBar percent={f.total > 0 ? Math.round((f.done / f.total) * 100) : 0} />
-                          {f.trained && <span className="shrink-0 text-xs font-bold text-mint">🏅 Trained</span>}
+                          {f.trained && !f.retraining && <span className="shrink-0 text-xs font-bold text-mint">🏅 Trained</span>}
                         </div>
+                        {f.lastCertifiedAt && (
+                          <div className="mt-1.5 text-[11px] text-[var(--muted)]">
+                            {f.retraining ? "Last qualified" : "Qualified"} {new Date(f.lastCertifiedAt).toLocaleDateString()}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

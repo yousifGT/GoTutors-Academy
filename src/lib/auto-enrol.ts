@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { effectiveSubPositions } from "@/lib/sub-positions";
+import { effectiveSubPositions, tutorTitleFor, tutoredFieldNames } from "@/lib/sub-positions";
 
 /**
  * Assignment-driven enrolment: a published course assigned to trainee
@@ -45,7 +45,15 @@ export async function syncCourseEnrollments(courseId: string): Promise<number> {
           ? { roleId }
           : {
               role: { type: { in: ["TRAINEE", "INSTRUCTOR"] as const } },
-              OR: [{ subPositions: { hasSome: g.subs } }, { subPosition: { in: g.subs } }],
+              OR: [
+                { subPositions: { hasSome: g.subs } },
+                { subPosition: { in: g.subs } },
+                // Someone already qualified to tutor the field must receive a
+                // newly published course in it as well: their title stays, but
+                // the field counts as retraining until they certify this one.
+                // Matched on the stored TITLE, which is what teacherPositions holds.
+                { teacherPositions: { hasSome: g.subs.map(tutorTitleFor) } },
+              ],
             }
       ),
     },
@@ -74,7 +82,12 @@ export async function syncUserEnrollments(userId: string): Promise<number> {
   if (!user || !user.active) return 0;
   if (user.role.type !== "TRAINEE" && user.role.type !== "INSTRUCTOR") return 0;
 
-  const names = effectiveSubPositions(user);
+  // Training fields plus the fields they already tutor — a tutor keeps picking up
+  // new courses in their own field, which is what makes a lapse recoverable.
+  const knownFields = (await prisma.subPosition.findMany({ select: { name: true } })).map((r) => r.name);
+  const names = [
+    ...new Set([...effectiveSubPositions(user), ...tutoredFieldNames(user.teacherPositions ?? [], knownFields)]),
+  ];
   if (user.role.type === "INSTRUCTOR" && names.length === 0) return 0;
 
   // Whole-role courses need the user's exact role; sub-position courses match
