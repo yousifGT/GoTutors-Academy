@@ -104,6 +104,10 @@ model User {
   /// Sub-positions this user has been promoted to teach (graduated out of training for).
   teacherPositions String[] @default([]) @map("teacher_positions")
   isTrained      Boolean  @default(false) @map("is_trained")
+  /// Set when an admin resets someone's password, cleared when they choose their
+  /// own. Forces the change so an admin-generated temporary password can't quietly
+  /// become permanent and known to two people.
+  mustChangePassword Boolean @default(false) @map("must_change_password")
   centreId       String?
   roleId         String
   supervisorId   String?

@@ -102,7 +102,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     data.subPositions = subs;
     data.subPosition = subs[0] ?? null;
   }
-  if (body.password) data.password = await bcrypt.hash(body.password, 12);
+  if (body.password) {
+    data.password = await bcrypt.hash(body.password, 12);
+    // An admin-set password is temporary by definition — somebody else chose it
+    // and knows it. Make the owner replace it before they can use the app.
+    data.mustChangePassword = true;
+  }
 
   try {
     const updated = await prisma.user.update({ where: { id: params.id }, data });

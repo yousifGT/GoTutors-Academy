@@ -26,5 +26,6 @@ declare module "next-auth/jwt" {
     checkedAt?: number;
     /** Set when the user was deactivated/deleted since the token was issued. */
     invalid?: boolean;
+    mustChangePassword?: boolean;
   }
 }

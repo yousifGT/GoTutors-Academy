@@ -16,6 +16,14 @@ export default withAuth(
     const token = req.nextauth.token;
     if (!token) return NextResponse.next();
 
+    // An admin-set password is temporary and known to someone else, so hold the
+    // app closed until the owner picks their own. Page routes only: the
+    // change-password screen still needs /api/me/password and /api/me, and a
+    // browser user can't reach anything without a page anyway.
+    if (token.mustChangePassword) {
+      return NextResponse.redirect(new URL("/change-password", req.url));
+    }
+
     const role = token.roleType as string;
     const matches: Array<[string, string[]]> = [
       ["/admin", ["SUPER_ADMIN"]],

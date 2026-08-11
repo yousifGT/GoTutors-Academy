@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { formatDate } from "@/lib/utils";
 import { PhoneEditor } from "@/components/phone-editor";
+import { PasswordChangeForm } from "@/components/password-change-form";
 
 /** Read-only "my profile" card shown from the sidebar chip, shared by every role. */
 export async function ProfileCard({ userId }: { userId: string }) {
@@ -73,8 +74,17 @@ export async function ProfileCard({ userId }: { userId: string }) {
           </div>
         </dl>
       </div>
+      <div className="gt-card space-y-3 p-4">
+        <div>
+          <h3 className="font-bold">🔑 Password</h3>
+          <p className="text-xs text-[var(--muted)]">
+            Choose your own password. If an administrator set one for you, change it here so only you know it.
+          </p>
+        </div>
+        <PasswordChangeForm />
+      </div>
       <p className="text-xs text-[var(--muted)]">
-        Something wrong with these details? Contact your centre admin — only your phone number can be changed here.
+        Something wrong with these details? Contact your centre admin — only your phone number and password can be changed here.
       </p>
     </div>
   );

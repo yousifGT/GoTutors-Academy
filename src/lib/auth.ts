@@ -38,6 +38,7 @@ export const authOptions: NextAuthOptions = {
           roleId: user.roleId,
           centreId: user.centreId ?? null,
           position: user.position ?? null,
+          mustChangePassword: user.mustChangePassword,
         } as any;
       },
     }),
@@ -54,6 +55,7 @@ export const authOptions: NextAuthOptions = {
         token.position = u.position;
         token.checkedAt = Date.now();
         token.invalid = false;
+        token.mustChangePassword = !!u.mustChangePassword;
         return token;
       }
 
@@ -62,7 +64,12 @@ export const authOptions: NextAuthOptions = {
       // without a query on every request (and never on static assets, which
       // don't reach NextAuth). The 7-day token is no longer trusted blindly.
       const STALE_MS = 60_000;
-      if (token.checkedAt && Date.now() - token.checkedAt < STALE_MS) return token;
+      // While a password change is being forced, re-read on every request: the
+      // middleware decides from this token, so throttling here would bounce the
+      // user back to the change screen for up to a minute after they had
+      // already chosen a new password.
+      const throttled = !token.mustChangePassword && token.checkedAt && Date.now() - token.checkedAt < STALE_MS;
+      if (throttled) return token;
 
       const dbUser = await prisma.user.findUnique({
         where: { id: token.uid },
@@ -74,6 +81,9 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
       token.invalid = false;
+      // Re-read so an admin reset takes effect on an existing session, and so
+      // choosing a new password releases the hold within the same minute.
+      token.mustChangePassword = dbUser.mustChangePassword;
       token.roleType = dbUser.role.type;
       token.roleId = dbUser.roleId;
       token.centreId = dbUser.centreId ?? null;
