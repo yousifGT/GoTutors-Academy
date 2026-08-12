@@ -8,6 +8,7 @@ import { assignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
+import { audit } from "@/lib/audit";
 import { wouldCreateCycle } from "@/lib/course-prereqs";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
@@ -18,6 +19,14 @@ const UpdateCourseSchema = z.object({
   category: z.string().trim().max(100).nullable().optional(),
   passThreshold: z.number().int().min(1).max(100).optional(),
   published: z.boolean().optional(),
+  /**
+   * Set on a republish to say the content changed substantially, so certificates
+   * earned against earlier versions stop counting and holders must retrain.
+   * Default false: fixing a typo or a broken link must not invalidate everyone's
+   * training, which is why this is the instructor's explicit call rather than an
+   * automatic consequence of the version bumping.
+   */
+  requireRetraining: z.boolean().optional(),
   roleIds: z.array(zId).optional(),
   subPositions: z.array(z.string().max(200)).optional(),
   prerequisiteIds: z.array(zId).max(50).optional(),
@@ -78,7 +87,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Every draft->published transition captures an immutable version snapshot,
   // so certificates can always point at exactly what trainees saw.
   if (!existing.published && updated.published) {
-    await snapshotCourse(updated.id);
+    const version = await snapshotCourse(updated.id);
+    if (body.requireRetraining) {
+      // Older certificates no longer satisfy this course. Tutors of its fields
+      // lapse into retraining and are re-enrolled; completing it refreshes their
+      // certificate with the new version and a new date.
+      await prisma.course.update({ where: { id: updated.id }, data: { minCertifiedVersion: version } });
+      await audit({
+        actorId: session.user.id,
+        action: "course.require_retraining",
+        target: `course:${updated.title}`,
+        metadata: { courseId: updated.id, fromVersion: version },
+      });
+    }
   }
   // Publishing (or re-targeting a published course) enrols matching trainees.
   if (updated.published && (body.published !== undefined || body.roleIds !== undefined)) {

@@ -62,13 +62,21 @@ function fieldsFor(user: FieldUser, knownFields: string[]): { name: string; held
   return out;
 }
 
+type HeldCert = { issuedAt: Date; courseVersion: number | null };
+
 function buildStatus(
   field: { name: string; held: "training" | "tutoring" },
-  required: { id: string }[],
-  certifiedAt: Map<string, Date>
+  required: { id: string; minCertifiedVersion: number }[],
+  certified: Map<string, HeldCert>
 ): FieldStatus {
-  const held = required.filter((c) => certifiedAt.has(c.id));
-  const dates = held.map((c) => certifiedAt.get(c.id)!);
+  // A certificate only counts if it was earned against a version that still
+  // stands. A null version predates versioning, so it reads as 0 and is
+  // superseded by any raised floor.
+  const held = required.filter((c) => {
+    const cert = certified.get(c.id);
+    return !!cert && (cert.courseVersion ?? 0) >= c.minCertifiedVersion;
+  });
+  const dates = held.map((c) => certified.get(c.id)!.issuedAt);
   const trained = required.length > 0 && held.length === required.length;
   return {
     name: field.name,
@@ -102,6 +110,7 @@ export async function getFieldStatusForUsers(users: FieldUser[]): Promise<Map<st
     },
     select: {
       id: true,
+      minCertifiedVersion: true,
       roleAssignments: {
         where: { role: { type: "TRAINEE" }, subPosition: { in: allFields } },
         select: { roleId: true, subPosition: true },
@@ -111,17 +120,17 @@ export async function getFieldStatusForUsers(users: FieldUser[]): Promise<Map<st
 
   const certs = await prisma.certificate.findMany({
     where: { userId: { in: users.map((u) => u.id) }, courseId: { in: courses.map((c) => c.id) } },
-    select: { userId: true, courseId: true, issuedAt: true },
+    select: { userId: true, courseId: true, issuedAt: true, courseVersion: true },
   });
-  const certsByUser = new Map<string, Map<string, Date>>();
+  const certsByUser = new Map<string, Map<string, HeldCert>>();
   for (const c of certs) {
-    const m = certsByUser.get(c.userId) ?? new Map<string, Date>();
-    m.set(c.courseId, c.issuedAt);
+    const m = certsByUser.get(c.userId) ?? new Map<string, HeldCert>();
+    m.set(c.courseId, { issuedAt: c.issuedAt, courseVersion: c.courseVersion });
     certsByUser.set(c.userId, m);
   }
 
   for (const user of users) {
-    const certifiedAt = certsByUser.get(user.id) ?? new Map<string, Date>();
+    const certifiedAt = certsByUser.get(user.id) ?? new Map<string, HeldCert>();
     result.set(
       user.id,
       (fieldsByUser.get(user.id) ?? []).map((field) =>
@@ -146,15 +155,16 @@ export async function getFieldStatus(user: FieldUser): Promise<FieldStatus[]> {
     where: { published: true, roleAssignments: { some: assignmentFilter } },
     select: {
       id: true,
+      minCertifiedVersion: true,
       roleAssignments: { where: assignmentFilter, select: { subPosition: true } },
     },
   });
 
   const certs = await prisma.certificate.findMany({
     where: { userId: user.id, courseId: { in: courses.map((c) => c.id) } },
-    select: { courseId: true, issuedAt: true },
+    select: { courseId: true, issuedAt: true, courseVersion: true },
   });
-  const certifiedAt = new Map(certs.map((c) => [c.courseId, c.issuedAt]));
+  const certifiedAt = new Map(certs.map((c) => [c.courseId, { issuedAt: c.issuedAt, courseVersion: c.courseVersion }]));
 
   return fields.map((field) =>
     buildStatus(field, courses.filter((c) => c.roleAssignments.some((ra) => ra.subPosition === field.name)), certifiedAt)

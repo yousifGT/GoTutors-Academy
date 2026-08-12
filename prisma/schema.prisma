@@ -145,6 +145,11 @@ model Course {
   passThreshold Int      @default(70)
   published     Boolean  @default(false)
   version       Int      @default(0)
+  /// Certificates earned against an earlier version than this no longer count
+  /// towards the course being complete. Raised only when an instructor marks a
+  /// republish as a substantial change, so fixing a typo doesn't invalidate
+  /// everyone's training.
+  minCertifiedVersion Int @default(0) @map("min_certified_version")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

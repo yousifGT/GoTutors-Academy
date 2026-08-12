@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   course: { findUnique: vi.fn() },
   progress: { count: vi.fn() },
-  certificate: { findUnique: vi.fn(), create: vi.fn() },
+  certificate: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   enrollment: { updateMany: vi.fn() },
   user: { findUnique: vi.fn() },
   $transaction: vi.fn(),
@@ -47,10 +47,37 @@ describe("maybeAwardCertificate", () => {
 
   it("is idempotent when a certificate already exists", async () => {
     db.progress.count.mockResolvedValue(2);
-    db.certificate.findUnique.mockResolvedValue({ id: "cert1" });
+    // Earned against a version that still counts.
+    db.certificate.findUnique.mockResolvedValue({ id: "cert1", courseVersion: 1 });
     await maybeAwardCertificate("u1", "c1");
     expect(db.certificate.create).not.toHaveBeenCalled();
+    expect(db.certificate.update).not.toHaveBeenCalled();
     expect(recompute).not.toHaveBeenCalled();
+  });
+
+  // When an instructor marks a republish as a substantial change, an older
+  // certificate stops counting and re-completing refreshes the same row —
+  // a new version and a new date — rather than colliding on (userId, courseId).
+  it("refreshes a certificate superseded by a required-retraining republish", async () => {
+    db.progress.count.mockResolvedValue(2);
+    db.course.findUnique.mockResolvedValue({
+      id: "c1",
+      version: 3,
+      minCertifiedVersion: 3,
+      passThreshold: 70,
+      modules: [{ lessons: [{ id: "l1" }, { id: "l2" }] }],
+    });
+    db.certificate.findUnique.mockResolvedValue({ id: "cert1", courseVersion: 1 });
+
+    await maybeAwardCertificate("u1", "c1");
+
+    expect(db.certificate.create).not.toHaveBeenCalled();
+    expect(db.certificate.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_courseId: { userId: "u1", courseId: "c1" } },
+        data: expect.objectContaining({ courseVersion: 3 }),
+      })
+    );
   });
 
   it("treats a concurrent duplicate (P2002) as already-awarded, not a 500", async () => {

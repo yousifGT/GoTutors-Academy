@@ -36,9 +36,20 @@ export async function maybeAwardCertificate(userId: string, courseId: string): P
   try {
     await prisma.$transaction(async (tx) => {
       const existing = await tx.certificate.findUnique({ where: { userId_courseId: { userId, courseId } } });
-      if (existing) return;
-      // Pin the certificate to the course version it was earned against.
-      await tx.certificate.create({ data: { userId, courseId, serial, courseVersion: course.version } });
+      // An existing certificate only stands if it was earned against a version
+      // that still counts. When an instructor has marked a republish as a
+      // substantial change, re-completing refreshes the same certificate — new
+      // version, new date — rather than failing on the unique constraint.
+      if (existing && (existing.courseVersion ?? 0) >= (course.minCertifiedVersion ?? 0)) return;
+      if (existing) {
+        await tx.certificate.update({
+          where: { userId_courseId: { userId, courseId } },
+          data: { courseVersion: course.version, issuedAt: new Date() },
+        });
+      } else {
+        // Pin the certificate to the course version it was earned against.
+        await tx.certificate.create({ data: { userId, courseId, serial, courseVersion: course.version } });
+      }
       const res = await tx.enrollment.updateMany({
         where: { userId, courseId },
         data: { completed: true, completedAt: new Date() },
