@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeWatchState, SERVER_WATCH_FRACTION } from "./watch-progress";
+import { computeWatchState, SERVER_WATCH_FRACTION, allowedAdvance, JITTER_SECONDS, MAX_SAMPLE_GAP_MS, MAX_PLAYBACK_SPEED } from "./watch-progress";
 
 const base = {
   previousTimeSpent: 0,
@@ -58,5 +58,45 @@ describe("computeWatchState", () => {
 
   it("Loom ignores a claim-less request", () => {
     expect(computeWatchState({ ...base, manualAllowed: true, durationSeconds: 0, clientClaimsWatched: false, elapsedRealSeconds: 100 }).videoWatched).toBe(false);
+  });
+});
+
+// The client-side counterpart of the server cap. The bug it replaces was a flat
+// six-second budget per seek, which let you nudge forward six seconds at a time
+// indefinitely while the client recorded every nudge as watched.
+describe("allowedAdvance", () => {
+  it("allows roughly the elapsed time at normal speed", () => {
+    // 1s of real time at 1x, plus the jitter margin.
+    expect(allowedAdvance(1000, 1)).toBeCloseTo(2, 5);
+  });
+
+  it("scales with playback rate, so 2x viewing is fully supported", () => {
+    expect(allowedAdvance(1000, 2)).toBeCloseTo(3, 5);
+  });
+
+  it("never credits faster than the server's cap, whatever the player reports", () => {
+    // A 16x YouTube rate must not buy 16 seconds per second.
+    expect(allowedAdvance(1000, 16)).toBe(allowedAdvance(1000, MAX_PLAYBACK_SPEED));
+  });
+
+  it("treats a rate below 1 as 1, so slow playback isn't penalised", () => {
+    expect(allowedAdvance(1000, 0.5)).toBeCloseTo(2, 5);
+    expect(allowedAdvance(1000, 0)).toBeCloseTo(2, 5);
+  });
+
+  // Idle time must not bank up: a tab paused or backgrounded for minutes would
+  // otherwise hand a single forward jump an enormous allowance.
+  it("caps the gap so a long pause can't be spent on one seek", () => {
+    expect(allowedAdvance(5 * 60_000, 1)).toBe(allowedAdvance(MAX_SAMPLE_GAP_MS, 1));
+  });
+
+  it("gives only the jitter margin with no previous sample", () => {
+    expect(allowedAdvance(null, 2)).toBe(JITTER_SECONDS);
+  });
+
+  // The property that actually matters: a jump far beyond real time is refused.
+  it("refuses a jump that outruns real time", () => {
+    const jumpSeconds = 60;
+    expect(jumpSeconds > allowedAdvance(1000, MAX_PLAYBACK_SPEED)).toBe(true);
   });
 });

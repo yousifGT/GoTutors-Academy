@@ -17,6 +17,8 @@ export type CourseCard = {
   audience: string[]; // compact lines, e.g. "Trainee — Maths Tutor, English Tutor +2 more"
   /** Shown on the meta line when set (admin view across all instructors). */
   author?: string;
+  /** Published before, so publishing again is a republish and can supersede certificates. */
+  version?: number;
 };
 
 type Filter = "all" | "published" | "draft";
@@ -167,11 +169,22 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
   }
 
   async function togglePublish(c: CourseCard) {
+    let requireRetraining = false;
+    // Asked only on a republish, and only ever opt-in. Answering yes means
+    // everyone already certified has to earn it again, so the default must be no
+    // — fixing a typo cannot be allowed to invalidate a whole field's training.
+    if (!c.published && (c.version ?? 0) > 0) {
+      requireRetraining = confirm(
+        `Has "${c.title}" changed substantially since it was last published?\n\n` +
+          "OK — anyone already certified must take it again, and tutors of its fields go back to retraining until they do.\n\n" +
+          "Cancel — publish normally; existing certificates still count."
+      );
+    }
     setBusyId(c.id);
     const res = await fetch(`/api/courses/${c.id}`, {
       method: "PATCH",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ published: !c.published }),
+      body: JSON.stringify({ published: !c.published, ...(requireRetraining ? { requireRetraining: true } : {}) }),
     });
     setBusyId(null);
     if (!res.ok) {

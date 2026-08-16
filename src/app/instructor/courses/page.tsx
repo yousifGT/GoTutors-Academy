@@ -44,6 +44,7 @@ export default async function InstructorCoursesPage() {
           modules: c._count.modules,
           enrollments: c._count.enrollments,
           audience: compactAssignments(c.roleAssignments),
+          version: c.version,
         }))}
       />
     </div>

@@ -55,3 +55,30 @@ export function computeWatchState(opts: {
   }
   return { timeSpent, videoWatched: opts.alreadyWatched || videoWatched };
 }
+
+/**
+ * How far the position may legitimately move between two samples.
+ *
+ * A flat allowance was the bug: six seconds of slack per seek meant you could
+ * nudge forward six seconds at a time, indefinitely, and the client recorded
+ * every nudge as watched. It also wasn't what the rule was meant to be — going
+ * back should always be free, going forward should never outrun real time
+ * except by playing faster.
+ *
+ * So measure it: position may advance by at most the wall-clock time since the
+ * last sample, times the playback rate, plus a small margin for timer jitter and
+ * buffering. Sampling is every ~250ms (uploaded) or 1000ms (embeds), so honest
+ * playback stays well inside it while a seek does not.
+ *
+ * `sinceMs` is capped because a paused or backgrounded tab keeps wall-clock
+ * running while the video doesn't; without the cap that idle time would bank up
+ * into an allowance a single forward jump could spend.
+ */
+export const JITTER_SECONDS = 1;
+export const MAX_SAMPLE_GAP_MS = 2000;
+
+export function allowedAdvance(sinceMs: number | null, rate: number): number {
+  if (sinceMs === null) return JITTER_SECONDS; // first sample, or resumed from a pause
+  const speed = Math.min(Math.max(rate || 1, 1), MAX_PLAYBACK_SPEED);
+  return (Math.min(sinceMs, MAX_SAMPLE_GAP_MS) / 1000) * speed + JITTER_SECONDS;
+}

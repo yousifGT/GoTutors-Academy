@@ -48,6 +48,7 @@ export default async function AdminCoursesPage() {
           modules: c._count.modules,
           enrollments: c._count.enrollments,
           audience: compactAssignments(c.roleAssignments),
+          version: c.version,
           author: c.author.name,
         }))}
       />

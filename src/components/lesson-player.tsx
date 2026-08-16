@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
+import { allowedAdvance, SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/page-ui";
 
@@ -285,7 +285,7 @@ function VideoEmbed({
 // and the video could never progress. The server's 2x-of-real-time cap
 // (computeWatchState) is the authoritative anti-skip guard; this is just the
 // client-side snap-back for genuine large jumps.
-const SEEK_TOLERANCE = 6;
+
 
 /**
  * Notice shown when a skip is snapped back or an end-jump is resumed. Without
@@ -311,10 +311,16 @@ function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const [progressPct, setProgressPct] = useState(0);
   const { notice, show } = useSkipNotice();
 
+  // Wall clock of the last accepted sample; null while paused or not started, so
+  // idle time can't bank up into an allowance.
+  const lastSampleAt = useRef<number | null>(null);
+
   function clampSeek() {
     const v = ref.current;
     if (!v || done) return false;
-    if (v.currentTime > maxWatched.current + SEEK_TOLERANCE) {
+    // Backwards is always free, and maxWatched never decreases.
+    if (v.currentTime <= maxWatched.current) return false;
+    if (v.currentTime > maxWatched.current + allowedAdvance(lastSampleAt.current === null ? null : Date.now() - lastSampleAt.current, v.playbackRate)) {
       v.currentTime = maxWatched.current;
       show();
       return true;
@@ -325,6 +331,7 @@ function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
     const v = ref.current;
     if (!v) return;
     if (clampSeek()) return;
+    lastSampleAt.current = Date.now();
     maxWatched.current = Math.max(maxWatched.current, v.currentTime);
     onReport(maxWatched.current, v.duration || 0);
     const pct = (maxWatched.current / Math.max(1, v.duration)) * 100;
@@ -351,6 +358,8 @@ function UploadedVideo({ url, done, onReport, onReachedEnd }: PlayerProps) {
         controls
         controlsList="nodownload"
         onSeeking={clampSeek}
+        onPlay={() => { lastSampleAt.current = Date.now(); }}
+        onPause={() => { lastSampleAt.current = null; }}
         onTimeUpdate={handleTimeUpdate}
         onEnded={handleEnded}
         className="w-full rounded-xl bg-black aspect-video"
@@ -374,6 +383,7 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const maxWatched = useRef(0);
+  const lastSampleAt = useRef<number | null>(null);
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
   const { notice, show } = useSkipNotice();
@@ -403,7 +413,11 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
               const dur = p.getDuration();
               const cur = p.getCurrentTime();
               if (dur <= 0) return;
-              if (!doneRef.current && cur > maxWatched.current + SEEK_TOLERANCE) {
+              // Paused counts as no elapsed time, so a pause can't bank an allowance.
+              const playing = p.getPlayerState?.() === 1;
+              const sinceMs = playing && lastSampleAt.current !== null ? Date.now() - lastSampleAt.current : null;
+              const rate = p.getPlaybackRate?.() ?? 1;
+              if (!doneRef.current && cur > maxWatched.current + allowedAdvance(sinceMs, rate)) {
                 p.seekTo(maxWatched.current, true);
                 // A seek from the ENDED state doesn't restart playback by
                 // itself — the player would sit stranded on the end frame.
@@ -411,6 +425,7 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
                 showRef.current();
                 return;
               }
+              lastSampleAt.current = playing ? Date.now() : null;
               maxWatched.current = Math.max(maxWatched.current, cur);
               reportRef.current(maxWatched.current, dur);
               const next = (maxWatched.current / dur) * 100;
@@ -470,6 +485,7 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
 function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const maxWatched = useRef(0);
+  const lastSampleAt = useRef<number | null>(null);
   const durRef = useRef(0);
   const reached = useRef(false);
   const [pct, setPct] = useState(0);
@@ -497,11 +513,13 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
           const secs = data.data.seconds ?? 0;
           const dur = data.data.duration ?? 0;
           if (dur > 0) durRef.current = dur;
-          if (!doneRef.current && secs > maxWatched.current + SEEK_TOLERANCE) {
+          const sinceMs = lastSampleAt.current === null ? null : Date.now() - lastSampleAt.current;
+          if (!doneRef.current && secs > maxWatched.current + allowedAdvance(sinceMs, 1)) {
             post({ method: "setCurrentTime", value: maxWatched.current });
             showRef.current();
             return;
           }
+          lastSampleAt.current = Date.now();
           maxWatched.current = Math.max(maxWatched.current, secs);
           reportRef.current(maxWatched.current, dur);
           const p = dur > 0 ? (maxWatched.current / dur) * 100 : 0;
