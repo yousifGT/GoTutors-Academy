@@ -5,7 +5,13 @@ import { useState } from "react";
  * Change your own password. Used voluntarily from the profile, and on the forced
  * screen after an admin has set a temporary one.
  */
-export function PasswordChangeForm({ onDone, autoFocus = false }: { onDone?: () => void; autoFocus?: boolean }) {
+export function PasswordChangeForm({
+  onDone,
+  autoFocus = false,
+}: {
+  onDone?: () => void | Promise<void>;
+  autoFocus?: boolean;
+}) {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -34,7 +40,7 @@ export function PasswordChangeForm({ onDone, autoFocus = false }: { onDone?: () 
     }
     setDone(true);
     setCurrent(""); setNext(""); setConfirm("");
-    onDone?.();
+    await onDone?.();
   }
 
   if (done && !onDone) {
