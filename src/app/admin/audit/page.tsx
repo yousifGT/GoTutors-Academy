@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { formatDate, timeAgo } from "@/lib/utils";
 import { PageHeader, EmptyState, Avatar } from "@/components/page-ui";
-import { auditDetail, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
+import { actionLabel, auditDetail, auditFacts, describeTarget, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
 import Link from "next/link";
 
 export default async function AuditPage() {
@@ -30,6 +30,8 @@ export default async function AuditPage() {
               const a = l.actorId ? actorMap.get(l.actorId) : undefined;
               const targetUser = looksLikeUserId(l.target) ? actorMap.get(l.target!) : undefined;
               const detail = auditDetail(l.metadata);
+              const target = describeTarget(l.action, l.target);
+              const facts = auditFacts(l.metadata);
               return (
                 <tr key={l.id}>
                   <td className="whitespace-nowrap text-xs text-[var(--muted)]" title={formatDate(l.createdAt)}>{timeAgo(l.createdAt)}</td>
@@ -42,19 +44,32 @@ export default async function AuditPage() {
                       </div>
                     </div>
                   ) : <span className="text-[var(--muted)]">—</span>}</td>
-                  <td><span className="gt-badge bg-magenta/15 text-magenta">{l.action}</span></td>
+                  <td><span className="gt-badge bg-magenta/15 text-magenta" title={l.action}>{actionLabel(l.action)}</span></td>
                   <td>
                     {targetUser ? (
                       <Link href={`/admin/users?q=${encodeURIComponent(targetUser.email)}`} className="font-medium hover:text-picton transition">
                         {targetUser.name}
                         <span className="block text-xs font-normal text-[var(--muted)]">{targetUser.email}</span>
                       </Link>
+                    ) : target ? (
+                      <>
+                        <span className="font-medium">{target.label}</span>
+                        {target.qualifier && (
+                          <span className="block text-xs font-normal text-[var(--muted)]">{target.qualifier}</span>
+                        )}
+                      </>
                     ) : (
-                      l.target ?? "—"
+                      "—"
                     )}
                     {detail && <span className="ml-2 gt-badge bg-picton/15 text-picton">{detail}</span>}
                   </td>
-                  <td className="max-w-[18rem] truncate font-mono text-xs text-[var(--muted)]" title={l.metadata ? JSON.stringify(l.metadata) : undefined}>{l.metadata ? JSON.stringify(l.metadata) : "—"}</td>
+                  {/* Readable facts first; the full blob stays in the tooltip as the forensic record. */}
+                  <td
+                    className="max-w-[18rem] text-xs text-[var(--muted)]"
+                    title={l.metadata ? JSON.stringify(l.metadata) : undefined}
+                  >
+                    {facts.length ? facts.join(" · ") : "—"}
+                  </td>
                 </tr>
               );
             })}

@@ -70,3 +70,15 @@ export const zPassword = z
   .string()
   .min(6, "Password must be at least 6 characters")
   .max(200, "Password is too long (max 200 characters)");
+
+/**
+ * A name for something people pick from a list — a role, a sub-position.
+ *
+ * `min(1)` accepted a single comma, and one got created. It cascades into
+ * `subPositions` arrays, course assignments and audit targets, where it reads as
+ * corruption rather than as a name. Requiring one letter or digit costs nothing
+ * and keeps punctuation-only names out.
+ */
+export const zPositionName = zName.refine((v) => /[\p{L}\p{N}]/u.test(v), {
+  message: "Name must contain at least one letter or number",
+});

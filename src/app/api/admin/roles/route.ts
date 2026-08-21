@@ -6,10 +6,10 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
-import { parseJson } from "@/lib/validate";
+import { parseJson, zPositionName } from "@/lib/validate";
 
 const RoleSchema = z.object({
-  name: z.string().trim().min(1).max(200),
+  name: zPositionName,
   type: z.enum(["SUPER_ADMIN", "CENTRE_ADMIN", "INSTRUCTOR", "TRAINEE"]),
   description: z.string().max(1000).nullish(),
 });

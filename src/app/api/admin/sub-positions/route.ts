@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
-import { parseJson, zId } from "@/lib/validate";
+import { parseJson, zId, zPositionName } from "@/lib/validate";
 
-const SubPositionSchema = z.object({ roleId: zId, name: z.string().trim().min(1).max(200) });
+const SubPositionSchema = z.object({ roleId: zId, name: zPositionName });
 
 export async function POST(req: Request) {
   const csrf = assertSameOrigin(req);
@@ -28,7 +28,10 @@ export async function POST(req: Request) {
     await audit({
       actorId: session.user.id,
       action: "sub-position.create",
-      target: `${role.name}:${sp.name}`,
+      // Same `kind:value` shape as every other target, with the role in metadata
+      // rather than concatenated into the string.
+      target: `sub-position:${sp.name}`,
+      metadata: { role: role.name },
     });
     return NextResponse.json({ id: sp.id });
   } catch (e: any) {

@@ -5,11 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
-import { parseJson } from "@/lib/validate";
+import { parseJson, zPositionName } from "@/lib/validate";
 
 const RoleUpdateSchema = z
   .object({
-    name: z.string().trim().min(1).max(200).optional(),
+    name: zPositionName.optional(),
     description: z.string().max(1000).optional(),
   })
   .refine((d) => d.name !== undefined || d.description !== undefined, {

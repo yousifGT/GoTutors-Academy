@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { parseJson, zPassword, zEmail } from "./validate";
+import { parseJson, zPassword, zEmail, zPositionName } from "./validate";
 
 function jsonReq(body: unknown) {
   return new Request("https://app.test/api/x", {
@@ -91,5 +91,19 @@ describe("field messages reaching users", () => {
       expect(payload.error).toMatch(/password:/);
       expect(payload.error).toMatch(/email:/);
     }
+  });
+});
+
+describe("zPositionName", () => {
+  it("accepts a real name", () => {
+    expect(zPositionName.safeParse("Maths Trainee").success).toBe(true);
+    expect(zPositionName.safeParse("Year 11").success).toBe(true);
+  });
+
+  // The name that got created and then read as `Trainee:,` in the audit log.
+  it("refuses a punctuation-only name", () => {
+    expect(zPositionName.safeParse(",").success).toBe(false);
+    expect(zPositionName.safeParse("--").success).toBe(false);
+    expect(zPositionName.safeParse("   ").success).toBe(false);
   });
 });

@@ -5,9 +5,9 @@ import { prisma } from "@/lib/prisma";
 import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
-import { parseJson } from "@/lib/validate";
+import { parseJson, zPositionName } from "@/lib/validate";
 
-const RenameSchema = z.object({ name: z.string().trim().min(1).max(200) });
+const RenameSchema = z.object({ name: zPositionName });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const csrf = assertSameOrigin(req);
@@ -55,7 +55,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   await audit({
     actorId: session.user.id,
     action: "sub-position.rename",
-    target: `${existing.role.name}:${existing.name} → ${newName}`,
+    target: `sub-position:${existing.name} → ${newName}`,
+    metadata: { role: existing.role.name },
   });
   return NextResponse.json({ ok: true });
 }
@@ -88,7 +89,8 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   await audit({
     actorId: session.user.id,
     action: "sub-position.delete",
-    target: `${sp.role.name}:${sp.name}`,
+    target: `sub-position:${sp.name}`,
+    metadata: { role: sp.role.name },
   });
   return NextResponse.json({ ok: true });
 }

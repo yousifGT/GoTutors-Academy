@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { timeAgo } from "@/lib/utils";
-import { auditDetail, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
+import { actionLabel, auditDetail, describeTarget, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, type AttentionItem, type FeedItem } from "@/components/page-ui";
 
 /** Action-first super-admin dashboard: platform-wide blockers, broken courses and live activity. */
@@ -145,14 +145,15 @@ export default async function AdminDashboard() {
             {auditEntries.map((l) => {
               const who = looksLikeUserId(l.target) ? auditPeople.get(l.target!) : undefined;
               const detail = auditDetail(l.metadata);
+              const target = describeTarget(l.action, l.target);
               return (
                 <div key={l.id} className="flex items-center gap-3 px-4 py-2.5 text-sm">
-                  <span className="gt-badge bg-magenta/15 text-magenta shrink-0">{l.action}</span>
+                  <span className="gt-badge bg-magenta/15 text-magenta shrink-0" title={l.action}>{actionLabel(l.action)}</span>
                   <span className="min-w-0 flex-1 truncate">
                     {who ? (
                       <Link href={`/admin/users?q=${encodeURIComponent(who.email)}`} className="hover:text-picton transition">{who.name}</Link>
                     ) : (
-                      l.target ?? "—"
+                      target?.label ?? "—"
                     )}
                     {detail && <span className="ml-2 text-xs text-[var(--muted)]">{detail}</span>}
                   </span>
