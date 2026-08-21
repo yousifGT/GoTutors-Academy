@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { effectiveSubPositions } from "@/lib/sub-positions";
+import { effectiveSubPositions, tutorTitleFor, tutoredFieldNames } from "@/lib/sub-positions";
 
 /** The trainee sub-positions a course counts towards (its trainee-targeted assignments). */
 export async function courseTraineeFields(courseId: string): Promise<string[]> {
@@ -23,7 +23,13 @@ export async function recomputeIsTrainedForFields(fields: string[]): Promise<num
   const users = await prisma.user.findMany({
     where: {
       role: { type: { in: ["TRAINEE", "INSTRUCTOR"] } },
-      OR: [{ subPositions: { hasSome: names } }, { subPosition: { in: names } }],
+      OR: [
+        { subPositions: { hasSome: names } },
+        { subPosition: { in: names } },
+        // Tutors of these fields too — their requirement just changed, which is
+        // the whole point of the lapse rule. teacherPositions stores the title.
+        { teacherPositions: { hasSome: names.map(tutorTitleFor) } },
+      ],
     },
     select: { id: true },
   });
@@ -48,30 +54,50 @@ export async function recomputeIsTrained(userId: string): Promise<boolean> {
   if (!user || (user.role.type !== "TRAINEE" && user.role.type !== "INSTRUCTOR")) {
     return user?.isTrained ?? false;
   }
-  const subPositions = effectiveSubPositions(user);
-  if (subPositions.length === 0) return user.isTrained;
+  // Fields still in training PLUS fields already tutored.
+  //
+  // Reading only subPositions left the flag permanently stuck. A fully promoted
+  // person has an EMPTY subPositions array — every field moved into
+  // teacherPositions — so this returned early on exactly the population whose
+  // requirements can still change underneath them. Publish a new course in a
+  // field they tutor and the per-field status correctly reported "retraining"
+  // while this flag went on claiming "Trained" forever, with no way to clear it.
+  const knownFields = (await prisma.subPosition.findMany({ select: { name: true } })).map((r) => r.name);
+  const fields = [
+    ...new Set([...effectiveSubPositions(user), ...tutoredFieldNames(user.teacherPositions ?? [], knownFields)]),
+  ];
+  if (fields.length === 0) return user.isTrained;
 
-  // Every published course assigned to any of their sub-positions. Matched by
-  // sub-position name across trainee-type roles (not the user's exact roleId),
-  // so moving between rungs (Trainee → Tutor) never breaks the count.
+  // Every published course assigned to any of those fields. Matched by field
+  // name across trainee-type roles (not the user's exact roleId), so moving
+  // between rungs (Trainee → Tutor) never breaks the count.
   const required = await prisma.course.findMany({
     where: {
       published: true,
-      roleAssignments: { some: { role: { type: "TRAINEE" }, subPosition: { in: subPositions } } },
+      roleAssignments: { some: { role: { type: "TRAINEE" }, subPosition: { in: fields } } },
     },
-    select: { id: true },
+    select: { id: true, minCertifiedVersion: true },
   });
 
   if (required.length === 0) {
-    // No courses defined for this sub-position — leave as-is.
+    // No courses defined for these fields — leave as-is.
     return user.isTrained;
   }
 
-  const heldCerts = await prisma.certificate.count({
+  // A certificate only counts if it was earned against a version that still
+  // stands — the same rule field-training.ts applies, so this flag and the
+  // per-field status can no longer disagree. A null version predates versioning,
+  // so it reads as 0 and is superseded by any raised floor.
+  const certs = await prisma.certificate.findMany({
     where: { userId, courseId: { in: required.map((c) => c.id) } },
+    select: { courseId: true, courseVersion: true },
   });
+  const versionByCourse = new Map(certs.map((c) => [c.courseId, c.courseVersion]));
+  const held = required.filter(
+    (c) => versionByCourse.has(c.id) && (versionByCourse.get(c.id) ?? 0) >= c.minCertifiedVersion
+  );
 
-  const trained = heldCerts === required.length;
+  const trained = held.length === required.length;
   if (trained !== user.isTrained) {
     await prisma.user.update({ where: { id: userId }, data: { isTrained: trained } });
   }

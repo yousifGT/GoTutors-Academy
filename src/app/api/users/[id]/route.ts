@@ -58,15 +58,21 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           ? [body.subPosition]
           : []
         : undefined;
+  // The role this save leaves them holding. Resolved once: the field check and
+  // the last-super-admin guard below both need it, and looking it up also turns
+  // a bad roleId into a 400 instead of an unhandled 500 from the write.
+  let desiredRoleType: RoleType = target.role.type;
+  if (body.roleId !== undefined && body.roleId !== target.roleId) {
+    const desiredRole = await prisma.role.findUnique({ where: { id: body.roleId }, select: { type: true } });
+    if (!desiredRole) return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    desiredRoleType = desiredRole.type;
+  }
+
   if (subs && subs.length > 0) {
     // Training fields only mean anything on a trainee-typed role. The old
     // role-scoped name lookup enforced that as a side effect; keep the
     // invariant explicitly now that names resolve across roles, so field names
     // can't be parked on an instructor or admin account.
-    const desiredRoleType =
-      body.roleId !== undefined && body.roleId !== target.roleId
-        ? (await prisma.role.findUnique({ where: { id: body.roleId }, select: { type: true } }))?.type
-        : target.role.type;
     if (desiredRoleType !== RoleType.TRAINEE) {
       return NextResponse.json(
         { error: "Training fields only apply to trainee roles", details: { subPositions: subs } },
@@ -94,6 +100,29 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const changingCentre = body.centreId !== undefined && (body.centreId ?? null) !== target.centreId;
   if (!isSuper && (changingRole || changingTrained || changingCentre)) {
     return NextResponse.json({ error: "Only super admins can change role, training status, or centre" }, { status: 403 });
+  }
+
+  // Deactivating or demoting the last super admin locks everyone out of the
+  // platform, and nothing in the product can undo it — a centre admin can only
+  // touch trainees, and the permissions API refuses self-edits. Recovery needs
+  // shell access. DELETE guards this invariant in two places; PATCH reached the
+  // same state through an unconfirmed row action.
+  const deactivating = body.active === false && target.active;
+  const losingSuper = target.role.type === RoleType.SUPER_ADMIN && desiredRoleType !== RoleType.SUPER_ADMIN;
+  if (deactivating && params.id === session.user.id) {
+    return NextResponse.json({ error: "You cannot deactivate your own account" }, { status: 400 });
+  }
+  if (target.role.type === RoleType.SUPER_ADMIN && (deactivating || losingSuper)) {
+    // Count only ACTIVE admins — a deactivated one cannot sign in to help.
+    const others = await prisma.user.count({
+      where: { role: { type: RoleType.SUPER_ADMIN }, active: true, id: { not: params.id } },
+    });
+    if (others === 0) {
+      return NextResponse.json(
+        { error: "This is the last active super admin — create another before changing this account" },
+        { status: 409 }
+      );
+    }
   }
 
   // Reject a duplicate email up front so the form can show a field error

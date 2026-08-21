@@ -65,7 +65,20 @@ function describeFieldErrors(fieldErrors: Record<string, string[] | undefined>):
  */
 export const zId = z.string().min(1).max(100);
 export const zName = z.string().trim().min(1, "A name is required").max(200, "Name is too long (max 200 characters)");
-export const zEmail = z.string().trim().email("That doesn't look like a valid email address").max(320);
+/**
+ * Sign-in lowercases the address and looks it up exactly, against a
+ * case-sensitive unique column. Creating a user folded the case; editing one did
+ * not — so saving "Name@Example.com" locked that person out of their account
+ * permanently, with "Invalid email or password" and no way to self-recover.
+ * Folding here fixes the write, the duplicate pre-check and the unique
+ * constraint in one place, for both routes.
+ */
+export const zEmail = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .email("That doesn't look like a valid email address")
+  .max(320);
 export const zPassword = z
   .string()
   .min(6, "Password must be at least 6 characters")

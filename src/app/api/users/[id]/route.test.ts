@@ -244,3 +244,56 @@ describe("PATCH /api/users/[id] recomputes training status", () => {
     expect(syncEnrol).not.toHaveBeenCalled();
   });
 });
+
+describe("PATCH /api/users/[id] protects the last super admin", () => {
+  const superAdmin = { user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } };
+  const superTarget = {
+    id: "u1", email: "boss@x.com", roleId: "superRole", isTrained: false,
+    centreId: null, active: true, role: { type: "SUPER_ADMIN" },
+  };
+
+  it("refuses to deactivate the last active super admin", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue(superTarget);
+    db.user.count.mockResolvedValue(0); // no other ACTIVE super admin
+    const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("refuses to demote the last active super admin", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue(superTarget);
+    db.role.findUnique.mockResolvedValue({ type: "TRAINEE" });
+    db.user.count.mockResolvedValue(0);
+    const res = await PATCH(patchReq({ roleId: "traineeRole" }), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("allows it when another active super admin remains", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue(superTarget);
+    db.user.count.mockResolvedValue(1);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+  });
+
+  it("refuses self-deactivation outright", async () => {
+    session.mockResolvedValue({ user: { id: "u1", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ ...superTarget, id: "u1" });
+    const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
+    expect(res.status).toBe(400);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("400s an unknown roleId instead of throwing on the write", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, active: true, role: { type: "TRAINEE" } });
+    db.role.findUnique.mockResolvedValue(null);
+    const res = await PATCH(patchReq({ roleId: "ghost" }), { params: { id: "u1" } });
+    expect(res.status).toBe(400);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+});

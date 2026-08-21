@@ -2,9 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { allowedAdvance, SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
+import { allowedAdvance, MAX_PLAYBACK_SPEED, SERVER_WATCH_FRACTION } from "@/lib/watch-progress";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/page-ui";
+
+/** YouTube exposes no time events, so the position is polled on this interval. */
+const YT_POLL_MS = 1000;
 
 type AttemptRow = { id: string; score: number; passed: boolean; createdAt: Date | string; locked: boolean; needsReview?: boolean };
 type SafeAnswer = { id: string; text: string };
@@ -415,7 +418,16 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
               if (dur <= 0) return;
               // Paused counts as no elapsed time, so a pause can't bank an allowance.
               const playing = p.getPlayerState?.() === 1;
-              const sinceMs = playing && lastSampleAt.current !== null ? Date.now() - lastSampleAt.current : null;
+              // A resume has no previous sample, and the flat jitter allowance
+              // for that case ignores the playback rate — so at 2x the first
+              // tick after every pause saw ~2s of honest playback against a 1s
+              // budget, snapped back, and returned before re-anchoring, leaving
+              // the video pinned for the rest of the session. Treat a resume as
+              // one poll interval instead. A scrub made while paused is still
+              // refused: 60s of jump against a 3s budget at 2x.
+              const sinceMs = playing
+                ? (lastSampleAt.current === null ? YT_POLL_MS : Date.now() - lastSampleAt.current)
+                : null;
               const rate = p.getPlaybackRate?.() ?? 1;
               if (!doneRef.current && cur > maxWatched.current + allowedAdvance(sinceMs, rate)) {
                 p.seekTo(maxWatched.current, true);
@@ -423,6 +435,9 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
                 // itself — the player would sit stranded on the end frame.
                 if (p.getPlayerState?.() === 0) p.playVideo?.();
                 showRef.current();
+                // Re-anchor even on refusal, so one trip can't strand the
+                // next sample with a null anchor all over again.
+                lastSampleAt.current = playing ? Date.now() : null;
                 return;
               }
               lastSampleAt.current = playing ? Date.now() : null;
@@ -431,7 +446,7 @@ function YouTubeEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
               const next = (maxWatched.current / dur) * 100;
               setPct(next);
               if (next >= 95 && !reached.current) { reached.current = true; reachedEndRef.current(); }
-            }, 1000);
+            }, YT_POLL_MS);
           },
           onStateChange: (e: any) => {
             if (e.data !== 0) return; // 0 = ENDED
@@ -514,7 +529,12 @@ function VimeoEmbed({ url, done, onReport, onReachedEnd }: PlayerProps) {
           const dur = data.data.duration ?? 0;
           if (dur > 0) durRef.current = dur;
           const sinceMs = lastSampleAt.current === null ? null : Date.now() - lastSampleAt.current;
-          if (!doneRef.current && secs > maxWatched.current + allowedAdvance(sinceMs, 1)) {
+          // Vimeo reports no playback rate over postMessage, so assume the
+          // permitted ceiling rather than 1x — hardcoding 1 snapped legitimate
+          // 2x playback back. A real scrub is still refused: timeupdate fires
+          // several times a second, so the budget stays a fraction of a jump,
+          // and the server-side cap is the actual anti-cheat.
+          if (!doneRef.current && secs > maxWatched.current + allowedAdvance(sinceMs, MAX_PLAYBACK_SPEED)) {
             post({ method: "setCurrentTime", value: maxWatched.current });
             showRef.current();
             return;

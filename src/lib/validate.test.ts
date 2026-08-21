@@ -107,3 +107,17 @@ describe("zPositionName", () => {
     expect(zPositionName.safeParse("   ").success).toBe(false);
   });
 });
+
+describe("zEmail", () => {
+  // Sign-in lowercases before an exact-match lookup, so a stored capital letter
+  // locked the account out for good.
+  it("folds the address to lower case", () => {
+    const r = zEmail.safeParse("  Name.Surname@GoTutors.com ");
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data).toBe("name.surname@gotutors.com");
+  });
+
+  it("still rejects a non-address", () => {
+    expect(zEmail.safeParse("NOPE").success).toBe(false);
+  });
+});
