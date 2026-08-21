@@ -10,6 +10,7 @@ import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
 import { canManageUser } from "@/lib/scope";
 import { recomputeIsTrained } from "@/lib/training";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
+import { unknownFieldsError, unknownTrainingFields } from "@/lib/training-fields";
 
 /** Thrown inside the delete transaction to roll back when no other admin remains. */
 class LastSuperAdminError extends Error {}
@@ -47,7 +48,6 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
-  const desiredRoleId = body.roleId ?? target.roleId;
   // The multi-select form sends subPositions[]; older clients may still send
   // the single subPosition. Validate whichever names are being set.
   const subs =
@@ -59,9 +59,28 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           : []
         : undefined;
   if (subs && subs.length > 0) {
-    const found = await prisma.subPosition.count({ where: { roleId: desiredRoleId, name: { in: subs } } });
-    if (found !== subs.length)
-      return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
+    // Training fields only mean anything on a trainee-typed role. The old
+    // role-scoped name lookup enforced that as a side effect; keep the
+    // invariant explicitly now that names resolve across roles, so field names
+    // can't be parked on an instructor or admin account.
+    const desiredRoleType =
+      body.roleId !== undefined && body.roleId !== target.roleId
+        ? (await prisma.role.findUnique({ where: { id: body.roleId }, select: { type: true } }))?.type
+        : target.role.type;
+    if (desiredRoleType !== RoleType.TRAINEE) {
+      return NextResponse.json(
+        { error: "Training fields only apply to trainee roles", details: { subPositions: subs } },
+        { status: 400 }
+      );
+    }
+
+    const unknown = await unknownTrainingFields(subs);
+    if (unknown.length) {
+      return NextResponse.json(
+        { error: unknownFieldsError(unknown), details: { subPositions: unknown } },
+        { status: 400 }
+      );
+    }
   }
 
   // Only super admins may change a user's role, training status, or centre.

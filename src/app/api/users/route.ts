@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
+import { unknownFieldsError, unknownTrainingFields } from "@/lib/training-fields";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
 
 const CreateUserSchema = z.object({
@@ -43,9 +44,21 @@ export async function POST(req: Request) {
   }
 
   if (subs.length > 0) {
-    const found = await prisma.subPosition.count({ where: { roleId, name: { in: subs } } });
-    if (found !== subs.length)
-      return NextResponse.json({ error: "Sub-position does not exist for this role" }, { status: 400 });
+    // Same resolution as the edit path and as auto-enrol: fields are matched by
+    // name across trainee-typed roles, not scoped to the account's own role.
+    if (role.type !== "TRAINEE") {
+      return NextResponse.json(
+        { error: "Training fields only apply to trainee roles", details: { subPositions: subs } },
+        { status: 400 }
+      );
+    }
+    const unknown = await unknownTrainingFields(subs);
+    if (unknown.length) {
+      return NextResponse.json(
+        { error: unknownFieldsError(unknown), details: { subPositions: unknown } },
+        { status: 400 }
+      );
+    }
   }
 
   // centre admins can only create users in their own centre

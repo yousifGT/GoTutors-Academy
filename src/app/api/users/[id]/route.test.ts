@@ -9,7 +9,8 @@ const db = vi.hoisted(() => ({
     delete: vi.fn(),
     update: vi.fn(),
   },
-  subPosition: { findFirst: vi.fn(), count: vi.fn() },
+  subPosition: { findFirst: vi.fn(), count: vi.fn(), findMany: vi.fn() },
+  role: { findUnique: vi.fn() },
   $transaction: vi.fn(),
 }));
 
@@ -160,7 +161,7 @@ describe("PATCH /api/users/[id] recomputes training status", () => {
   it("recomputes isTrained and syncs enrolments when the sub-positions change", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
     db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, subPosition: "Maths Tutor", role: { type: "TRAINEE" } });
-    db.subPosition.count.mockResolvedValue(1);
+    db.subPosition.findMany.mockResolvedValue([{ name: "Science Tutor" }]);
     db.user.update.mockResolvedValue({ id: "u1" });
     const res = await PATCH(patchReq({ subPositions: ["Science Tutor"] }), { params: { id: "u1" } });
     expect(res.status).toBe(200);
@@ -171,7 +172,7 @@ describe("PATCH /api/users/[id] recomputes training status", () => {
   it("accepts the legacy single subPosition field and mirrors it into the array", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
     db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, subPosition: "Maths Tutor", role: { type: "TRAINEE" } });
-    db.subPosition.count.mockResolvedValue(1);
+    db.subPosition.findMany.mockResolvedValue([{ name: "Science Tutor" }]);
     db.user.update.mockResolvedValue({ id: "u1" });
     const res = await PATCH(patchReq({ subPosition: "Science Tutor" }), { params: { id: "u1" } });
     expect(res.status).toBe(200);
@@ -181,11 +182,53 @@ describe("PATCH /api/users/[id] recomputes training status", () => {
     });
   });
 
-  it("400s when a sub-position does not exist for the role", async () => {
+  it("400s and names the field that does not exist", async () => {
     session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
     db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "TRAINEE" } });
-    db.subPosition.count.mockResolvedValue(1); // only 1 of the 2 names exists
+    db.subPosition.findMany.mockResolvedValue([{ name: "Science Tutor" }]); // "Nope" is absent
     const res = await PATCH(patchReq({ subPositions: ["Science Tutor", "Nope"] }), { params: { id: "u1" } });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("Nope");
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  // The bug that made every promoted tutor uneditable: fields live on the
+  // Trainee role, but a promoted person sits on the bare Tutor role, so a
+  // lookup scoped to their own role always came back empty.
+  it("saves a promoted tutor whose remaining field belongs to another trainee-type role", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({
+      id: "u1", email: "t@x.com", roleId: "tutorRole", isTrained: false, centreId: null,
+      subPositions: ["Science Trainee"], role: { type: "TRAINEE" },
+    });
+    db.subPosition.findMany.mockResolvedValue([{ name: "Science Trainee" }]);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(
+      patchReq({ phone: "07000 000000", roleId: "tutorRole", subPositions: ["Science Trainee"] }),
+      { params: { id: "u1" } }
+    );
+    expect(res.status).toBe(200);
+    // The query must not be scoped by roleId — that scoping was the defect.
+    const where = db.subPosition.findMany.mock.calls[0][0].where;
+    expect(where.roleId).toBeUndefined();
+    expect(where.role).toEqual({ type: "TRAINEE" });
+  });
+
+  it("refuses training fields on a non-trainee role", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "i@x.com", roleId: "r1", isTrained: false, centreId: null, role: { type: "INSTRUCTOR" } });
+    const res = await PATCH(patchReq({ subPositions: ["Science Trainee"] }), { params: { id: "u1" } });
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toContain("trainee roles");
+    expect(db.subPosition.findMany).not.toHaveBeenCalled();
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("checks the role being moved TO, not the one being left", async () => {
+    session.mockResolvedValue({ user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", email: "t@x.com", roleId: "traineeRole", isTrained: false, centreId: null, role: { type: "TRAINEE" } });
+    db.role.findUnique.mockResolvedValue({ type: "INSTRUCTOR" });
+    const res = await PATCH(patchReq({ roleId: "instructorRole", subPositions: ["Science Trainee"] }), { params: { id: "u1" } });
     expect(res.status).toBe(400);
     expect(db.user.update).not.toHaveBeenCalled();
   });
