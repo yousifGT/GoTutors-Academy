@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Avatar } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { tutorTitleFor } from "@/lib/sub-positions";
+import { certificateDateLabel } from "@/lib/field-view";
 import { formatDate, timeAgo } from "@/lib/utils";
 
 type Overview = {
@@ -350,7 +351,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                         </div>
                         {f.lastCertifiedAt && (
                           <div className="mt-1.5 text-[11px] text-[var(--muted)]">
-                            {f.retraining ? "Last qualified" : "Qualified"} {new Date(f.lastCertifiedAt).toLocaleDateString()}
+                            {certificateDateLabel(f)} {new Date(f.lastCertifiedAt).toLocaleDateString()}
                           </div>
                         )}
                       </div>
