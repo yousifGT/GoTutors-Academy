@@ -22,6 +22,8 @@ export function UserEditForm({
     phone: string | null;
     position: string | null;
     subPositions: string[];
+    /** Tutor titles already earned. Read-only here — promotion writes them. */
+    teacherPositions: string[];
     isTrained: boolean;
     active: boolean;
     roleId: string;
@@ -42,7 +44,26 @@ export function UserEditForm({
 
   const role = roles.find((r) => r.id === form.roleId);
   const isTrainee = role?.type === "TRAINEE";
-  const subsForRole = useMemo(() => subPositions.filter((s) => s.roleId === form.roleId), [subPositions, form.roleId]);
+
+  /**
+   * Training fields, offered regardless of which role the person currently holds.
+   *
+   * This used to list only the selected role's own sub-positions. That works
+   * while someone is a Trainee and breaks the moment they're promoted: the Tutor
+   * role has no sub-positions of its own, so a tutor still training in two more
+   * fields saw an empty box — their remaining training invisible and impossible
+   * to change. Fields belong to the Trainee role by design (promotion moves the
+   * person to Tutor and leaves the field names behind in subPositions), so
+   * that's where the list has to come from.
+   */
+  const fieldOptions = useMemo(() => {
+    const traineeRoleIds = new Set(roles.filter((r) => r.type === "TRAINEE").map((r) => r.id));
+    const byName = new Map<string, SP>();
+    for (const s of subPositions) {
+      if (traineeRoleIds.has(s.roleId) && !byName.has(s.name)) byName.set(s.name, s);
+    }
+    return [...byName.values()];
+  }, [subPositions, roles]);
 
   function toggleSub(name: string) {
     setForm((f) => ({
@@ -120,7 +141,11 @@ export function UserEditForm({
           </div>
           <div>
             <label className="gt-label">Role</label>
-            <select className="gt-input" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value, subPositions: [] })}>
+            {/* Switching role no longer clears the field selection: the save
+                already drops sub-positions for a non-trainee role, and clearing
+                here silently destroyed a tutor's remaining training if you
+                touched the dropdown and changed your mind. */}
+            <select className="gt-input" value={form.roleId} onChange={(e) => setForm({ ...form, roleId: e.target.value })}>
               {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
             {scope === "admin" && (
@@ -130,15 +155,37 @@ export function UserEditForm({
           {isTrainee ? (
             <>
               <div>
-                <label className="gt-label">Sub-positions</label>
-                <div className="flex flex-wrap gap-2">
-                  {subsForRole.map((s) => (
-                    <Pill key={s.id} tone="magenta" selected={form.subPositions.includes(s.name)} onToggle={() => toggleSub(s.name)}>
-                      {s.name}
-                    </Pill>
-                  ))}
-                </div>
-                <p className="text-xs text-[var(--muted)] mt-1">The trainee is automatically enrolled in every published course assigned to any of these sub-positions.</p>
+                <label className="gt-label">In training</label>
+                {fieldOptions.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">
+                    No training fields exist yet — add them under the Trainee role on Roles &amp; sub-positions.
+                  </p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {fieldOptions.map((s) => (
+                      <Pill key={s.id} tone="magenta" selected={form.subPositions.includes(s.name)} onToggle={() => toggleSub(s.name)}>
+                        {s.name}
+                      </Pill>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-[var(--muted)] mt-1">Automatically enrolled in every published course assigned to any of these fields.</p>
+              </div>
+              {/* Earned by completing every course in a field, so this is a
+                  record rather than a control. Without it a tutor's fields were
+                  invisible on the one page meant for editing them. */}
+              <div>
+                <label className="gt-label">Qualified to tutor</label>
+                {initial.teacherPositions.length === 0 ? (
+                  <p className="text-sm text-[var(--muted)]">Not yet qualified in any field.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {initial.teacherPositions.map((title) => (
+                      <span key={title} className="gt-badge bg-mint/15 text-mint">{title}</span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-[var(--muted)] mt-1">Set automatically on certification — not editable here.</p>
               </div>
               <label className="flex items-center gap-2 text-sm">
                 <input

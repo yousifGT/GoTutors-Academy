@@ -27,7 +27,8 @@ export default async function AdminUserEditPage({ params }: { params: { id: stri
         userId={user.id}
         initial={{
           name: user.name, email: user.email, phone: user.phone,
-          position: user.position, subPositions: effectiveSubPositions(user), isTrained: user.isTrained,
+          position: user.position, subPositions: effectiveSubPositions(user),
+          teacherPositions: user.teacherPositions, isTrained: user.isTrained,
           active: user.active,
           roleId: user.roleId, centreId: user.centreId, supervisorId: user.supervisorId,
         }}
