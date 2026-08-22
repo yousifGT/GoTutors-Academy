@@ -17,7 +17,10 @@ inspection-app/
 
 ## Status
 
-The **prototype is the product today**: one self-contained HTML file that runs
+The hosted build has started: the database schema, the seed importer and the
+scoring bridge are in (`prisma/schema.prisma`, `prisma/seed-inspection.ts`,
+`src/lib/inspection/`). There is no API or UI yet, so the **prototype is still
+the product today**: one self-contained HTML file that runs
 offline in a browser and keeps everything in local storage. It is also the
 definitive spec for screens, ordering and branding — open it before changing any
 flow.
@@ -99,15 +102,46 @@ It loads straight into the prototype via Management → Data & Access → Import
 seeds the hosted build's `templates` / `sections` / `questions` / `centres`
 tables. No historical inspections are included.
 
-## Next steps
+## The hosted build
 
-The hosted build is specified in `docs/BACKEND-HANDOFF.md` and unstarted. In
-rough order:
+It is being built into this repository rather than as the separate AWS stack the
+handoff sketches, because the Academy already provides most of what that stack
+would stand up: Postgres via Prisma, NextAuth, a Centre and User model, roles
+with per-user permission overrides, and an upload path that already supports S3.
+The handoff's schema and API surface still hold — read `docs/BACKEND-HANDOFF.md`
+for the intent, and the notes below for where this repo diverges.
 
-1. Postgres schema + seed importer from `gotutors-seed.json`.
-2. Auth and the six roles, enforced at the data layer rather than in the UI.
-3. Inspection API — drafts, autosave with `active_ms` checkpointing, submit.
-4. Photo and signature upload to object storage, with signed URLs.
+| Handoff | Here |
+|---|---|
+| `profiles` + Cognito | the existing `User` / `Role`, plus four `inspection.*` permissions |
+| `centres` | the existing `Centre`, with a new nullable `size` |
+| `templates` / `sections` / `questions` | `InspectionTemplate` / `InspectionSection` / `InspectionQuestion` |
+| `inspections` / `answers` / `answer_entries` / `entry_photos` | `Inspection` / `InspectionAnswer` / `InspectionEntry` / `InspectionPhoto` |
+| RLS at the data layer | `userHasPermission` + centre scoping in the route handlers |
+| S3 signed URLs | `src/lib/storage.ts` (`UPLOAD_BACKEND=s3`) |
+
+Seed the checklist and the 23 centres into the database:
+
+```bash
+npm run db:push
+npm run db:seed:inspection     # idempotent; safe against a live database
+```
+
+Existing centres are matched by name and never overwritten. Re-importing the
+same `checklistVersion` updates that template in place; a new version publishes a
+new template beside it and marks the old one inactive, so inspections already
+recorded stay readable against the checklist they were run under.
+
+`src/lib/inspection/score.ts` is the bridge between database rows and the rules.
+It takes centre size as a **required** argument everywhere, which is what stops a
+bucket being computed without one.
+
+### Still to build
+
+1. ~~Postgres schema + seed importer.~~ Done.
+2. Inspection API — drafts, autosave with `activeMs` checkpointing, submit.
+3. The inspector UI, following the prototype's screens and ordering.
+4. Photo and signature upload, reusing `storage.ts`.
 5. Report PDF, emailed and logged.
 6. Cross-centre dashboard aggregations.
 
