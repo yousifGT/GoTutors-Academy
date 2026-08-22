@@ -4,7 +4,8 @@ const db = vi.hoisted(() => ({
   lesson: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   video: { deleteMany: vi.fn(), upsert: vi.fn() },
   quiz: { upsert: vi.fn() },
-  question: { deleteMany: vi.fn(), create: vi.fn() },
+  question: { deleteMany: vi.fn(), create: vi.fn(), findMany: vi.fn() },
+  quizAttempt: { count: vi.fn() },
   $transaction: vi.fn(),
 }));
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
@@ -37,6 +38,9 @@ beforeEach(() => {
   db.lesson.findUnique.mockResolvedValue({ module: { course: { authorId: "author1" } } });
   db.lesson.update.mockResolvedValue({ id: "l1" });
   db.quiz.upsert.mockResolvedValue({ id: "q1" });
+  // No stored questions and nothing awaiting review, unless a test says otherwise.
+  db.question.findMany.mockResolvedValue([]);
+  db.quizAttempt.count.mockResolvedValue(0);
   db.$transaction.mockImplementation(async (cb: any) => cb(db));
 });
 
@@ -83,15 +87,75 @@ describe("PATCH /api/lessons/[id] preserves quiz questions", () => {
 
   it("clears questions on an explicit empty array", async () => {
     session.mockResolvedValue(author);
+    // There has to be something stored for [] to be a change rather than a no-op.
+    db.question.findMany.mockResolvedValue([
+      { type: "OPEN_ENDED", prompt: "Why?", points: 1, answers: [] },
+    ]);
     const res = await PATCH(patchReq({ quiz: { questions: [] } }), { params: { id: "l1" } });
     expect(res.status).toBe(200);
     expect(db.question.deleteMany).toHaveBeenCalledWith({ where: { quizId: "q1" } });
     expect(db.question.create).not.toHaveBeenCalled();
   });
 
+  it("skips the rewrite when an empty list is resubmitted over no questions", async () => {
+    session.mockResolvedValue(author);
+    const res = await PATCH(patchReq({ quiz: { questions: [] } }), { params: { id: "l1" } });
+    expect(res.status).toBe(200);
+    expect(db.question.deleteMany).not.toHaveBeenCalled();
+  });
+
   it("does not wipe lesson content when content is omitted", async () => {
     session.mockResolvedValue(author);
     await PATCH(patchReq({ title: "New title" }), { params: { id: "l1" } });
     expect(db.lesson.update).toHaveBeenCalledWith({ where: { id: "l1" }, data: { title: "New title" } });
+  });
+});
+
+describe("PATCH /api/lessons/[id] protects attempts awaiting review", () => {
+  const question = {
+    type: "MULTIPLE_CHOICE",
+    prompt: "2 + 2?",
+    points: 1,
+    answers: [{ text: "4", isCorrect: true }],
+  };
+
+  beforeEach(() => {
+    session.mockResolvedValue({ user: { id: "author1", roleType: "INSTRUCTOR" } });
+    db.question.findMany.mockResolvedValue([question]);
+  });
+
+  // The editor resends the whole list on every save, so a title-only edit used
+  // to delete and recreate every question and answer.
+  it("does not touch questions when the list is unchanged", async () => {
+    db.quizAttempt.count.mockResolvedValue(2);
+    const res = await PATCH(
+      patchReq({ title: "New title", quiz: { questions: [{ type: "MULTIPLE_CHOICE", prompt: "2 + 2?", answers: [{ text: "4", isCorrect: true }] }] } }),
+      { params: { id: "l1" } }
+    );
+    expect(res.status).toBe(200);
+    expect(db.question.deleteMany).not.toHaveBeenCalled();
+    expect(db.question.create).not.toHaveBeenCalled();
+  });
+
+  it("409s a genuine question edit while an attempt awaits review", async () => {
+    db.quizAttempt.count.mockResolvedValue(1);
+    const res = await PATCH(
+      patchReq({ quiz: { questions: [{ type: "MULTIPLE_CHOICE", prompt: "2 + 3?", answers: [{ text: "5", isCorrect: true }] }] } }),
+      { params: { id: "l1" } }
+    );
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/awaiting review/);
+    expect(db.question.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it("allows the same edit once nothing is awaiting review", async () => {
+    db.quizAttempt.count.mockResolvedValue(0);
+    const res = await PATCH(
+      patchReq({ quiz: { questions: [{ type: "MULTIPLE_CHOICE", prompt: "2 + 3?", answers: [{ text: "5", isCorrect: true }] }] } }),
+      { params: { id: "l1" } }
+    );
+    expect(res.status).toBe(200);
+    expect(db.question.deleteMany).toHaveBeenCalled();
+    expect(db.question.create).toHaveBeenCalledTimes(1);
   });
 });

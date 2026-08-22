@@ -18,6 +18,19 @@
  * (S3, rate-limit tuning) is left alone.
  */
 
+/**
+ * Values shipped in .env.example, which must never reach a running service.
+ *
+ * The length check alone was not enough: "REPLACE_WITH_RANDOM_HEX_32_BYTES" is
+ * exactly 32 characters, so the entire example file validated with zero problems
+ * and /api/health reported config ok. Anyone following the documented
+ * `cp .env.example .env` got a service signing every session token with a
+ * public, repo-committed key while both automated guards read green.
+ */
+function looksLikePlaceholder(value: string): boolean {
+  return /^REPLACE_WITH/i.test(value) || /\b(USER:PASS|HOST:5432|your-domain\.example)\b/.test(value);
+}
+
 /** Hosts that are legitimate without a dot — everything else needs one. */
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "0.0.0.0"]);
 
@@ -54,11 +67,15 @@ export function describeEnvProblems(env: Record<string, string | undefined> = pr
     problems.push("DATABASE_URL is not set.");
   } else if (!/^postgres(ql)?:\/\//.test(databaseUrl)) {
     problems.push("DATABASE_URL must be a postgresql:// connection string.");
+  } else if (looksLikePlaceholder(databaseUrl)) {
+    problems.push("DATABASE_URL is still the .env.example placeholder.");
   }
 
   const secret = env.NEXTAUTH_SECRET?.trim();
   if (!secret) {
     problems.push("NEXTAUTH_SECRET is not set — sessions cannot be signed.");
+  } else if (looksLikePlaceholder(secret)) {
+    problems.push("NEXTAUTH_SECRET is still the .env.example placeholder — generate one with `openssl rand -hex 32`.");
   } else if (secret.length < 32) {
     problems.push(`NEXTAUTH_SECRET is only ${secret.length} characters; use at least 32 (openssl rand -hex 32).`);
   }
@@ -69,6 +86,7 @@ export function describeEnvProblems(env: Record<string, string | undefined> = pr
   } else {
     const problem = describeUrlProblem("NEXTAUTH_URL", authUrl);
     if (problem) problems.push(problem);
+    else if (looksLikePlaceholder(authUrl)) problems.push("NEXTAUTH_URL is still the .env.example placeholder.");
   }
 
   const window = env.RATE_LIMIT_WINDOW_SEC?.trim();

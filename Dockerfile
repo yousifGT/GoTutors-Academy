@@ -15,6 +15,15 @@ RUN npm ci
 
 COPY . .
 
+# Which commit is in this image. .dockerignore removes .git, so it cannot be
+# derived here — it is passed in by `npm run image`, which reads it from git.
+# Without this, nothing in the image, the registry tag or the running app says
+# what is deployed, and "is this the current version?" has no answer.
+ARG GIT_SHA=unknown
+ARG BUILT_AT=unknown
+ENV APP_COMMIT=$GIT_SHA
+ENV APP_BUILT_AT=$BUILT_AT
+
 # DATABASE_URL isn't needed at build time (prisma generate reads the schema only),
 # but Next statically checks env usage — provide a harmless placeholder.
 ENV NODE_ENV=production

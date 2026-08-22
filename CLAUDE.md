@@ -58,10 +58,11 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 239 tests
+npx vitest run                # 287 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
-npm run smoke -- <base-url>   # health, login, CSRF, redirect host
+npm run image                 # build the image with the commit SHA baked in
+npm run smoke -- <base-url>   # health, login, CSRF, redirect host, deployed commit
 npm run db:create-admin       # bootstrap a super admin
 ```
 
@@ -72,4 +73,3 @@ npm run db:create-admin       # bootstrap a super admin
   rename. Take an RDS snapshot before any schema change.
 - Rate limiting is an in-process Map — per container, not per user.
 - Uploaded video on local disk does not survive a container replacement.
-- Nothing identifies which commit is deployed; `.dockerignore` removes `.git`.

@@ -75,3 +75,40 @@ describe("describeEnvProblems", () => {
     expect(problems.join(" ")).toMatch(/placeholder/);
   });
 });
+
+describe("describeEnvProblems rejects the shipped placeholders", () => {
+  // The defect: "REPLACE_WITH_RANDOM_HEX_32_BYTES" is exactly 32 characters, so
+  // the length check never fired and the entire example file validated clean —
+  // while /api/health reported config ok and the smoke test printed all-passed.
+  it("rejects the exact placeholder that passed the length check", () => {
+    const problems = describeEnvProblems({
+      DATABASE_URL: "postgresql://u:p@db.example.com:5432/app",
+      NEXTAUTH_SECRET: "REPLACE_WITH_RANDOM_HEX_32_BYTES",
+      NEXTAUTH_URL: "https://app.example.com",
+    });
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toMatch(/placeholder/i);
+  });
+
+  it("finds a problem in every line of the shipped .env.example", () => {
+    const problems = describeEnvProblems({
+      DATABASE_URL: "postgresql://USER:PASS@HOST:5432/DB?schema=public",
+      NEXTAUTH_SECRET: "",
+      NEXTAUTH_URL: "https://your-domain.example",
+      RATE_LIMIT_WINDOW_SEC: "60",
+    });
+    expect(problems.some((p) => /DATABASE_URL/.test(p))).toBe(true);
+    expect(problems.some((p) => /NEXTAUTH_SECRET/.test(p))).toBe(true);
+    expect(problems.some((p) => /NEXTAUTH_URL/.test(p))).toBe(true);
+  });
+
+  it("still accepts a real configuration", () => {
+    expect(
+      describeEnvProblems({
+        DATABASE_URL: "postgresql://u:p@db.example.com:5432/app?schema=academy",
+        NEXTAUTH_SECRET: "a".repeat(64),
+        NEXTAUTH_URL: "https://www.gotutors.academy",
+      })
+    ).toEqual([]);
+  });
+});

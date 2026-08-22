@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:create-admin": "tsx prisma/create-admin.ts",
     "smoke": "node scripts/smoke.mjs",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "image": "node scripts/docker-build.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

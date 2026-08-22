@@ -9,13 +9,16 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/course-progress", () => ({ isLessonUnlocked: vi.fn() }));
+vi.mock("@/lib/certificate", () => ({ maybeAwardCertificate: vi.fn() }));
 
 import { getServerSession } from "next-auth";
 import { isLessonUnlocked } from "@/lib/course-progress";
+import { maybeAwardCertificate } from "@/lib/certificate";
 import { POST } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const unlocked = isLessonUnlocked as unknown as ReturnType<typeof vi.fn>;
+const award = maybeAwardCertificate as unknown as ReturnType<typeof vi.fn>;
 
 function req(body: Record<string, unknown>) {
   return new Request("https://app.test/api/progress", {
@@ -28,7 +31,11 @@ function req(body: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   session.mockResolvedValue({ user: { id: "u1", roleType: "TRAINEE" } });
-  db.lesson.findUnique.mockResolvedValue({ module: { courseId: "c1" }, video: { provider: "YOUTUBE" } });
+  db.lesson.findUnique.mockResolvedValue({
+    module: { courseId: "c1" },
+    video: { provider: "YOUTUBE" },
+    quiz: { _count: { questions: 3 } },
+  });
   db.enrollment.findUnique.mockResolvedValue({ userId: "u1" });
   unlocked.mockResolvedValue(true);
   // Echo the decided fields back so the response reflects computeWatchState.
@@ -80,5 +87,41 @@ describe("POST /api/progress — access + watch gating", () => {
     const call = db.progress.update.mock.calls[0][0];
     expect(call.data.createdAt).toBeInstanceOf(Date);
     expect(call.data.videoWatched).toBe(false);
+  });
+});
+
+describe("POST /api/progress completes a lesson with nothing to do", () => {
+  // A lesson with no video and no questions could never satisfy
+  // "videoWatched AND quizPassed", so it locked every later lesson for every
+  // enrolled trainee — while the publish-review page said that was fine.
+  it("marks a lesson with no video and no quiz complete on view", async () => {
+    db.lesson.findUnique.mockResolvedValue({ module: { courseId: "c1" }, video: null, quiz: null });
+    const res = await POST(req({ lessonId: "l1" }), {} as never);
+    expect(res.status).toBe(200);
+    const data = await res.json();
+    expect(data.videoWatched).toBe(true);
+    expect(data.quizPassed).toBe(true);
+    // The award normally rides on a passing attempt; there is no attempt here.
+    expect(award).toHaveBeenCalledWith("u1", "c1");
+  });
+
+  it("passes a quiz that exists but asks nothing", async () => {
+    db.lesson.findUnique.mockResolvedValue({ module: { courseId: "c1" }, video: null, quiz: { _count: { questions: 0 } } });
+    const res = await POST(req({ lessonId: "l1" }), {} as never);
+    expect((await res.json()).quizPassed).toBe(true);
+  });
+
+  it("leaves a real quiz to be passed properly", async () => {
+    db.lesson.findUnique.mockResolvedValue({ module: { courseId: "c1" }, video: null, quiz: { _count: { questions: 2 } } });
+    const res = await POST(req({ lessonId: "l1" }), {} as never);
+    const data = await res.json();
+    expect(data.videoWatched).toBe(true);
+    expect(data.quizPassed).toBeUndefined();
+    expect(award).not.toHaveBeenCalled();
+  });
+
+  it("does not fake a watch for a lesson that has a video", async () => {
+    const res = await POST(req({ lessonId: "l1", watchedSeconds: 1, duration: 600 }), {} as never);
+    expect((await res.json()).videoWatched).toBe(false);
   });
 });

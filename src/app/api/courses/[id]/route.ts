@@ -71,6 +71,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const audienceChanging = body.roleIds !== undefined;
   const fieldsBefore = publishFlipping || audienceChanging ? await courseTraineeFields(params.id) : [];
 
+  // A quiz with no questions can never be passed (the attempt route refuses it),
+  // and completion requires a pass — so publishing one strands every trainee on
+  // that lesson. Refuse at the gate rather than leaving it to be discovered as a
+  // course nobody can finish. Existing published courses still unstall, because
+  // the progress route treats "nothing to answer" as answered.
+  if (body.published === true && !existing.published) {
+    const emptyQuizzes = await prisma.quiz.count({
+      where: { lesson: { module: { courseId: params.id } }, questions: { none: {} } },
+    });
+    if (emptyQuizzes > 0) {
+      return NextResponse.json(
+        {
+          error: `${emptyQuizzes} lesson${emptyQuizzes === 1 ? " has a quiz" : "s have quizzes"} with no questions. Add questions, or remove the quiz so the lesson completes on view.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   const data: Record<string, unknown> = {};
   for (const k of ["title", "description", "passThreshold", "published"] as const) {
     if (body[k] !== undefined) data[k] = body[k];

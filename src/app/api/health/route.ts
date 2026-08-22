@@ -51,7 +51,15 @@ export async function GET() {
   }
 
   return NextResponse.json(
-    { status: healthy ? "ok" : "degraded", checks },
+    {
+      status: healthy ? "ok" : "degraded",
+      // Which build answered. Baked in at image build time, so a deployed
+      // container can always be traced back to a commit — the smoke test prints
+      // it, which is the only way to tell a stale rollout from a fresh one.
+      commit: process.env.APP_COMMIT ?? "unknown",
+      builtAt: process.env.APP_BUILT_AT ?? "unknown",
+      checks,
+    },
     {
       status: healthy ? 200 : 503,
       // Never let a proxy or browser serve a stale verdict.

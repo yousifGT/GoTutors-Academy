@@ -8,6 +8,17 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 import { isValidVideoUrl } from "@/lib/video-url";
+import { questionsEqual } from "@/lib/quiz-questions";
+
+/**
+ * Thrown inside the save transaction to roll it back when rewriting the
+ * questions would orphan the answers of an attempt still awaiting review.
+ */
+class PendingReviewError extends Error {
+  constructor(readonly count: number) {
+    super("pending review");
+  }
+}
 
 const AnswerSchema = z.object({ text: z.string().max(2000), isCorrect: z.boolean().optional() });
 const QuestionSchema = z.object({
@@ -50,7 +61,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
-  const updated = await prisma.$transaction(async (tx) => {
+  let updated;
+  try {
+    updated = await prisma.$transaction(async (tx) => {
     // Only touch fields the caller actually sent. `content` may be explicitly
     // set to null to clear it; omitting it leaves the existing value alone.
     const lessonData: Prisma.LessonUpdateInput = {};
@@ -87,6 +100,29 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       // `questions` preserves the existing ones (a metadata-only edit must not
       // wipe the quiz); sending an explicit [] clears them.
       if (body.quiz.questions !== undefined) {
+        // The editor resends the whole list on every save, so compare before
+        // rewriting: an unchanged list must not churn ids that live attempts
+        // point at, and a genuine change must not silently destroy them.
+        const stored = await tx.question.findMany({
+          where: { quizId: quiz.id },
+          orderBy: { order: "asc" },
+          select: {
+            type: true,
+            prompt: true,
+            points: true,
+            answers: { orderBy: { id: "asc" }, select: { text: true, isCorrect: true } },
+          },
+        });
+        if (questionsEqual(stored, body.quiz.questions)) return lesson;
+
+        // QuizAttempt.answers is keyed by question and answer id with no foreign
+        // key, so recreating them leaves a pending attempt ungradeable — the
+        // instructor sees an empty submission and the trainee cannot resubmit.
+        const pending = await tx.quizAttempt.count({
+          where: { quizId: quiz.id, needsReview: true, reviewedAt: null },
+        });
+        if (pending > 0) throw new PendingReviewError(pending);
+
         await tx.question.deleteMany({ where: { quizId: quiz.id } });
         for (let i = 0; i < body.quiz.questions.length; i++) {
           const q = body.quiz.questions[i];
@@ -104,7 +140,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       }
     }
     return lesson;
-  });
+    });
+  } catch (e) {
+    if (e instanceof PendingReviewError) {
+      return NextResponse.json(
+        {
+          error: `Grade the ${e.count} attempt${e.count === 1 ? "" : "s"} awaiting review before changing these questions — rewriting them now would leave those submissions ungradeable.`,
+        },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 
   return NextResponse.json(updated);
 }

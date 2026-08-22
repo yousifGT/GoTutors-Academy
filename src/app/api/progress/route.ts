@@ -7,6 +7,7 @@ import { isLessonUnlocked } from "@/lib/course-progress";
 import { computeWatchState } from "@/lib/watch-progress";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
+import { maybeAwardCertificate } from "@/lib/certificate";
 
 const ProgressSchema = z.object({
   lessonId: zId,
@@ -33,7 +34,12 @@ export const POST = withRoute(async (req: Request) => {
   // completion for courses they were never assigned.
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
-    select: { module: { select: { courseId: true } }, video: { select: { provider: true } } },
+    select: {
+      module: { select: { courseId: true } },
+      video: { select: { provider: true } },
+      // A lesson with nothing to answer must still be completable — see below.
+      quiz: { select: { _count: { select: { questions: true } } } },
+    },
   });
   if (!lesson) return NextResponse.json({ error: "lesson not found" }, { status: 404 });
   // Super admins may preview any course (mirrors the lesson page), so their
@@ -81,26 +87,32 @@ export const POST = withRoute(async (req: Request) => {
     alreadyWatched: existing.videoWatched,
   });
 
-  // TEMP debug (remove once the watch gate is confirmed): shows the server's
-  // decision inputs/outputs in the `npm run dev` terminal.
-  console.log("[watch-debug]", {
-    provider: lesson.video?.provider,
-    watchedSeconds: watchedSeconds ?? 0,
-    duration: duration ?? 0,
-    elapsedRealSeconds: Math.round(elapsedRealSeconds),
-    prevTimeSpent: existing.timeSpent,
-    timeSpent: state.timeSpent,
-    videoWatched: state.videoWatched,
-    reanchor,
-  });
+  // Completion needs videoWatched AND quizPassed everywhere it is read, but a
+  // lesson can legitimately have neither a video nor any questions — and the
+  // publish-review page tells instructors exactly that ("those lessons just
+  // complete on view"). Nothing implemented it, so one such lesson locked every
+  // later lesson for every enrolled trainee, blocked the course certificate and
+  // stalled the field promotion behind it, silently and permanently.
+  const hasVideo = !!lesson.video;
+  const hasQuestions = (lesson.quiz?._count.questions ?? 0) > 0;
 
   const updated = await prisma.progress.update({
     where: { userId_lessonId: { userId: session.user.id, lessonId } },
     data: {
       timeSpent: state.timeSpent,
-      videoWatched: state.videoWatched,
+      videoWatched: state.videoWatched || !hasVideo,
+      // Only ever set true — never revoke a pass that was genuinely earned.
+      ...(hasQuestions ? {} : { quizPassed: true }),
       ...(reanchor ? { createdAt: new Date(now) } : {}),
     },
   });
+
+  // The award normally rides on a passing quiz attempt. A final lesson that
+  // completes on view has no attempt, so without this the course finishes and
+  // issues nothing.
+  if (updated.videoWatched && updated.quizPassed) {
+    await maybeAwardCertificate(session.user.id, lesson.module.courseId);
+  }
+
   return NextResponse.json(updated);
 });

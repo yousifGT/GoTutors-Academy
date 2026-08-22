@@ -165,7 +165,15 @@ The repo now includes a production `Dockerfile`.
 2. Build, tag, push (repeat these three on every deploy):
    ```
    aws ecr get-login-password --region eu-west-2 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com
-   docker build -t gotutors-academy .
+   npm run image
+   ```
+   `npm run image` is `docker build` plus the commit SHA and build time as build
+   args, because `.dockerignore` removes `.git` and the Dockerfile cannot read
+   them itself. They surface on `/api/health` as `commit` and `builtAt`, and
+   `npm run smoke` prints the commit — which is the only way to tell a fresh
+   rollout from a stale one, since every other check passes either way. A build
+   with uncommitted changes is tagged `<sha>-dirty`.
+   ```
    docker tag gotutors-academy:latest <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
    docker push <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
    ```
@@ -253,7 +261,7 @@ The repo now includes a production `Dockerfile`.
 
 ```
 git pull
-docker build -t gotutors-academy .
+npm run image
 docker tag gotutors-academy:latest <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 docker push <ACCOUNT_ID>.dkr.ecr.eu-west-2.amazonaws.com/gotutors-academy:latest
 ```

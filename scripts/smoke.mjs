@@ -57,8 +57,12 @@ async function checkHealth() {
     const checks = Object.entries(parsed.checks ?? {})
       .map(([k, v]) => `${k}=${v}`)
       .join(", ");
-    if (res.status === 200 && parsed.status === "ok") return pass(name, checks);
-    fail(name, `HTTP ${res.status}, status=${parsed.status}, ${checks}`);
+    // Which build answered. Every other check here passes identically against a
+    // stale rollout, so without this the suite cannot tell you whether the thing
+    // you just pushed is the thing that is running.
+    const build = parsed.commit ? `commit=${parsed.commit}` : "commit=unknown (image predates build stamping)";
+    if (res.status === 200 && parsed.status === "ok") return pass(name, `${build}, ${checks}`);
+    fail(name, `HTTP ${res.status}, status=${parsed.status}, ${build}, ${checks}`);
   } catch (e) {
     fail(name, e instanceof Error ? e.message : String(e));
   }
