@@ -34,15 +34,17 @@ Nothing here talks to a server.
 
 ## `core/inspection-core.js`
 
-Every rule that decides a score, a report bucket, or whether a note or photo is
-required. No dependencies, no DOM, no storage — the same module runs in the
-browser and in Node, so the client and the server can't drift apart.
+Every rule that decides a score, a report bucket, a verdict, or whether a note or
+photo is required. No dependencies, no DOM, no storage — the same file runs in
+Node (`require`) and in the browser (`window.InspectionCore`), so the client and
+the server can't drift apart. Ships as-is from the handoff; treat it as the one
+source of truth and change it deliberately.
 
 ```js
-import { computeScore, bucketOf, verdictFor } from "./core/inspection-core.js";
+const core = require("./core/inspection-core.js");
 
-const { pct, well, poor, obs } = computeScore(sections, { size: "medium" });
-verdictFor(pct); // { word: "Satisfactory", color: "#c07d10" }
+const r = core.scoreInspection(sections, "medium");
+// { pct, scored, well, poor, obs, unanswered, criticalFails: [text], verdict }
 ```
 
 The rules it owns:
@@ -52,15 +54,24 @@ The rules it owns:
 | Scoring | rating pass/improve/fail → 1 / 0.5 / 0 · yes-no → 1 / 0 · scale normalised over its own min–max · scored choice ranked best-first. Numbers, N/A and unanswered don't count. |
 | Buckets | ≥ 0.7 **well** · ≤ 0.5 **improve** · in between an **observation**. Numbers are observations unless they fall under their size target. |
 | Verdict | ≥ 85% Good · ≥ 65% Satisfactory · below that Needs attention. |
+| **Critical override** | **Any failed critical item makes the verdict "Serious finding", however high the percentage. A centre with one blocked fire exit cannot be rated Good.** |
 | Notes | Only a clean pass-like answer may skip a note; `requireNote` questions always need one. |
 | Photos | A failed **critical** item needs photo evidence — unless it is `photoExempt` (DBS records are written up, never photographed). |
 | Guidance | Size-aware: shows the line for this centre's size, or all three when the size is unknown. |
-| Active time | The clock runs only while the inspection is open and pauses when the inspector leaves it. |
+| Duration | `fmtDuration(activeMs)` — the stored clock is accumulated *active* time, not start→end. |
 
-**Centre size is not optional.** Number questions carrying `minBySize` — the
-toilet-pass count today — resolve their bucket from it, so `bucketOf` and
-`computeScore` take `{ size }`. Compute a bucket without it and the answer is
-wrong. See `docs/BACKEND-HANDOFF.md` §2.
+**Centre size is not optional.** `bucketOf`, `notesRequired`, `criticalFail`,
+`photoRequired`, `resolveGuide` and `scoreInspection` all take it as their second
+argument. Number questions carrying `minBySize` — the toilet-pass count today —
+resolve their bucket from it, so a bucket computed without a size is wrong, and a
+critical number question can flip the whole verdict on size alone. See
+`docs/BACKEND-HANDOFF.md` §2.
+
+What it deliberately leaves to the caller: whether a required note or photo has
+actually been supplied (`notesRequired` / `photoRequired` say what is *needed*;
+the entries live on the item), repeat-issue detection against the previous visit,
+and turning a template into a blank answerable inspection. The prototype does all
+three; a hosted front end will need its own.
 
 The prototype still carries its own inlined copy of these rules. Any change to a
 rule has to land in both until the hosted front end replaces the file.
@@ -71,7 +82,7 @@ rule has to land in both until the hosted front end replaces the file.
 node --test inspection-app/core/
 ```
 
-22 tests, no dependencies and no config — deliberately outside the root Vitest
+23 tests, no dependencies and no config — deliberately outside the root Vitest
 suite (`src/**/*.test.ts`), which is the LMS's. They cover each rule above and
 assert the shipped checklist still matches: 15 sections, 101 questions, 23
 centres, 8 critical items.

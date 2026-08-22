@@ -2,8 +2,7 @@
   "name": "@gotutors/inspection-core",
   "version": "13.0.0",
   "description": "Scoring, bucketing, critical-override and note/photo rules for the GoTutors centre inspection app. Dependency-free; runs identically in the browser and in Node.",
-  "type": "module",
+  "type": "commonjs",
   "main": "inspection-core.js",
-  "exports": "./inspection-core.js",
   "private": true
 }
