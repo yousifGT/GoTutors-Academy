@@ -5,6 +5,7 @@ import { Avatar } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 import { tutorTitleFor } from "@/lib/sub-positions";
 import { certificateDateLabel } from "@/lib/field-view";
+import { subjectCertificates, subjectCertificateLabel } from "@/lib/subject-certificate";
 import { formatDate, timeAgo } from "@/lib/utils";
 
 type Overview = {
@@ -163,10 +164,17 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
     ? Math.round(data.enrollments.reduce((n, e) => n + e.percent, 0) / data.enrollments.length)
     : 0;
 
+  // Course certificates record work done; subject qualifications record what
+  // they may tutor. Both are certificates the person can download, so both
+  // count — showing only course certificates read as "1" for a tutor holding
+  // two subjects.
+  const subjectCerts = data ? subjectCertificates(data.fieldStatus) : [];
+  const certCount = (data?.certificates.length ?? 0) + subjectCerts.filter((sc) => sc.downloadable).length;
+
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: "profile", label: "Profile" },
     { id: "courses", label: showAuthored ? "Courses authored" : "Courses", count: showAuthored ? data?.authoredCourses.length : data?.enrollments.length },
-    { id: "certificates", label: "Certificates", count: data?.certificates.length },
+    { id: "certificates", label: "Certificates", count: data ? certCount : undefined },
   ];
 
   return (
@@ -225,7 +233,7 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                   <>
                     <HeroStat value={data!.enrollments.length} label="Courses" />
                     <HeroStat value={`${avgProgress}%`} label="Avg progress" />
-                    <HeroStat value={data!.certificates.length} label="Certificates" />
+                    <HeroStat value={certCount} label="Certificates" />
                   </>
                 )}
               </div>
@@ -510,13 +518,56 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
           )}
 
           {data && tab === "certificates" && (
-            data.certificates.length === 0 ? (
+            data.certificates.length === 0 && subjectCerts.length === 0 ? (
               <div className="py-8 text-center">
                 <div className="text-4xl">📜</div>
                 <p className="mt-3 text-sm text-[var(--muted)]">No certificates earned yet.</p>
               </div>
             ) : (
-              <div className="space-y-2.5">
+              <div className="space-y-4">
+                {/* What they are qualified to TUTOR. Pending subjects stay listed
+                    so it is clear what is outstanding rather than simply absent. */}
+                {subjectCerts.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Subject qualifications</div>
+                    {subjectCerts.map((sc) => (
+                      <div
+                        key={sc.field}
+                        className={`flex items-center gap-3 rounded-xl border p-3.5 transition ${
+                          sc.downloadable
+                            ? "border-picton/30 bg-picton/5 hover:border-picton/60"
+                            : "border-[var(--border)] bg-[var(--soft)]/40"
+                        }`}
+                      >
+                        <div className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl text-xl ${sc.downloadable ? "bg-picton/15 text-picton" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
+                          {sc.downloadable ? "🎓" : "⏳"}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold">{sc.field}</div>
+                          <div className="text-xs text-[var(--muted)]">
+                            {subjectCertificateLabel(sc)}
+                            {sc.qualifiedAt ? ` · ${formatDate(new Date(sc.qualifiedAt))}` : ""}
+                          </div>
+                        </div>
+                        {sc.downloadable ? (
+                          <a
+                            href={`/api/subject-certificates?userId=${encodeURIComponent(data.user.id)}&field=${encodeURIComponent(sc.field)}`}
+                            target="_blank"
+                            className="gt-btn-ghost shrink-0 text-xs"
+                          >
+                            ⬇ Download
+                          </a>
+                        ) : (
+                          <span className="shrink-0 text-xs text-[var(--muted)]">Pending</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {data.certificates.length > 0 && (
+                  <div className="space-y-2.5">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--muted)]">Course certificates</div>
                 {data.certificates.map((c) => (
                   <div key={c.id} className="flex items-center gap-3 rounded-xl border border-gold/30 bg-gold/5 p-3.5 transition hover:border-gold/60">
                     <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gold/15 text-xl text-gold">🏆</div>
@@ -530,6 +581,8 @@ export function UserOverviewModal({ userId, onClose }: { userId: string; onClose
                     <a href={`/api/certificates/${c.id}/download`} target="_blank" className="gt-btn-ghost shrink-0 text-xs">⬇ Download</a>
                   </div>
                 ))}
+                  </div>
+                )}
               </div>
             )
           )}

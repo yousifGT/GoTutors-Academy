@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { centreUserScope, canManageUser } from "./scope";
+import { centreUserScope, canManageUser, canViewCertificate } from "./scope";
 
 const superAdmin = { roleType: "SUPER_ADMIN" as const, centreId: null };
 const londonAdmin = { roleType: "CENTRE_ADMIN" as const, centreId: "london" };
@@ -41,5 +41,32 @@ describe("canManageUser", () => {
   });
   it("a trainee cannot manage anyone", () => {
     expect(canManageUser({ roleType: "TRAINEE", centreId: "london" }, trainee)).toBe(false);
+  });
+});
+
+describe("canViewCertificate", () => {
+  const target = { id: "t1", centreId: "london", supervisorId: "sup1" };
+
+  it("lets people see their own", () => {
+    expect(canViewCertificate({ id: "t1", roleType: "TRAINEE", centreId: null }, target)).toBe(true);
+  });
+
+  it("lets a super admin see anyone's", () => {
+    expect(canViewCertificate({ id: "a", roleType: "SUPER_ADMIN", centreId: null }, target)).toBe(true);
+  });
+
+  it("lets a centre admin see their own centre's", () => {
+    expect(canViewCertificate({ id: "a", roleType: "CENTRE_ADMIN", centreId: "london" }, target)).toBe(true);
+    expect(canViewCertificate({ id: "a", roleType: "CENTRE_ADMIN", centreId: "leeds" }, target)).toBe(false);
+  });
+
+  // A null centre is a data anomaly; it must never match another null.
+  it("refuses a centre admin with no centre", () => {
+    expect(canViewCertificate({ id: "a", roleType: "CENTRE_ADMIN", centreId: null }, { id: "t2", centreId: null, supervisorId: null })).toBe(false);
+  });
+
+  it("lets a supervisor see their report's, but not a stranger's", () => {
+    expect(canViewCertificate({ id: "sup1", roleType: "INSTRUCTOR", centreId: null }, target)).toBe(true);
+    expect(canViewCertificate({ id: "other", roleType: "INSTRUCTOR", centreId: "london" }, target)).toBe(false);
   });
 });

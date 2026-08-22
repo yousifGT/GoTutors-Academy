@@ -16,9 +16,17 @@ const styles = StyleSheet.create({
   line: { borderTopWidth: 1, borderColor: "#373637", width: 160, marginBottom: 4 },
 });
 
-export async function renderCertificatePdf(opts: {
+/**
+ * One layout, two documents. A course certificate records work completed; a
+ * subject certificate records what someone is qualified to tutor. They differ
+ * only in wording, so they share the frame rather than drifting apart.
+ */
+async function render(opts: {
   name: string;
-  courseTitle: string;
+  heading: string;
+  lead: string;
+  subject: string;
+  dateLabel: string;
   serial: string;
   issuedAt: Date;
 }) {
@@ -38,15 +46,15 @@ export async function renderCertificatePdf(opts: {
             View,
             { style: { alignItems: "center" } },
             React.createElement(Text, { style: styles.brand }, "GOTUTORS ACADEMY"),
-            React.createElement(Text, { style: styles.title }, "Certificate of Completion"),
+            React.createElement(Text, { style: styles.title }, opts.heading),
             React.createElement(Text, { style: styles.sub }, "This is to certify that")
           ),
           React.createElement(
             View,
             { style: { alignItems: "center" } },
             React.createElement(Text, { style: styles.name }, opts.name),
-            React.createElement(Text, { style: styles.sub }, "has successfully completed the course"),
-            React.createElement(Text, { style: styles.course }, opts.courseTitle)
+            React.createElement(Text, { style: styles.sub }, opts.lead),
+            React.createElement(Text, { style: styles.course }, opts.subject)
           ),
           React.createElement(
             View,
@@ -55,7 +63,7 @@ export async function renderCertificatePdf(opts: {
               View,
               { style: styles.block },
               React.createElement(View, { style: styles.line }),
-              React.createElement(Text, { style: styles.meta }, `Issued ${opts.issuedAt.toDateString()}`)
+              React.createElement(Text, { style: styles.meta }, `${opts.dateLabel} ${opts.issuedAt.toDateString()}`)
             ),
             React.createElement(
               View,
@@ -69,4 +77,43 @@ export async function renderCertificatePdf(opts: {
     )
   );
   return await renderToBuffer(doc as any);
+}
+
+export function renderCertificatePdf(opts: {
+  name: string;
+  courseTitle: string;
+  serial: string;
+  issuedAt: Date;
+}) {
+  return render({
+    name: opts.name,
+    heading: "Certificate of Completion",
+    lead: "has successfully completed the course",
+    subject: opts.courseTitle,
+    dateLabel: "Issued",
+    serial: opts.serial,
+    issuedAt: opts.issuedAt,
+  });
+}
+
+/**
+ * "Qualified" rather than "Issued": the date is when they last satisfied every
+ * course the subject requires, which moves forward each time a new course is
+ * added to the subject and completed.
+ */
+export function renderSubjectCertificatePdf(opts: {
+  name: string;
+  field: string;
+  serial: string;
+  qualifiedAt: Date;
+}) {
+  return render({
+    name: opts.name,
+    heading: "Certificate of Qualification",
+    lead: "is qualified to tutor",
+    subject: opts.field,
+    dateLabel: "Qualified",
+    serial: opts.serial,
+    issuedAt: opts.qualifiedAt,
+  });
 }

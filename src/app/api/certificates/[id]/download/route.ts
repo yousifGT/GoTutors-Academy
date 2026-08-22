@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { renderCertificatePdf } from "@/lib/certificate-pdf";
+import { canViewCertificate } from "@/lib/scope";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
@@ -14,14 +15,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
   if (!cert) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const viewer = session.user;
-  const allowed =
-    viewer.id === cert.userId ||
-    viewer.roleType === "SUPER_ADMIN" ||
-    (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && viewer.centreId === cert.user.centreId) ||
-    (viewer.id === cert.user.supervisorId);
-
-  if (!allowed) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // Shared with the subject-certificate download so the two rules cannot drift.
+  if (!canViewCertificate(session.user, cert.user)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
   const pdf = await renderCertificatePdf({
     name: cert.user.name,
