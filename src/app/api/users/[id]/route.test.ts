@@ -297,3 +297,39 @@ describe("PATCH /api/users/[id] protects the last super admin", () => {
     expect(db.user.update).not.toHaveBeenCalled();
   });
 });
+
+describe("PATCH /api/users/[id] keeps the derived Trained flag reachable", () => {
+  const admin = { user: { id: "admin", roleType: "SUPER_ADMIN", centreId: null } };
+  const trainee = {
+    id: "u1", email: "t@x.com", roleId: "r1", isTrained: true, active: true,
+    centreId: null, subPositions: ["Maths Trainee"], role: { type: "TRAINEE" },
+  };
+
+  // The edit form submits isTrained on every save, so testing it for undefined
+  // made the recompute unreachable and a stale flag permanent.
+  it("recomputes when isTrained is resubmitted unchanged", async () => {
+    session.mockResolvedValue(admin);
+    db.user.findUnique.mockResolvedValue(trainee);
+    db.subPosition.findMany.mockResolvedValue([{ name: "Maths Trainee" }]);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(
+      patchReq({ subPositions: ["Maths Trainee"], isTrained: true }),
+      { params: { id: "u1" } }
+    );
+    expect(res.status).toBe(200);
+    expect(recompute).toHaveBeenCalledWith("u1");
+  });
+
+  it("respects a genuine override and does not recompute over it", async () => {
+    session.mockResolvedValue(admin);
+    db.user.findUnique.mockResolvedValue(trainee);
+    db.subPosition.findMany.mockResolvedValue([{ name: "Maths Trainee" }]);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(
+      patchReq({ subPositions: ["Maths Trainee"], isTrained: false }),
+      { params: { id: "u1" } }
+    );
+    expect(res.status).toBe(200);
+    expect(recompute).not.toHaveBeenCalled();
+  });
+});

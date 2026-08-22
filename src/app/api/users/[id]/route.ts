@@ -165,8 +165,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (membershipChanged) await syncUserEnrollments(params.id);
     // "Trained" is derived from certificates held for the courses assigned to a
     // trainee's role + sub-positions, so it goes stale when those change. Recompute
-    // it — unless the admin explicitly set isTrained here (respect that override).
-    if (body.isTrained === undefined && (subs !== undefined || body.roleId !== undefined)) {
+    // it — unless the admin explicitly CHANGED isTrained here (respect that
+    // override). Testing for `undefined` made the recompute unreachable: the
+    // edit form submits isTrained on every save, so every save read as an
+    // override and a stale flag could never correct itself. Compare against the
+    // stored value instead, which is what `changingTrained` already does.
+    if (!changingTrained && (subs !== undefined || body.roleId !== undefined)) {
       await recomputeIsTrained(params.id);
     }
     return NextResponse.json({ id: updated.id });
