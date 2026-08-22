@@ -48,3 +48,23 @@ describe("withRoute", () => {
     spy.mockRestore();
   });
 });
+
+describe("withRoute and Next's dynamic bail-out", () => {
+  it("rethrows Next's DYNAMIC_SERVER_USAGE instead of turning it into a 500", async () => {
+    const bail = Object.assign(new Error("Dynamic server usage: headers"), {
+      digest: "DYNAMIC_SERVER_USAGE",
+    });
+    const handler = withRoute(async () => {
+      throw bail;
+    });
+    await expect(handler(new Request("https://app.test/api/x"), {})).rejects.toBe(bail);
+  });
+
+  it("still converts a genuine error into a 500", async () => {
+    const handler = withRoute(async () => {
+      throw new Error("boom");
+    });
+    const res = await handler(new Request("https://app.test/api/x"), {});
+    expect(res.status).toBe(500);
+  });
+});

@@ -1,0 +1,117 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { withRoute } from "@/lib/api";
+import { audit } from "@/lib/audit";
+import { canEditInspection, inspectionAccess } from "@/lib/inspection/access";
+import { canSubmit, scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/inspection/score";
+
+type Ctx = { params: { id: string } };
+
+/**
+ * Close an inspection.
+ *
+ * The score is computed here, on the server, from the stored answers — never
+ * taken from the client. Each answer's own fraction and bucket are written back
+ * alongside it so later analytics ("which questions fail most often") don't have
+ * to re-derive them, and so a bucket is always the one that was computed with
+ * this inspection's centre size.
+ *
+ * Submission is refused while anything is outstanding: an unanswered question, a
+ * missing note, or a critical failure with no photo evidence. Those are the same
+ * checks the inspector sees on screen, enforced again where it counts.
+ */
+export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
+
+  const inspection = await prisma.inspection.findUnique({
+    where: { id: params.id },
+    include: {
+      template: {
+        include: {
+          sections: {
+            orderBy: { order: "asc" },
+            include: { questions: { orderBy: { order: "asc" } } },
+          },
+        },
+      },
+      answers: { include: { entries: { include: { photos: true } } } },
+    },
+  });
+  if (!inspection) return NextResponse.json({ error: "not found" }, { status: 404 });
+
+  const viewer = { id: session.user.id, centreId: session.user.centreId };
+  const access = await inspectionAccess(session.user.id);
+  if (!canEditInspection(viewer, access, inspection))
+    return NextResponse.json(
+      { error: inspection.status === "SUBMITTED" ? "Already submitted" : "forbidden" },
+      { status: 403 }
+    );
+
+  const sections: SectionRow[] = inspection.template.sections.map((s) => ({
+    title: s.title,
+    questions: s.questions,
+  }));
+  const answers: AnswerRow[] = inspection.answers.map((a) => ({
+    questionId: a.questionId,
+    answer: a.answer,
+    entries: a.entries,
+  }));
+
+  const score = scoreDbInspection(sections, answers, inspection.size);
+  if (!canSubmit(score)) {
+    return NextResponse.json(
+      {
+        error: "Inspection is not complete",
+        unanswered: score.unanswered,
+        unansweredCritical: score.unansweredCritical,
+        missingNotes: score.missingNotes,
+        missingPhotos: score.missingPhotos,
+      },
+      { status: 422 }
+    );
+  }
+
+  await prisma.$transaction([
+    ...score.answers.map((a) =>
+      prisma.inspectionAnswer.update({
+        where: { inspectionId_questionId: { inspectionId: inspection.id, questionId: a.questionId } },
+        data: { scoreFraction: a.scoreFraction, bucket: a.bucket, questionText: a.questionText },
+      })
+    ),
+    prisma.inspection.update({
+      where: { id: inspection.id },
+      data: {
+        status: "SUBMITTED",
+        endedAt: new Date(),
+        scorePct: score.pct,
+        verdict: score.verdict.word,
+      },
+    }),
+  ]);
+
+  await audit({
+    actorId: session.user.id,
+    action: "inspection.submit",
+    target: inspection.id,
+    metadata: {
+      centreId: inspection.centreId,
+      size: inspection.size,
+      pct: score.pct,
+      verdict: score.verdict.word,
+      criticalFails: score.criticalFails,
+    },
+  });
+
+  return NextResponse.json({
+    ok: true,
+    pct: score.pct,
+    verdict: score.verdict,
+    criticalFails: score.criticalFails,
+    well: score.well,
+    improve: score.poor,
+    observations: score.obs,
+  });
+});

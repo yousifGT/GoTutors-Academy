@@ -4,6 +4,20 @@ import { Prisma } from "@prisma/client";
 type RouteHandler<C> = (req: Request, ctx: C) => Promise<Response> | Response;
 
 /**
+ * Next tags its bail-out errors with a `digest` rather than exporting a public
+ * class, so match on that instead of reaching into an internal module path.
+ */
+function isDynamicServerError(e: unknown): boolean {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    "digest" in e &&
+    typeof (e as { digest?: unknown }).digest === "string" &&
+    (e as { digest: string }).digest.startsWith("DYNAMIC_SERVER_USAGE")
+  );
+}
+
+/**
  * Wrap a route handler so an unexpected throw becomes a clean JSON response
  * instead of leaking a stack trace as a raw 500. Prisma's common known errors
  * map to the right status:
@@ -19,6 +33,13 @@ export function withRoute<C>(handler: RouteHandler<C>): RouteHandler<C> {
     try {
       return await handler(req, ctx);
     } catch (e) {
+      // Next signals "this route can't be prerendered" by throwing from inside
+      // headers()/cookies() during the build's static analysis. That is control
+      // flow, not a failure: swallowing it makes the build log a phantom error
+      // and can bake a static 500 into a route that should be dynamic. Rethrow
+      // so Next sees it and marks the route dynamic.
+      if (isDynamicServerError(e)) throw e;
+
       if (e instanceof Prisma.PrismaClientKnownRequestError) {
         if (e.code === "P2025") return NextResponse.json({ error: "not found" }, { status: 404 });
         if (e.code === "P2002") return NextResponse.json({ error: "Already exists" }, { status: 409 });

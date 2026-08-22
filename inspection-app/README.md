@@ -136,12 +136,37 @@ recorded stay readable against the checklist they were run under.
 It takes centre size as a **required** argument everywhere, which is what stops a
 bucket being computed without one.
 
+### API
+
+| Route | What it does |
+|---|---|
+| `GET /api/inspections/template` | the live checklist, in inspector order |
+| `GET /api/inspections` | list, scoped to what the viewer may see (`?centre=&from=&to=&limit=`) |
+| `POST /api/inspections` | start a visit; returns the existing draft if one is already open for that inspector, centre and day |
+| `GET /api/inspections/:id` | one inspection with its checklist, answers and live score |
+| `PATCH /api/inspections/:id` | autosave — answers, notes, photos, `activeMs`, debrief |
+| `POST /api/inspections/:id/submit` | close it: score on the server, write the buckets, lock it |
+| `DELETE /api/inspections/:id` | discard a draft |
+
+Rules the API enforces, not just the UI:
+
+- The **score is computed server-side** from the stored answers and never taken
+  from the request.
+- **Submission is refused** (422, listing what is outstanding) while any question
+  is unanswered, any answer that needs a note lacks one, or any failed critical
+  item lacks its photo.
+- A **submitted inspection is a record**: it cannot be edited or deleted, by
+  anyone, including a super admin. Correcting it means a new visit.
+- Only the inspector who started a draft may write to it.
+- An answer must belong to the checklist version the inspection was started
+  against.
+
 ### Still to build
 
 1. ~~Postgres schema + seed importer.~~ Done.
-2. Inspection API — drafts, autosave with `activeMs` checkpointing, submit.
+2. ~~Inspection API — drafts, autosave, submit.~~ Done.
 3. The inspector UI, following the prototype's screens and ordering.
-4. Photo and signature upload, reusing `storage.ts`.
+4. Photo and signature upload, reusing `storage.ts` (the API takes URLs today).
 5. Report PDF, emailed and logged.
 6. Cross-centre dashboard aggregations.
 
