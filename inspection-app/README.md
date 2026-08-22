@@ -20,20 +20,67 @@ inspection-app/
 
 ## Running it
 
+This folder is **part of the GoTutors-Academy repository**, not a repository of
+its own. Clone the repo first, then work inside this folder.
+
 ```bash
-cd inspection-app
+git clone https://github.com/yousifGT/GoTutors-Academy.git
+cd GoTutors-Academy/inspection-app
 npm install
+```
 
-cp .env.example .env
-#   NEXTAUTH_SECRET   →  openssl rand -hex 32
-#   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD  →  your first login
+Create your `.env` from the example:
 
+```bash
+cp .env.example .env      # Windows CMD:        copy .env.example .env
+                          # Windows PowerShell: Copy-Item .env.example .env
+```
+
+Fill in four values. Generate the secret with Node, which you already have —
+there is no `openssl` on a stock Windows machine:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+```
+NEXTAUTH_SECRET="<the hex string from above>"
+NEXTAUTH_URL="http://localhost:3100"
+SEED_ADMIN_EMAIL="you@gotutors.com"
+SEED_ADMIN_PASSWORD="at least 12 characters"
+```
+
+Then start the database, create the schema, and run it:
+
+```bash
 docker compose up -d      # Postgres on port 5434 — its own database
 npm run db:push
 npm run db:seed           # checklist v13, the 23 centres, your admin account
-
 npm run dev               # http://localhost:3100
 ```
+
+Sign in with the email and password you put in `.env`.
+
+### Without Docker
+
+Any Postgres will do — a local install, or a free hosted database. Create an
+empty database and point `DATABASE_URL` at it, then run `db:push` and `db:seed`
+as above:
+
+```
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME?schema=public"
+```
+
+### If something goes wrong
+
+| Message | What it means |
+|---|---|
+| `Could not read package.json` | You are not in the `inspection-app` folder of the clone. `cd` into `GoTutors-Academy/inspection-app`. |
+| `no configuration file provided` (docker) | Same — `docker-compose.yml` lives in this folder. |
+| `'cp' is not recognized` | Windows CMD: use `copy` instead. |
+| `Can't reach database server` | The database isn't running, or `DATABASE_URL` is wrong. Check `docker compose ps`. |
+| `No active checklist` | `npm run db:seed` hasn't been run yet. |
+| Sign-in is rejected | The seed only creates an account when both `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` are set. Set them and re-run `npm run db:seed`. |
 
 Port **3100**, database port **5434** — chosen so both can run at the same time
 as the Academy (3000 / 5433) without colliding.
