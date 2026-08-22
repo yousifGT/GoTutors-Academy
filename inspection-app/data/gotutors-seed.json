@@ -1,0 +1,878 @@
+{
+  "app": "gotutors-centre-inspection",
+  "exportedAt": "2026-08-01T15:43:39.363Z",
+  "note": "Seed data generated from the prototype's built-in checklist (checklistVersion 13). Same shape as the app's Management → Data & Access → Export backup.",
+  "config": {
+    "checklistVersion": 13,
+    "configVersion": 2,
+    "passcode": "Admin2026",
+    "centres": [
+      "Acton",
+      "Brentford",
+      "Brixton",
+      "Deptford",
+      "Feltham",
+      "Fulham North",
+      "Greenford",
+      "Haringey",
+      "Hendon Central",
+      "Homerton",
+      "Hounslow",
+      "Latimer",
+      "Lozells",
+      "Northolt",
+      "Park Royal",
+      "Perivale",
+      "Pimlico",
+      "Shepherds Bush",
+      "Southall",
+      "Southfields",
+      "Uxbridge",
+      "White City",
+      "Willesden"
+    ],
+    "template": [
+      {
+        "title": "Pre-Session — Staff Check",
+        "items": [
+          {
+            "text": "All rostered staff are in",
+            "type": "yesno"
+          },
+          {
+            "text": "All staff arrived on time (at least 5 minutes before the session)",
+            "type": "yesno"
+          },
+          {
+            "text": "Absent staff have been chased up",
+            "type": "yesno",
+            "allowNA": true,
+            "guide": "N/A if all rostered staff are present."
+          },
+          {
+            "text": "Staff presentation professional — dress, grooming and tidiness",
+            "type": "rating",
+            "dos": [
+              "Smart or smart-casual and clean",
+              "Appropriate for working with children",
+              "ID / lanyard visible"
+            ],
+            "donts": [
+              "Scruffy, dirty or overly casual dress",
+              "Anything unsuitable for a children's setting"
+            ]
+          },
+          {
+            "text": "Non-tutor staff conduct professional — interactions with students, parents and colleagues",
+            "type": "rating",
+            "guide": "Calm, respectful and professional with everyone on site."
+          },
+          {
+            "text": "Tutor conduct professional — behaviour with students and colleagues",
+            "type": "rating",
+            "dos": [
+              "Tutors focused on teaching and their students",
+              "Any parent questions passed to a supervisor or admin"
+            ],
+            "donts": [
+              "Tutors speaking to parents at any point — this is not their role",
+              "Discussing a student's progress directly with a parent"
+            ]
+          },
+          {
+            "text": "Lanyards worn — blue for tutors, black for all other staff",
+            "type": "yesno"
+          },
+          {
+            "text": "ID cards complete — recent photo, full name and position",
+            "type": "rating",
+            "guide": "Every member of staff on shift has a complete, current ID card."
+          },
+          {
+            "text": "Supervisor greeting parents before the session begins",
+            "type": "yesno"
+          }
+        ]
+      },
+      {
+        "title": "Session Start — Organisation & Arrivals",
+        "items": [
+          {
+            "text": "Supervisor organised the class and teachers within the first 5 minutes",
+            "type": "yesno"
+          },
+          {
+            "text": "Expected students not yet in — how many absent?",
+            "type": "number",
+            "unit": "students",
+            "guide": "A record only — students can be absent for many reasons and that is not a mark against the centre. What matters is the follow-up below: any unexplained absence must be chased with parents."
+          },
+          {
+            "text": "All students arrived on time",
+            "type": "yesno"
+          },
+          {
+            "text": "Register taken on time (within 30 minutes of session start)",
+            "type": "yesno"
+          },
+          {
+            "text": "Parents contacted when a student has not shown up and the reason is unknown",
+            "type": "yesno",
+            "critical": true,
+            "allowNA": true,
+            "photoExempt": true,
+            "guide": "If an expected student is absent and the parent has not told us why, they must be called straight after the register so the parent is made aware. Not knowing where a child is is a serious safeguarding matter. Record who was called in the note. N/A only if every absence was already accounted for."
+          },
+          {
+            "text": "Correct staff-to-student ratios maintained",
+            "type": "yesno",
+            "critical": true,
+            "photoExempt": true,
+            "guide": "Maximum 5 students per teacher. Record the actual ratio in the note if it exceeds this — a shortfall is a serious finding."
+          },
+          {
+            "text": "Admin available at front desk to accept late parents and secure the front entrance",
+            "type": "yesno",
+            "allowNA": true,
+            "dos": [
+              "Admin at or near the front desk throughout the session",
+              "Late parents received and signed in",
+              "Front entrance supervised and kept secure"
+            ],
+            "donts": [
+              "Front desk left unattended",
+              "Vulnerable students able to walk out the front unseen"
+            ],
+            "guide": "N/A only if the front entrance genuinely cannot be secured at this site."
+          }
+        ]
+      },
+      {
+        "title": "Classroom Operations",
+        "items": [
+          {
+            "text": "How many toilet passes are available?",
+            "type": "number",
+            "unit": "passes",
+            "minBySize": {
+              "small": 2,
+              "medium": 4,
+              "large": 5
+            },
+            "sizeGuide": {
+              "small": {
+                "text": "Small centre: 1 pass per gender (2 total)."
+              },
+              "medium": {
+                "text": "Medium centre: 2–3 passes per gender (4–6 total)."
+              },
+              "large": {
+                "text": "Large centre: 5+ passes."
+              }
+            },
+            "guide": "Count the passes available and compare with the target for this centre size (set the size on the start screen). If there are fewer than the target, this is flagged for improvement."
+          },
+          {
+            "text": "Toilet passes given out by the supervisor or teaching assistant (not taken freely)",
+            "type": "yesno",
+            "guide": "Passes should be handed out and controlled by the supervisor or teaching assistant, so no student is wandering the centre without reason."
+          },
+          {
+            "text": "Difficult students dealt with appropriately",
+            "type": "rating",
+            "requireNote": true,
+            "allowNA": true,
+            "whoField": true,
+            "dos": [
+              "Calm, fair and consistent approach",
+              "Clear expectations reset with the student",
+              "Escalated to a supervisor where needed"
+            ],
+            "donts": [
+              "Shouting at or publicly humiliating a student",
+              "Ignoring the behaviour",
+              "Any physical handling"
+            ],
+            "guide": "Record the teacher's name, then note the situation, the approach used and whether it was effective. N/A if no difficult behaviour was seen."
+          },
+          {
+            "text": "Classroom noise managed effectively",
+            "type": "choice",
+            "options": [
+              "Yes",
+              "Some disruption",
+              "Too much disruption"
+            ],
+            "scored": true,
+            "dos": [
+              "A low, productive working hum — talk is about the work",
+              "Off-task chatter redirected quickly and calmly",
+              "Room settles again within moments of a prompt"
+            ],
+            "donts": [
+              "Shouting across the room to be heard",
+              "Persistent off-task talking left unchecked",
+              "Students unable to concentrate because of the noise"
+            ],
+            "guide": "Well-managed noise is a productive working level, not silence. “Too much disruption” = learning is being disrupted."
+          }
+        ]
+      },
+      {
+        "title": "Teaching & Learning",
+        "items": [
+          {
+            "text": "Teaching pitched at the right level for each student",
+            "type": "rating",
+            "guide": "Work is neither too easy nor too hard; tutors adapt to the student in front of them."
+          },
+          {
+            "text": "Tutors marking work and giving feedback during the session",
+            "type": "yesno"
+          },
+          {
+            "text": "Students' progress checked against their targets",
+            "type": "rating",
+            "guide": "Tutors know each student's targets and are checking work against them, not just marking in isolation."
+          },
+          {
+            "text": "Session follows the planned curriculum / GoTutors materials",
+            "type": "yesno",
+            "guide": "Follows the GoTutors curriculum and materials. Note: students preparing for exams may skip ahead or leave out topics in the book to focus on what is coming up in their exams — that is expected, not a deviation."
+          },
+          {
+            "text": "Tutor–student interaction positive and encouraging",
+            "type": "rating",
+            "dos": [
+              "Praises effort, not just correct answers",
+              "Keeps struggling students feeling capable and supported",
+              "Patient, warm and encouraging tone"
+            ],
+            "donts": [
+              "Making a student feel they are not smart enough",
+              "Dismissive, sharp or impatient responses",
+              "Comparing students unfavourably"
+            ],
+            "guide": "Tutors should keep students feeling positive about the work even when they are struggling — never make a student feel they aren’t good enough."
+          }
+        ]
+      },
+      {
+        "title": "Book & Homework Check",
+        "items": [
+          {
+            "text": "Books reviewed this visit",
+            "type": "number",
+            "unit": "books",
+            "guide": "Sample a spread of books across different abilities — aim for at least 3."
+          },
+          {
+            "text": "Work is marked and up to date",
+            "type": "rating",
+            "guide": "Recent work is marked; the book isn't full of unmarked pages."
+          },
+          {
+            "text": "Marking gives useful feedback, not just ticks",
+            "type": "rating",
+            "dos": [
+              "Comments show the student what to fix",
+              "Next steps or targets noted",
+              "Errors clearly identified"
+            ],
+            "donts": [
+              "Only ticks and crosses",
+              "Whole pages left with no comment"
+            ]
+          },
+          {
+            "text": "Working / worked solutions shown and marked, not just final answers",
+            "type": "rating",
+            "allowNA": true,
+            "guide": "Mainly for Maths and Science — the method is shown and marked, not only the answer. N/A for essay-based work.",
+            "dos": [
+              "Full method or working visible",
+              "Method marked, not just the final answer"
+            ],
+            "donts": [
+              "Only final answers written",
+              "Working done on scrap and thrown away"
+            ]
+          },
+          {
+            "text": "Work and worked solutions neatly stapled / organised in the book",
+            "type": "rating",
+            "dos": [
+              "Loose sheets stapled or stuck in, in order",
+              "Book is easy to follow"
+            ],
+            "donts": [
+              "Loose pages falling out",
+              "Work out of order or missing"
+            ]
+          },
+          {
+            "text": "Homework set and marked",
+            "type": "rating",
+            "allowNA": true,
+            "guide": "Homework is being set and then actually marked and returned. N/A if homework isn't part of this student's plan."
+          },
+          {
+            "text": "Students act on feedback — corrections and improvements are done",
+            "type": "rating",
+            "guide": "There's evidence students go back and correct or improve flagged work, not just receive it."
+          }
+        ]
+      },
+      {
+        "title": "Teaching Observation — Maths",
+        "items": [
+          {
+            "text": "Tutor spots when a student needs help without being asked",
+            "type": "rating",
+            "allowNA": true,
+            "whoField": true,
+            "guide": "Record the tutor observed. Reads the room and steps in before a hand goes up. If no Maths lesson was observed this visit, mark this whole section N/A.",
+            "dos": [
+              "Scans the class and steps in early",
+              "Notices body language or a stalled student"
+            ],
+            "donts": [
+              "Only helps when a hand goes up",
+              "Misses students quietly stuck"
+            ]
+          },
+          {
+            "text": "Tutor pinpoints where in the problem the student is stuck",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Finds the exact step the student doesn't understand rather than re-teaching the whole thing."
+          },
+          {
+            "text": "Tutor identifies further weaknesses and scaffolds understanding",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Breaks the problem into steps",
+              "Addresses the root gap, not just the symptom"
+            ],
+            "donts": [
+              "Gives the answer and moves on",
+              "Ignores the underlying misunderstanding"
+            ]
+          },
+          {
+            "text": "Tutor gives clear examples, then further examples to solidify understanding",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Models a worked example first",
+              "Follows up with practice examples"
+            ],
+            "donts": [
+              "Explains verbally with nothing written down",
+              "One example then moves on too soon"
+            ]
+          },
+          {
+            "text": "Tutor demands worked-out solutions from the student, not just answers",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Expects the student to show their method, and marks the method — not only the final answer."
+          },
+          {
+            "text": "Tutor prompts the student toward the answer or next step, rather than giving it",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Asks a guiding question",
+              "Nudges the next step"
+            ],
+            "donts": [
+              "Simply states the answer",
+              "Takes the pen and does it for them"
+            ]
+          },
+          {
+            "text": "Tutor checks understanding after each step, not just at the end",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Confirms the student follows each step of the solution before moving on."
+          },
+          {
+            "text": "Tutor prepares students for unit tests with extra practice and verbal checks",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Uses further practice and quick verbal questions to confirm readiness before a unit test."
+          },
+          {
+            "text": "Tutor encourages the student, even for small wins",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Praises effort and progress",
+              "Keeps a positive tone"
+            ],
+            "donts": [
+              "Only points out mistakes",
+              "Flat or discouraging responses"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Teaching Observation — English",
+        "items": [
+          {
+            "text": "Tutor knows the English curriculum and how students are assessed",
+            "type": "rating",
+            "allowNA": true,
+            "whoField": true,
+            "guide": "Record the tutor observed. Confident with the specification and assessment objectives. If no English lesson was observed this visit, mark this whole section N/A."
+          },
+          {
+            "text": "Tutor has confident SPaG knowledge and explains the rules simply",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Explains the rule in plain terms",
+              "Gives a quick example of the rule"
+            ],
+            "donts": [
+              "Vague or shaky on the rule",
+              "Over-complicated explanation"
+            ]
+          },
+          {
+            "text": "Tutor uses accurate subject terminology and spots what the student uses or needs",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Correct terminology, and can identify techniques a student has used and which they should use to improve."
+          },
+          {
+            "text": "Tutor identifies the student's weaknesses and knows how to improve them",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor tailors explanations to the student's age and level",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Pitches language and depth to the individual student."
+          },
+          {
+            "text": "Tutor always gives examples when explaining",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Backs every explanation with an example",
+              "Uses model sentences or quotes"
+            ],
+            "donts": [
+              "Explains in the abstract only"
+            ]
+          },
+          {
+            "text": "Tutor models answers for the student",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Shows what a good answer looks like, not just describes it."
+          },
+          {
+            "text": "Tutor identifies techniques and methods easily",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor prompts and leads the student with questions",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Asks guiding questions",
+              "Leads the student to the point"
+            ],
+            "donts": [
+              "Gives the answer outright"
+            ]
+          },
+          {
+            "text": "Tutor can simplify an explanation to match the student's needs",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Can strip an explanation right back without losing the point when a student needs it."
+          },
+          {
+            "text": "Tutor's teaching style is engaging",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor gives detailed, effective feedback",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Specific, actionable feedback",
+              "Student knows exactly how to improve"
+            ],
+            "donts": [
+              "Generic “good job”",
+              "No clear next step"
+            ]
+          }
+        ]
+      },
+      {
+        "title": "Teaching Observation — Science",
+        "items": [
+          {
+            "text": "Tutor uses mark-scheme vocabulary",
+            "type": "rating",
+            "allowNA": true,
+            "whoField": true,
+            "guide": "Record the tutor observed. Uses the words the mark scheme rewards. If no Science lesson was observed this visit, mark this whole section N/A."
+          },
+          {
+            "text": "Tutor explains command words",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Makes clear what “describe”, “explain”, “evaluate” and so on actually require."
+          },
+          {
+            "text": "Tutor explains concepts correctly",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor encourages effort",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor builds the student's confidence",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor is patient",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Tutor gives the student time to ask questions and explain concepts back",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Pauses for questions",
+              "Asks the student to explain it back",
+              "Hears out a wrong answer before correcting"
+            ],
+            "donts": [
+              "Rushes on without checking",
+              "Shuts down a wrong answer immediately"
+            ]
+          },
+          {
+            "text": "Tutor gives thinking time rather than answering too quickly",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "Allows the student time to think instead of jumping straight in with the answer."
+          },
+          {
+            "text": "Tutor checks for understanding rather than talking at the student",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "dos": [
+              "Regularly checks the student is following",
+              "Two-way dialogue"
+            ],
+            "donts": [
+              "Lectures without checking",
+              "One-way talking"
+            ]
+          },
+          {
+            "text": "Tutor asks prompting questions",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true
+          },
+          {
+            "text": "Student becomes less reliant on the tutor through the session",
+            "type": "rating",
+            "whoField": true,
+            "allowNA": true,
+            "guide": "By the end the student is working more independently than at the start."
+          }
+        ]
+      },
+      {
+        "title": "Centre Operations — Systems & Admin",
+        "items": [
+          {
+            "text": "All current staff added to Zenzap",
+            "type": "yesno"
+          },
+          {
+            "text": "All former employees removed from Zenzap",
+            "type": "yesno",
+            "allowNA": true,
+            "guide": "N/A if no staff have left since the last visit."
+          },
+          {
+            "text": "All relevant staff added to the relevant group chats",
+            "type": "yesno"
+          },
+          {
+            "text": "All staff added to operations software (once available)",
+            "type": "yesno",
+            "allowNA": true,
+            "guide": "N/A until the operations software is live for this centre."
+          },
+          {
+            "text": "Deals / customer journey being tracked correctly",
+            "type": "rating"
+          },
+          {
+            "text": "No-shows being called back consistently",
+            "type": "rating"
+          },
+          {
+            "text": "Leads being called back consistently",
+            "type": "rating"
+          },
+          {
+            "text": "No customer payments pending more than 1 month",
+            "type": "yesno",
+            "guide": "Answer Yes if there are no payments outstanding beyond a month."
+          }
+        ]
+      },
+      {
+        "title": "Centre Operations — Stock Levels",
+        "items": [
+          {
+            "text": "Enough books for the centre size",
+            "type": "yesno",
+            "sizeGuide": {
+              "small": {
+                "text": "Small centre (up to 50): minimum 3 books per subject."
+              },
+              "medium": {
+                "text": "Medium centre (50–150): 4–6 books per subject."
+              },
+              "large": {
+                "text": "Large centre (150+): minimum 10 books per subject."
+              }
+            },
+            "guide": "Check against the target for this centre size. If stock is below target, the centre must place an order on the day or show proof an order has already been made."
+          },
+          {
+            "text": "Enough book tests for the centre size",
+            "type": "yesno",
+            "guide": "If short, place an order on the day or show proof an order has already been made."
+          },
+          {
+            "text": "Enough student admission forms for the centre size",
+            "type": "yesno"
+          },
+          {
+            "text": "Enough teacher admission forms for the centre size",
+            "type": "yesno"
+          },
+          {
+            "text": "Enough stationery — pencils (students), red pens (teachers), green pens (supervisors), black pens (admins & HOC)",
+            "type": "yesno"
+          }
+        ]
+      },
+      {
+        "title": "Safeguarding & Welfare",
+        "items": [
+          {
+            "text": "Safeguarding policy in place and staff know the designated lead",
+            "type": "yesno",
+            "critical": true,
+            "photoExempt": true,
+            "guide": "Ask a staff member who the Designated Safeguarding Lead (DSL) is — they must be able to name them. Record who you asked in the note."
+          },
+          {
+            "text": "Staff DBS / vetting confirmed on the record register",
+            "type": "yesno",
+            "critical": true,
+            "photoExempt": true,
+            "guide": "Every member of staff present must have a confirmed DBS on the register. Do NOT photograph DBS records — note the finding in writing instead (data protection)."
+          },
+          {
+            "text": "Accident & incident log up to date",
+            "type": "yesno"
+          },
+          {
+            "text": "Safe arrival and collection procedures being followed",
+            "type": "rating",
+            "critical": true,
+            "photoExempt": true,
+            "guide": "No child leaves with an unauthorised adult; arrivals and collections are supervised and recorded. Note any gap in the procedure."
+          }
+        ]
+      },
+      {
+        "title": "Health, Safety & Premises",
+        "items": [
+          {
+            "text": "Fire exits clear and signage visible",
+            "type": "yesno",
+            "critical": true,
+            "guide": "Exits unobstructed and signage visible. If an exit is blocked, take a photo as evidence."
+          },
+          {
+            "text": "Fire drill recorded within the last 3 months",
+            "type": "yesno",
+            "critical": true,
+            "photoExempt": true,
+            "guide": "Check the fire log for a drill in the last 3 months. Note the date of the last recorded drill."
+          },
+          {
+            "text": "First aid kit stocked and in date",
+            "type": "yesno",
+            "critical": true,
+            "guide": "Kit present, fully stocked and in date. Photograph any missing or expired items."
+          },
+          {
+            "text": "Risk assessments reviewed and current",
+            "type": "yesno"
+          },
+          {
+            "text": "Premises clean and well maintained",
+            "type": "rating"
+          },
+          {
+            "text": "Learning areas safe and suitable for the age group",
+            "type": "rating"
+          },
+          {
+            "text": "Temperature and ventilation comfortable",
+            "type": "rating"
+          }
+        ]
+      },
+      {
+        "title": "Hygiene & Facilities (Toilets)",
+        "items": [
+          {
+            "text": "Warm water available in toilets",
+            "type": "yesno"
+          },
+          {
+            "text": "Toilets clean and hygienic",
+            "type": "rating"
+          },
+          {
+            "text": "Hand soap available",
+            "type": "yesno"
+          },
+          {
+            "text": "Toilet paper stocked",
+            "type": "yesno"
+          },
+          {
+            "text": "Hand drying facilities available",
+            "type": "yesno"
+          },
+          {
+            "text": "Female sanitation provision available",
+            "type": "yesno"
+          },
+          {
+            "text": "Cleaning products available",
+            "type": "yesno"
+          },
+          {
+            "text": "Hand sanitiser available",
+            "type": "yesno"
+          }
+        ]
+      },
+      {
+        "title": "Student & Parent Voice",
+        "items": [
+          {
+            "text": "Student asked how they find the sessions",
+            "type": "choice",
+            "options": [
+              "Positive",
+              "Mixed",
+              "Negative"
+            ],
+            "scored": true,
+            "requireNote": true,
+            "allowNA": true,
+            "guide": "Speak to at least one student privately; note what they say in their own words. N/A only if no student could be spoken to."
+          },
+          {
+            "text": "Parent asked about progress and communication",
+            "type": "choice",
+            "options": [
+              "Positive",
+              "Mixed",
+              "Negative"
+            ],
+            "scored": true,
+            "requireNote": true,
+            "allowNA": true,
+            "guide": "Speak to a parent at drop-off or collection; note their words. N/A if no parent was available."
+          },
+          {
+            "text": "No concerns raised by students or parents on site",
+            "type": "yesno"
+          }
+        ]
+      },
+      {
+        "title": "Wrap-up & Session Tally",
+        "items": [
+          {
+            "text": "Teacher stand-ups observed during the session",
+            "type": "number",
+            "unit": "times",
+            "tally": "standups",
+            "guide": "Count each time a teacher stands up to circulate or address the class — more circulating generally means more active engagement. Use the tally bar at the top to keep count through the session."
+          },
+          {
+            "text": "Student distractions observed during the session — getting up, talking, messing around, not focusing, distracting others",
+            "type": "number",
+            "unit": "times",
+            "tally": "distractions",
+            "guide": "Tally each clear student distraction — getting up, talking, messing around, losing focus or distracting others. Fewer is better. Use the counter at the top to keep count through the session."
+          }
+        ]
+      }
+    ]
+  },
+  "inspections": []
+}
