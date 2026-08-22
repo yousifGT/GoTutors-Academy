@@ -4,53 +4,114 @@ Centre inspection tooling: an inspector walks a centre during a live session,
 works through a 101-question checklist across 15 sections, records notes and
 photo evidence against failures, and leaves with a scored report and a debrief.
 
-Separate from the Academy LMS that fills the rest of this repository — it shares
-the brand and the centre list, not the codebase.
+**This is a separate application.** It lives in this repository beside the
+GoTutors Academy LMS but shares nothing with it — its own database, its own user
+accounts, its own dependencies, its own port. Run them independently.
 
 ```
 inspection-app/
-  core/       inspection-core.js — the scoring rules, shared by browser and server
+  core/       inspection-core.js — the scoring rules, shared by server and browser
   data/       gotutors-seed.json — checklist v13 + the 23 centres
-  docs/       BACKEND-HANDOFF.md — the hosted-build spec (schema, API, AWS)
-  prototype/  centre-inspection-app.html — the working single-file app
+  docs/       BACKEND-HANDOFF.md — the original specification
+  prisma/     schema + seed
+  prototype/  centre-inspection-app.html — the original single-file app
+  src/        the Next.js application
 ```
 
-## Status
-
-The hosted build has started: the database schema, the seed importer and the
-scoring bridge are in (`prisma/schema.prisma`, `prisma/seed-inspection.ts`,
-`src/lib/inspection/`). There is no API or UI yet, so the **prototype is still
-the product today**: one self-contained HTML file that runs
-offline in a browser and keeps everything in local storage. It is also the
-definitive spec for screens, ordering and branding — open it before changing any
-flow.
+## Running it
 
 ```bash
-open inspection-app/prototype/centre-inspection-app.html   # macOS
-xdg-open inspection-app/prototype/centre-inspection-app.html
+cd inspection-app
+npm install
+
+cp .env.example .env
+#   NEXTAUTH_SECRET   →  openssl rand -hex 32
+#   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD  →  your first login
+
+docker compose up -d      # Postgres on port 5434 — its own database
+npm run db:push
+npm run db:seed           # checklist v13, the 23 centres, your admin account
+
+npm run dev               # http://localhost:3100
 ```
 
-Management passcode in the seed is `Admin2026` — change it before any real use.
+Port **3100**, database port **5434** — chosen so both can run at the same time
+as the Academy (3000 / 5433) without colliding.
 
-The hosted version described in `docs/BACKEND-HANDOFF.md` is **not built yet**.
-Nothing here talks to a server.
+There are **no demo accounts**. The seed creates one administrator from
+`SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD`, and nothing at all if those are
+unset. Inspection records include photographs taken in a children's setting, so
+a known-password account must never exist by default.
+
+### What you can see today
+
+- **Sign in**, and a home screen listing centres, the live checklist version and
+  recent visits with their scores.
+- **The API** below, working end to end.
+- **The prototype** (`prototype/centre-inspection-app.html`) — open it in a
+  browser, no server needed. It remains the definitive spec for the inspector
+  screens, their ordering and the branding.
+
+The inspector screens themselves are the next piece of work; until they land,
+the prototype is how an inspection actually gets carried out.
+
+## Roles
+
+| Role | Reads | Inspects | Edits the checklist |
+|---|---|---|---|
+| Super admin | every centre | yes | yes |
+| Head office | every centre | yes | yes |
+| Regional manager | their centres | yes | no |
+| Franchisee | their centres | no | no |
+| Inspector | their own visits | anywhere | no |
+| Read only | every centre | no | no |
+
+An inspector has no centre list — they go where they are sent, and see their own
+work afterwards. A franchisee is the mirror image: tied to centres, never
+holding the clipboard. A centre-scoped viewer with no centres assigned falls back
+to their own work, never to everything.
+
+## API
+
+| Route | What it does |
+|---|---|
+| `GET /api/template` | the live checklist, in inspector order |
+| `GET /api/centres` | the centres this viewer may work with |
+| `GET /api/inspections` | list, scoped to the viewer (`?centre=&from=&to=&limit=`) |
+| `POST /api/inspections` | start a visit; returns the open draft if one already exists for that inspector, centre and day |
+| `GET /api/inspections/:id` | one inspection with its checklist, answers and live score |
+| `PATCH /api/inspections/:id` | autosave — answers, notes, photos, `activeMs`, debrief |
+| `POST /api/inspections/:id/submit` | close it: score on the server, write the buckets, lock it |
+| `DELETE /api/inspections/:id` | discard a draft |
+
+Rules the API enforces, not just the UI:
+
+- The **score is computed server-side** from the stored answers, never taken from
+  the request.
+- **Submission is refused** (422, listing what is outstanding) while any question
+  is unanswered, any answer that needs a note lacks one, or any failed critical
+  item lacks its photo.
+- A **submitted inspection is a record**: it cannot be edited or deleted, by
+  anyone, super admin included. Correcting it means another visit.
+- Only the inspector who started a draft may write to it.
+- An answer must belong to the checklist version the inspection was started
+  against.
+- Reads are **scoped in the query**, so an inspection outside a viewer's reach is
+  simply "not found" rather than "forbidden" — the endpoint never confirms it
+  exists.
 
 ## `core/inspection-core.js`
 
 Every rule that decides a score, a report bucket, a verdict, or whether a note or
 photo is required. No dependencies, no DOM, no storage — the same file runs in
-Node (`require`) and in the browser (`window.InspectionCore`), so the client and
-the server can't drift apart. Ships as-is from the handoff; treat it as the one
-source of truth and change it deliberately.
+Node (`require`) and in the browser (`window.InspectionCore`). Ships as-is from
+the handoff; treat it as the one source of truth and change it deliberately.
 
 ```js
 const core = require("./core/inspection-core.js");
-
 const r = core.scoreInspection(sections, "medium");
 // { pct, scored, well, poor, obs, unanswered, criticalFails: [text], verdict }
 ```
-
-The rules it owns:
 
 | Rule | Behaviour |
 |---|---|
@@ -60,115 +121,54 @@ The rules it owns:
 | **Critical override** | **Any failed critical item makes the verdict "Serious finding", however high the percentage. A centre with one blocked fire exit cannot be rated Good.** |
 | Notes | Only a clean pass-like answer may skip a note; `requireNote` questions always need one. |
 | Photos | A failed **critical** item needs photo evidence — unless it is `photoExempt` (DBS records are written up, never photographed). |
-| Guidance | Size-aware: shows the line for this centre's size, or all three when the size is unknown. |
+| Guidance | Size-aware: the line for this centre's size, or all three when the size is unknown. |
 | Duration | `fmtDuration(activeMs)` — the stored clock is accumulated *active* time, not start→end. |
 
 **Centre size is not optional.** `bucketOf`, `notesRequired`, `criticalFail`,
 `photoRequired`, `resolveGuide` and `scoreInspection` all take it as their second
-argument. Number questions carrying `minBySize` — the toilet-pass count today —
-resolve their bucket from it, so a bucket computed without a size is wrong, and a
-critical number question can flip the whole verdict on size alone. See
-`docs/BACKEND-HANDOFF.md` §2.
+argument. A number question carrying `minBySize` — the toilet-pass count today —
+resolves its bucket from it, and a critical one can flip the whole verdict on
+size alone. `src/lib/score.ts` bridges database rows to these rules and makes
+size a **required** argument, which is what stops a bucket being computed without
+one.
 
-What it deliberately leaves to the caller: whether a required note or photo has
-actually been supplied (`notesRequired` / `photoRequired` say what is *needed*;
-the entries live on the item), repeat-issue detection against the previous visit,
-and turning a template into a blank answerable inspection. The prototype does all
-three; a hosted front end will need its own.
+The prototype carries its own inlined copy of these rules. A rule change has to
+land in both until the inspector screens replace the prototype.
 
-The prototype still carries its own inlined copy of these rules. Any change to a
-rule has to land in both until the hosted front end replaces the file.
-
-### Tests
+## Tests
 
 ```bash
-node --test inspection-app/core/
+npm test          # both suites
+npm run test:core # the rules alone, no bundler — plain node --test
 ```
 
-23 tests, no dependencies and no config — deliberately outside the root Vitest
-suite (`src/**/*.test.ts`), which is the LMS's. They cover each rule above and
-assert the shipped checklist still matches: 15 sections, 101 questions, 23
-centres, 8 critical items.
+The rules in `core/` test themselves with `node --test`, exactly as they ship.
+Everything else runs under Vitest. The core suite also asserts the shipped
+checklist still matches: 15 sections, 101 questions, 23 centres, 8 critical items.
 
 ## Data
 
-`data/gotutors-seed.json` is checklist **v13** in the app's own export shape:
+`data/gotutors-seed.json` is checklist **v13** in the prototype's own export
+shape:
 
 ```
 { config: { checklistVersion, configVersion, passcode, centres, template }, inspections: [] }
 ```
 
-It loads straight into the prototype via Management → Data & Access → Import, and
-seeds the hosted build's `templates` / `sections` / `questions` / `centres`
-tables. No historical inspections are included.
+Re-running `npm run db:seed` is safe. Centres are matched by name and never
+overwritten. Re-importing the same `checklistVersion` updates that template in
+place; a new version publishes a new template beside it and marks the old one
+inactive, so inspections already recorded stay readable against the checklist
+they were run under.
 
-## The hosted build
+## Still to build
 
-It is being built into this repository rather than as the separate AWS stack the
-handoff sketches, because the Academy already provides most of what that stack
-would stand up: Postgres via Prisma, NextAuth, a Centre and User model, roles
-with per-user permission overrides, and an upload path that already supports S3.
-The handoff's schema and API surface still hold — read `docs/BACKEND-HANDOFF.md`
-for the intent, and the notes below for where this repo diverges.
-
-| Handoff | Here |
-|---|---|
-| `profiles` + Cognito | the existing `User` / `Role`, plus four `inspection.*` permissions |
-| `centres` | the existing `Centre`, with a new nullable `size` |
-| `templates` / `sections` / `questions` | `InspectionTemplate` / `InspectionSection` / `InspectionQuestion` |
-| `inspections` / `answers` / `answer_entries` / `entry_photos` | `Inspection` / `InspectionAnswer` / `InspectionEntry` / `InspectionPhoto` |
-| RLS at the data layer | `userHasPermission` + centre scoping in the route handlers |
-| S3 signed URLs | `src/lib/storage.ts` (`UPLOAD_BACKEND=s3`) |
-
-Seed the checklist and the 23 centres into the database:
-
-```bash
-npm run db:push
-npm run db:seed:inspection     # idempotent; safe against a live database
-```
-
-Existing centres are matched by name and never overwritten. Re-importing the
-same `checklistVersion` updates that template in place; a new version publishes a
-new template beside it and marks the old one inactive, so inspections already
-recorded stay readable against the checklist they were run under.
-
-`src/lib/inspection/score.ts` is the bridge between database rows and the rules.
-It takes centre size as a **required** argument everywhere, which is what stops a
-bucket being computed without one.
-
-### API
-
-| Route | What it does |
-|---|---|
-| `GET /api/inspections/template` | the live checklist, in inspector order |
-| `GET /api/inspections` | list, scoped to what the viewer may see (`?centre=&from=&to=&limit=`) |
-| `POST /api/inspections` | start a visit; returns the existing draft if one is already open for that inspector, centre and day |
-| `GET /api/inspections/:id` | one inspection with its checklist, answers and live score |
-| `PATCH /api/inspections/:id` | autosave — answers, notes, photos, `activeMs`, debrief |
-| `POST /api/inspections/:id/submit` | close it: score on the server, write the buckets, lock it |
-| `DELETE /api/inspections/:id` | discard a draft |
-
-Rules the API enforces, not just the UI:
-
-- The **score is computed server-side** from the stored answers and never taken
-  from the request.
-- **Submission is refused** (422, listing what is outstanding) while any question
-  is unanswered, any answer that needs a note lacks one, or any failed critical
-  item lacks its photo.
-- A **submitted inspection is a record**: it cannot be edited or deleted, by
-  anyone, including a super admin. Correcting it means a new visit.
-- Only the inspector who started a draft may write to it.
-- An answer must belong to the checklist version the inspection was started
-  against.
-
-### Still to build
-
-1. ~~Postgres schema + seed importer.~~ Done.
-2. ~~Inspection API — drafts, autosave, submit.~~ Done.
-3. The inspector UI, following the prototype's screens and ordering.
-4. Photo and signature upload, reusing `storage.ts` (the API takes URLs today).
+1. ~~Database schema and seed importer.~~ Done.
+2. ~~Auth, roles, and the inspection API.~~ Done.
+3. The inspector screens, following the prototype.
+4. Photo and signature upload (the API takes URLs today).
 5. Report PDF, emailed and logged.
-6. Cross-centre dashboard aggregations.
+6. Cross-centre dashboards.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
-photos are taken in a children's setting.
+photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

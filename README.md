@@ -114,7 +114,7 @@ Before deploying to a public URL, complete every box:
 
 ## Also in this repository
 
-`inspection-app/` — the **GoTutors Inspection App**, a separate product for
-inspecting centres during a live session. Self-contained; it shares the brand and
-the centre list with the Academy, not the codebase. See
-[`inspection-app/README.md`](inspection-app/README.md).
+`inspection-app/` — the **GoTutors Inspection App**, a separate application for
+inspecting centres during a live session. It shares nothing with the Academy: its
+own database, its own accounts, its own dependencies, its own port (3100). Run
+the two independently. See [`inspection-app/README.md`](inspection-app/README.md).

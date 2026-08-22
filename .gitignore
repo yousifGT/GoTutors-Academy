@@ -45,3 +45,7 @@ next-env.d.ts
 
 # uploaded media (local-disk storage; swap for S3 in prod)
 /public/uploads
+
+# The inspection app is a separate application with its own dependencies.
+inspection-app/node_modules/
+inspection-app/.next/

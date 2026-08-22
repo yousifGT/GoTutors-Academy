@@ -38,13 +38,9 @@ model Centre {
   id        String   @id @default(cuid())
   name      String
   location  String?
-  /// Default size for inspections at this centre. Drives the size-based minimums
-  /// and guidance in the checklist; an inspector can override it per visit.
-  size      CentreSize?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   users     User[]
-  inspections Inspection[]
 }
 
 model Role {
@@ -122,7 +118,6 @@ model User {
   certificates   Certificate[]
   notifications  Notification[]    @relation("UserNotifications")
   authoredCourses Course[]         @relation("AuthoredCourses")
-  inspections    Inspection[]      @relation("Inspections")
   permissionOverrides UserPermissionOverride[]
 
   @@index([centreId])
@@ -299,194 +294,4 @@ model Notification {
   createdAt DateTime         @default(now())
   user      User             @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
   @@index([userId, read])
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Centre inspections
-//
-// A separate product from the LMS that shares this database's Centre and User.
-// The scoring rules live in inspection-app/core/inspection-core.js and are the
-// one source of truth — see src/lib/inspection/score.ts for the bridge, and
-// inspection-app/docs/BACKEND-HANDOFF.md for the original spec.
-// ─────────────────────────────────────────────────────────────────────────────
-
-enum CentreSize {
-  SMALL
-  MEDIUM
-  LARGE
-}
-
-enum InspectionQuestionType {
-  RATING
-  YESNO
-  SCALE
-  NUMBER
-  CHOICE
-}
-
-enum InspectionStatus {
-  DRAFT
-  SUBMITTED
-}
-
-/// Which part of the report an answered question lands in. Computed by the core
-/// from the answer *and* the inspection's centre size — never store one without it.
-enum InspectionBucket {
-  WELL
-  IMPROVE
-  OBS
-  SKIP
-}
-
-model InspectionTemplate {
-  id          String   @id @default(cuid())
-  name        String
-  version     Int      @default(1)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  sections    InspectionSection[]
-  inspections Inspection[]
-
-  @@unique([name, version])
-  @@index([isActive])
-}
-
-model InspectionSection {
-  id         String @id @default(cuid())
-  templateId String
-  title      String
-  order      Int
-
-  template   InspectionTemplate   @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  questions  InspectionQuestion[]
-
-  @@unique([templateId, order])
-  @@index([templateId])
-}
-
-model InspectionQuestion {
-  id          String                 @id @default(cuid())
-  sectionId   String
-  text        String
-  type        InspectionQuestionType @default(RATING)
-  order       Int
-  /// choice: the selectable options, best-first when `scored`
-  options     Json?
-  /// scale bounds
-  minVal      Int?
-  maxVal      Int?
-  /// number: what is being counted ("books", "passes")
-  unit        String?
-  /// a multiple choice that counts toward the score, first option best
-  scored      Boolean                @default(false)
-  requireNote Boolean                @default(false)
-  /// failing this caps the whole inspection at "Serious finding"
-  critical    Boolean                @default(false)
-  /// a critical item evidenced in writing, not by photo (e.g. DBS records)
-  photoExempt Boolean                @default(false)
-  allowNA     Boolean                @default(false)
-  /// each note entry carries a tutor name (the Teaching Observation sections)
-  whoField    Boolean                @default(false)
-  guide       String?
-  /// green "do" bullets
-  dos         Json?
-  /// red "don't" bullets
-  donts       Json?
-  /// { small: { text }, medium: { text }, large: { text } }
-  sizeGuide   Json?
-  /// { small, medium, large } — a count below the target is flagged "improve"
-  minBySize   Json?
-  /// "standups" | "distractions" — driven by the session tally bar
-  tallyKey    String?
-
-  section InspectionSection  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
-  answers InspectionAnswer[]
-
-  @@unique([sectionId, order])
-  @@index([sectionId])
-}
-
-model Inspection {
-  id          String           @id @default(cuid())
-  centreId    String
-  templateId  String
-  inspectorId String
-  /// the size used for THIS inspection — the centre default is only a starting point
-  size        CentreSize
-  date        DateTime         @db.Date
-  startedAt   DateTime?
-  endedAt     DateTime?
-  /// accumulated ACTIVE milliseconds; the clock pauses when the inspector leaves
-  activeMs    Int              @default(0)
-  status      InspectionStatus @default(DRAFT)
-  scorePct    Int?
-  verdict     String?
-  targets     String?
-
-  debriefRole         String?
-  debriefName         String?
-  debriefNotes        String?
-  debriefFeedback     String?
-  debriefEmail        String?
-  debriefSignatureUrl String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  centre    Centre             @relation(fields: [centreId], references: [id])
-  template  InspectionTemplate @relation(fields: [templateId], references: [id])
-  inspector User               @relation("Inspections", fields: [inspectorId], references: [id])
-  answers   InspectionAnswer[]
-
-  @@index([centreId, date])
-  @@index([inspectorId])
-  @@index([status])
-}
-
-model InspectionAnswer {
-  id            String  @id @default(cuid())
-  inspectionId  String
-  questionId    String
-  /// snapshot of the question at answer time — the template may change later
-  questionText  String
-  /// "pass" | "yes" | "3" | "7" | "Positive" | "na" | null
-  answer        String?
-  /// from the core's itemScore, kept for analytics
-  scoreFraction Float?
-  bucket        InspectionBucket?
-
-  inspection Inspection        @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
-  question   InspectionQuestion @relation(fields: [questionId], references: [id])
-  entries    InspectionEntry[]
-
-  @@unique([inspectionId, questionId])
-  @@index([inspectionId])
-  @@index([questionText, bucket])
-}
-
-/// Layered notes: one question can hold several entries, each tagged with the
-/// tutor it came from and carrying its own photos.
-model InspectionEntry {
-  id       String @id @default(cuid())
-  answerId String
-  note     String?
-  /// tutor name, for whoField questions
-  who      String?
-  order    Int    @default(0)
-
-  answer InspectionAnswer  @relation(fields: [answerId], references: [id], onDelete: Cascade)
-  photos InspectionPhoto[]
-
-  @@index([answerId])
-}
-
-model InspectionPhoto {
-  id      String   @id @default(cuid())
-  entryId String
-  url     String
-  takenAt DateTime @default(now())
-
-  entry InspectionEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
-
-  @@index([entryId])
 }

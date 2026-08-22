@@ -7,9 +7,6 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
   },
   resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "src"),
-      "@inspection": path.resolve(__dirname, "inspection-app"),
-    },
+    alias: { "@": path.resolve(__dirname, "src") },
   },
 });

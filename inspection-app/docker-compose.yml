@@ -1,0 +1,30 @@
+# Local database for the GoTutors inspection app.
+#
+#   docker compose up -d      # start it
+#   docker compose down       # stop it (data kept)
+#   docker compose down -v    # stop it and wipe the data
+#
+# Port 5434, so it never collides with the Academy's database on 5433 or a
+# system Postgres on 5432. The two apps have separate databases by design.
+
+services:
+  db:
+    image: postgres:16
+    container_name: gotutors-inspection-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: gotutors_inspection
+    ports:
+      - "5434:5432"
+    volumes:
+      - inspection_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gotutors_inspection"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  inspection_db:

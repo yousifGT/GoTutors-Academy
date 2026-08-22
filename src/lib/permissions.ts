@@ -23,11 +23,6 @@ export const PERMISSIONS = {
   REPORTS_CENTRE: "reports.centre",
   // notifications
   NOTIFICATIONS_VIEW: "notifications.view",
-  // centre inspections
-  INSPECTION_CONDUCT: "inspection.conduct",
-  INSPECTION_VIEW_ALL: "inspection.view_all",
-  INSPECTION_VIEW_CENTRE: "inspection.view_centre",
-  INSPECTION_TEMPLATE_MANAGE: "inspection.template_manage",
 } as const;
 
 export type PermissionKey = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
@@ -48,10 +43,6 @@ export const ALL_PERMISSIONS: { key: PermissionKey; label: string; description: 
   { key: PERMISSIONS.REPORTS_GLOBAL, label: "Global reports", description: "Run reports across all centres" },
   { key: PERMISSIONS.REPORTS_CENTRE, label: "Centre reports", description: "Run reports for a single centre" },
   { key: PERMISSIONS.NOTIFICATIONS_VIEW, label: "View notifications", description: "View notification feed" },
-  { key: PERMISSIONS.INSPECTION_CONDUCT, label: "Carry out inspections", description: "Start, fill in and submit centre inspections" },
-  { key: PERMISSIONS.INSPECTION_VIEW_ALL, label: "View all inspections", description: "Read inspections for every centre" },
-  { key: PERMISSIONS.INSPECTION_VIEW_CENTRE, label: "View centre inspections", description: "Read inspections for their own centre" },
-  { key: PERMISSIONS.INSPECTION_TEMPLATE_MANAGE, label: "Manage the checklist", description: "Edit the inspection checklist and publish a new version" },
 ];
 
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
@@ -64,9 +55,6 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, PermissionKey[]> = {
     PERMISSIONS.QUIZ_UNLOCK_RETRY,
     PERMISSIONS.REPORTS_CENTRE,
     PERMISSIONS.NOTIFICATIONS_VIEW,
-    // A centre admin reads inspections of their own centre but never runs one —
-    // an inspection is carried out by a visitor, not by the centre itself.
-    PERMISSIONS.INSPECTION_VIEW_CENTRE,
   ],
   INSTRUCTOR: [
     PERMISSIONS.COURSE_CREATE,
