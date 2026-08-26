@@ -90,17 +90,37 @@ There are **no demo accounts**. The seed creates one administrator from
 unset. Inspection records include photographs taken in a children's setting, so
 a known-password account must never exist by default.
 
-### What you can see today
+### The screens
 
-- **Sign in**, and a home screen listing centres, the live checklist version and
-  recent visits with their scores.
-- **The API** below, working end to end.
-- **The prototype** (`prototype/centre-inspection-app.html`) — open it in a
-  browser, no server needed. It remains the definitive spec for the inspector
-  screens, their ordering and the branding.
+| Screen | What it does |
+|---|---|
+| `/login` | sign in |
+| `/` | centres, checklist version, drafts to resume, recent visits |
+| `/inspections/new` | pick a centre and its size for today |
+| `/inspections/[id]` | the inspection itself |
+| `/inspections/[id]/report` | the finished record |
 
-The inspector screens themselves are the next piece of work; until they land,
-the prototype is how an inspection actually gets carried out.
+The inspection screen is built for a phone held one-handed while walking a
+centre. A sticky bar carries the live score, the active clock and the save
+state; a red band appears the moment a critical item fails. Sections are tabs
+showing answered-of-total, so it is obvious what is left. Each question takes an
+answer, then as many note entries as needed — the Teaching Observation sections
+tag each one with a tutor, because an inspector circulates between tables.
+Photos come straight from the camera. Guidance, including the do and don't
+lists, is a tap away on any question that has it.
+
+The score is recomputed in the browser on every tap using the same
+`inspection-core.js` the server scores with, so the number on screen and the
+number recorded cannot disagree. Everything autosaves; leaving mid-visit and
+coming back resumes exactly where you were, timer included.
+
+The debrief screen states what is still outstanding — unanswered questions,
+answers owing a note, critical failures owing photo evidence — with links
+straight to them, and keeps the submit button disabled until there is nothing
+left. Submitting locks the inspection; reopening it goes to the report.
+
+`prototype/centre-inspection-app.html` is kept as the original single-file
+version the screens were ported from.
 
 ## Roles
 

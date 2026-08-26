@@ -3,17 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { canConduct, centreScope, inspectionScope } from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
+import { ROLE_LABEL, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { SignOut } from "@/components/sign-out";
-
-const ROLE_LABEL: Record<string, string> = {
-  SUPER_ADMIN: "Super admin",
-  HEAD_OFFICE: "Head office",
-  REGIONAL_MANAGER: "Regional manager",
-  FRANCHISEE: "Franchisee",
-  INSPECTOR: "Inspector",
-  READ_ONLY: "Read only",
-};
 
 export default async function Home() {
   const user = await requireUser();
@@ -67,12 +59,26 @@ export default async function Home() {
       </section>
 
       {canConduct(user.role) && (
-        <p className="mt-6 rounded-xl bg-navy-50 px-4 py-3 text-sm text-navy">
-          {drafts.length > 0
-            ? `You have ${drafts.length} inspection${drafts.length === 1 ? "" : "s"} in progress.`
-            : "No inspection in progress."}{" "}
-          The inspector screens are still being built — the checklist and the API are live.
-        </p>
+        <div className="mt-6 space-y-3">
+          {drafts.map((d) => (
+            <Link
+              key={d.id}
+              href={`/inspections/${d.id}`}
+              className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200"
+            >
+              <span className="text-sm font-medium text-amber-900">
+                Resume {d.centre.name} — started {shortDate(d.date)}
+              </span>
+              <span className="text-sm font-semibold text-amber-900">→</span>
+            </Link>
+          ))}
+          <Link
+            href="/inspections/new"
+            className="block rounded-xl bg-navy px-4 py-3.5 text-center font-semibold text-white transition hover:bg-navy-700"
+          >
+            Start an inspection
+          </Link>
+        </div>
       )}
 
       <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Recent visits</h2>
@@ -83,7 +89,11 @@ export default async function Home() {
       ) : (
         <ul className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
           {inspections.map((i) => (
-            <li key={i.id} className="flex items-center justify-between gap-4 p-4">
+            <li key={i.id}>
+              <Link
+                href={i.status === "DRAFT" ? `/inspections/${i.id}` : `/inspections/${i.id}/report`}
+                className="flex items-center justify-between gap-4 p-4 hover:bg-slate-50"
+              >
               <div className="min-w-0">
                 <p className="truncate font-medium text-slate-800">{i.centre.name}</p>
                 <p className="text-sm text-slate-500">
@@ -106,17 +116,15 @@ export default async function Home() {
                   <span className="block text-xs font-medium">{i.verdict}</span>
                 </span>
               )}
+              </Link>
             </li>
           ))}
         </ul>
       )}
 
-      <p className="mt-8 text-xs text-slate-400">
+      <p className="mt-8 pb-8 text-xs text-slate-400">
         Runs independently of the GoTutors Academy — its own database, its own accounts.
       </p>
-      <Link href="/api/template" className="text-xs text-sky-600 underline">
-        View the live checklist (JSON)
-      </Link>
     </main>
   );
 }
