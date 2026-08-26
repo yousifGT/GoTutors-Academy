@@ -18,5 +18,8 @@
     "paths": { "@/*": ["./src/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  // inspection-app is a separate application with its own tsconfig and its own
+  // node_modules. Type-checking it from here resolves its imports against the
+  // Academy's copies of shared packages, which conflict.
+  "exclude": ["node_modules", "inspection-app"]
 }

@@ -150,6 +150,8 @@ to their own work, never to everything.
 | `PATCH /api/inspections/:id` | autosave — answers, notes, photos, `activeMs`, debrief |
 | `POST /api/inspections/:id/submit` | close it: score on the server, write the buckets, lock it |
 | `DELETE /api/inspections/:id` | discard a draft |
+| `POST /api/uploads` | store one photo or signature, returns its URL |
+| `GET /api/inspections/:id/pdf` | the report as a PDF (`?inline=1` to view rather than download) |
 
 Rules the API enforces, not just the UI:
 

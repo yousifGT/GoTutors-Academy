@@ -64,6 +64,7 @@ export function Runner(props: Props) {
   const [sectionIndex, setSectionIndex] = useState(0);
   const [onDebrief, setOnDebrief] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const [submitError, setSubmitError] = useState("");
   const [blockers, setBlockers] = useState<null | {
     unanswered: number;
     unansweredCritical: string[];
@@ -103,7 +104,7 @@ export function Runner(props: Props) {
   const latest = useRef({ answers, debrief, targets });
   latest.current = { answers, debrief, targets };
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (): Promise<boolean> => {
     const ids = Array.from(dirty.current);
     dirty.current.clear();
     const body: Record<string, unknown> = { activeMs: clockRef.current?.total() ?? props.activeMs };
@@ -135,10 +136,12 @@ export function Runner(props: Props) {
       });
       if (!res.ok) throw new Error(String(res.status));
       setSaveState("saved");
+      return true;
     } catch {
       // Put the ids back so the next save retries them rather than losing work.
       ids.forEach((id) => dirty.current.add(id));
       setSaveState("error");
+      return false;
     }
   }, [props.id, props.activeMs]);
 
@@ -191,7 +194,13 @@ export function Runner(props: Props) {
 
   /* ---------- submit ---------- */
   async function submit() {
-    await flush();
+    setSubmitError("");
+    if (!(await flush())) {
+      setSubmitError(
+        "Your answers could not be saved, so this cannot be submitted yet. Check your connection — nothing has been lost, and it will retry."
+      );
+      return;
+    }
     const res = await fetch(`/api/inspections/${props.id}/submit`, { method: "POST" });
     const body = await res.json();
     if (res.status === 422) {
@@ -200,6 +209,7 @@ export function Runner(props: Props) {
     }
     if (!res.ok) {
       setSaveState("error");
+      setSubmitError(body?.error ?? "The inspection could not be submitted.");
       return;
     }
     router.push(`/inspections/${props.id}/report`);
@@ -249,6 +259,8 @@ export function Runner(props: Props) {
             targets={targets}
             score={score}
             blockers={blockers}
+            saveState={saveState}
+            submitError={submitError}
             onDebrief={(patch) => {
               setDebrief((d) => ({ ...d, ...patch }));
               scheduleSave();

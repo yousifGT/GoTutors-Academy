@@ -7,10 +7,5 @@ export function Wordmark({ className = "" }: { className?: string }) {
   );
 }
 
-/** Verdict colours match inspection-core's verdictFor(), so the two never drift. */
-export const VERDICT_COLOR: Record<string, string> = {
-  Good: "#2f855a",
-  Satisfactory: "#c07d10",
-  "Needs attention": "#c0392b",
-  "Serious finding": "#c0392b",
-};
+// Verdict colours live with the report, so the screen and the PDF share one table.
+export { VERDICT_COLOR } from "@/lib/report";

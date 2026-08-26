@@ -14,6 +14,8 @@ interface Props {
     missingNotes: string[];
     missingPhotos: string[];
   };
+  saveState: "saved" | "saving" | "error";
+  submitError: string;
   answeredCount: number;
   totalQuestions: number;
   onDebrief: (patch: Partial<Debrief>) => void;
@@ -32,8 +34,14 @@ export function DebriefPanel(props: Props) {
     photos: score.missingPhotos,
     criticals: score.unansweredCritical,
   };
+  // Unsaved work blocks submission too. Without this the form can look complete
+  // while the server has none of it, and the inspector would be told their
+  // finished visit is empty.
   const ready =
-    outstanding.unanswered === 0 && outstanding.notes.length === 0 && outstanding.photos.length === 0;
+    outstanding.unanswered === 0 &&
+    outstanding.notes.length === 0 &&
+    outstanding.photos.length === 0 &&
+    props.saveState !== "error";
 
   return (
     <div className="mt-6 space-y-6">
@@ -123,6 +131,17 @@ export function DebriefPanel(props: Props) {
             )}
           </ul>
         </section>
+      )}
+
+      {props.saveState === "error" && (
+        <p className="rounded-xl bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">
+          <span className="font-semibold">Not saved.</span> The last change could not be stored. Nothing has been
+          lost — it keeps retrying — but the inspection cannot be submitted until it saves.
+        </p>
+      )}
+
+      {props.submitError && (
+        <p className="rounded-xl bg-red-50 p-4 text-sm text-red-800 ring-1 ring-red-200">{props.submitError}</p>
       )}
 
       {props.blockers && (

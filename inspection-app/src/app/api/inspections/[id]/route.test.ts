@@ -110,6 +110,50 @@ describe("PATCH /api/inspections/[id]", () => {
     expect(call.update.entries.create).toEqual([]);
   });
 
+  it("accepts a photo path from this app's own upload endpoint", async () => {
+    // The uploads route returns a relative path on the local backend. A plain
+    // url() check rejects it, which silently made photo evidence unsavable —
+    // and took every other answer in the same batch down with it.
+    db.question.findMany.mockResolvedValue([{ id: "q1", text: "Fire exits clear" }]);
+    const res = await PATCH(
+      patch({
+        answers: [
+          {
+            questionId: "q1",
+            answer: "no",
+            entries: [{ note: "Blocked", photos: ["/uploads/photos/0123456789abcdef0123456789abcdef.jpg"] }],
+          },
+        ],
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts an https photo URL from the object store", async () => {
+    db.question.findMany.mockResolvedValue([{ id: "q1", text: "Fire exits clear" }]);
+    const res = await PATCH(
+      patch({
+        answers: [
+          { questionId: "q1", answer: "no", entries: [{ note: "Blocked", photos: ["https://cdn.test/photos/a.jpg"] }] },
+        ],
+      }),
+      ctx
+    );
+    expect(res.status).toBe(200);
+  });
+
+  it("rejects a photo reference that is neither", async () => {
+    db.question.findMany.mockResolvedValue([{ id: "q1", text: "Fire exits clear" }]);
+    for (const bad of ["/etc/passwd", "file:///etc/passwd", "javascript:alert(1)", "/uploads/photos/../../secret.jpg"]) {
+      const res = await PATCH(
+        patch({ answers: [{ questionId: "q1", answer: "no", entries: [{ note: "x", photos: [bad] }] }] }),
+        ctx
+      );
+      expect(res.status, bad).toBe(400);
+    }
+  });
+
   it("saves debrief fields", async () => {
     const res = await PATCH(patch({ debriefName: "A. Khan", debriefEmail: "a@example.com" }), ctx);
     expect(res.status).toBe(200);

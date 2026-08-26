@@ -10,10 +10,24 @@ import { scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score"
 
 type Ctx = { params: { id: string } };
 
+/**
+ * A stored image: either a path from this app's own upload endpoint, or an
+ * absolute URL when the object-store backend is in use. `z.string().url()`
+ * rejects the relative form, which is what the default local backend returns —
+ * so it would refuse the app's own uploads.
+ */
+const zStoredImage = z
+  .string()
+  .max(2000)
+  .refine(
+    (v) => /^\/uploads\/(photos|signatures)\/[a-f0-9]{32}\.[a-z]{3,4}$/.test(v) || /^https:\/\/\S+$/.test(v),
+    { message: "Must be an uploaded image path or an https URL" }
+  );
+
 const EntrySchema = z.object({
   note: z.string().max(4000).nullish(),
   who: z.string().max(120).nullish(),
-  photos: z.array(z.string().url().max(2000)).max(12).optional(),
+  photos: z.array(zStoredImage).max(12).optional(),
 });
 
 const AnswerSchema = z.object({
@@ -32,7 +46,7 @@ const PatchSchema = z.object({
   debriefNotes: z.string().max(8000).nullish(),
   debriefFeedback: z.string().max(8000).nullish(),
   debriefEmail: z.string().email().max(320).nullish(),
-  debriefSignatureUrl: z.string().url().max(2000).nullish(),
+  debriefSignatureUrl: zStoredImage.nullish(),
   answers: z.array(AnswerSchema).max(500).optional(),
 });
 
