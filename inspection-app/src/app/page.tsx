@@ -10,15 +10,18 @@ import {
   isCentreScoped,
 } from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
+import { asDate, canScheduleVisits, todayISO } from "@/lib/schedule";
 import { ROLE_LABEL, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
+import { VisitList } from "@/components/visit-list";
 import { SignOut } from "@/components/sign-out";
 
 export default async function Home() {
   const user = await requireUser();
   const viewer = { id: user.id, role: user.role };
 
-  const [centres, inspections, template, unread, assigned] = await Promise.all([
+  const today = todayISO();
+  const [centres, inspections, template, unread, assigned, visits] = await Promise.all([
     prisma.centre.count({ where: { ...centreScope(viewer), status: "OPEN" } }),
     prisma.inspection.findMany({
       where: inspectionScope(viewer),
@@ -49,6 +52,23 @@ export default async function Home() {
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true, inspections: { orderBy: { date: "desc" }, take: 1, select: { date: true } } },
     }),
+    // Their diary: anything still open from the last fortnight, plus what is
+    // coming. A missed visit stays visible rather than scrolling out of history.
+    prisma.scheduledVisit.findMany({
+      where: {
+        inspectorId: user.id,
+        status: { in: ["PLANNED", "DONE"] },
+        date: { gte: asDate(new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)) },
+      },
+      orderBy: { date: "asc" },
+      select: {
+        id: true,
+        date: true,
+        note: true,
+        inspectionId: true,
+        centre: { select: { id: true, name: true, size: true } },
+      },
+    }),
   ]);
 
   const drafts = inspections.filter((i) => i.status === "DRAFT");
@@ -64,6 +84,11 @@ export default async function Home() {
           <p className="font-medium text-slate-700">{user.name}</p>
           <p className="text-slate-500">{ROLE_LABEL[user.role] ?? user.role}</p>
           <div className="mt-1 flex justify-end gap-3 text-xs">
+            {canScheduleVisits(user.role) && (
+              <Link href="/planner" className="font-medium text-sky-600">
+                Planner
+              </Link>
+            )}
             {(canManageUsers(user.role) || canManageCentres(user.role)) && (
               <Link href="/admin/users" className="font-medium text-sky-600">
                 Manage
@@ -118,6 +143,8 @@ export default async function Home() {
           </Link>
         </div>
       )}
+
+      <VisitList visits={visits} today={today} />
 
       {assigned.length > 0 && (
         <section className="mt-8">

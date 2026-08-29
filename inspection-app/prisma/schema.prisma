@@ -79,6 +79,8 @@ model User {
 
   inspections Inspection[]
   deliveries  ReportDelivery[]
+  visits      ScheduledVisit[] @relation("VisitInspector")
+  visitsBooked ScheduledVisit[] @relation("VisitCreator")
 
   @@index([role])
 }
@@ -98,6 +100,7 @@ model Centre {
   managers    User[]       @relation("CentreManagers")
   inspectors  User[]       @relation("CentreInspectors")
   inspections Inspection[]
+  visits      ScheduledVisit[]
 
   @@index([status, sortOrder])
 }
@@ -202,6 +205,7 @@ model Inspection {
   inspector  User             @relation(fields: [inspectorId], references: [id])
   answers    Answer[]
   deliveries ReportDelivery[]
+  visit      ScheduledVisit?
 
   @@index([centreId, date])
   @@index([inspectorId])
@@ -254,6 +258,47 @@ model Photo {
   entry Entry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([entryId])
+}
+
+enum VisitStatus {
+  PLANNED
+  DONE
+  MISSED
+  CANCELLED
+}
+
+/// An inspector booked to visit a centre on a particular day.
+///
+/// Separate from the standing `Centre.inspectors` assignment, which says where
+/// someone's work generally is. This is one date, one centre, one person — the
+/// thing an inspector opens the app to see, and the thing head office looks at
+/// to know a visit was actually made.
+///
+/// `inspectionId` links the visit to the inspection that fulfilled it, so a
+/// planned day and the record of what happened are the same story rather than
+/// two lists to reconcile by eye.
+model ScheduledVisit {
+  id          String      @id @default(cuid())
+  centreId    String
+  inspectorId String
+  date        DateTime    @db.Date
+  note        String?
+  status      VisitStatus @default(PLANNED)
+  /// Set once an inspection at this centre on this date is started.
+  inspectionId String?    @unique
+  createdById String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  centre     Centre      @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  inspector  User        @relation("VisitInspector", fields: [inspectorId], references: [id], onDelete: Cascade)
+  createdBy  User?       @relation("VisitCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  inspection Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+
+  /// One booking per inspector per centre per day.
+  @@unique([centreId, inspectorId, date])
+  @@index([inspectorId, date])
+  @@index([date, status])
 }
 
 /// A submitted report put in front of someone who runs the centre.

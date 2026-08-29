@@ -135,6 +135,14 @@ export const POST = withRoute(async (req: Request) => {
     select: { id: true },
   });
 
+  // If this visit was in the diary, tie the two together: a planned day and the
+  // record of what happened should be one story, not two lists to reconcile by
+  // eye. Nothing depends on a booking existing — an unplanned visit is normal.
+  await prisma.scheduledVisit.updateMany({
+    where: { centreId, inspectorId: who.viewer.id, date: day, inspectionId: null },
+    data: { inspectionId: inspection.id, status: "DONE" },
+  });
+
   await audit({
     actorId: who.viewer.id,
     action: "inspection.start",

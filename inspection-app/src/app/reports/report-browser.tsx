@@ -77,11 +77,13 @@ export function ReportBrowser({
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label="Search inspections"
           placeholder="Search centre, inspector or verdict…"
           className="min-w-[14rem] flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky"
         />
         {centres.length > 1 && (
           <select
+            aria-label="Filter by centre"
             value={centre}
             onChange={(e) => setCentre(e.target.value)}
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -95,6 +97,7 @@ export function ReportBrowser({
           </select>
         )}
         <select
+          aria-label="Filter by month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -107,6 +110,7 @@ export function ReportBrowser({
           ))}
         </select>
         <select
+          aria-label="Filter by status"
           value={status}
           onChange={(e) => setStatus(e.target.value)}
           className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"

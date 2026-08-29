@@ -9,12 +9,16 @@ const SIZES: CentreSize[] = ["SMALL", "MEDIUM", "LARGE"];
 
 export function StartForm({
   centres,
+  preselect,
 }: {
   centres: { id: string; name: string; size: CentreSize | null }[];
+  /** Arriving from a booked visit — the centre is already decided. */
+  preselect?: string;
 }) {
   const router = useRouter();
-  const [centreId, setCentreId] = useState("");
-  const [size, setSize] = useState<CentreSize | "">("");
+  const booked = centres.find((c) => c.id === preselect);
+  const [centreId, setCentreId] = useState(booked?.id ?? "");
+  const [size, setSize] = useState<CentreSize | "">(booked?.size ?? "");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 

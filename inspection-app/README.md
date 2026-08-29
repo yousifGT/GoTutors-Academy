@@ -105,6 +105,8 @@ a known-password account must never exist by default.
 |---|---|
 | `/login` | sign in |
 | `/` | centres, checklist version, drafts to resume, recent visits |
+| `/planner` | which centres need a visit, and booking one (head office and regional managers) |
+| `/reports` | every inspection the viewer may see, filterable |
 | `/admin/users` | accounts and roles (super admin) |
 | `/admin/centres` | the centre list, sizes, open/closed (head office and above) |
 | `/profile` | change your own password |
@@ -156,6 +158,30 @@ read**. It appears on their home screen as "your centres" and never stops them
 being sent elsewhere — so a visiting inspector still works, and a covering
 inspector does not need their assignment edited first.
 
+### Planning visits
+
+Two different things, deliberately kept apart. The standing assignment above says
+where someone generally works. A **scheduled visit** is one person, one centre,
+one day — the thing an inspector opens the app to see.
+
+Head office and regional managers book visits from `/planner`, which leads with
+the centres that need one: never inspected, or more than 30 days since the last
+one, and nothing already in the diary. A centre with a visit booked drops off
+that list however long it has been — the list is for gaps nobody has picked up,
+and leaving booked ones on it teaches people to ignore it.
+
+The inspector sees today's visit at the top of their home screen with the note
+that came with it and a Start button that arrives at the checklist with the
+centre already chosen. Starting it links the inspection to the booking and marks
+it done, so a planned day and the record of what happened are one story rather
+than two lists to reconcile by eye. A day that passes with no inspection shows as
+missed rather than quietly disappearing — a visit nobody made is exactly the
+thing worth knowing about.
+
+The size is still chosen by the inspector even when arriving from a booking: it
+decides how several questions are marked, and a centre can be busier or quieter
+than its default on the day.
+
 ### Reports reaching the people who run the centre
 
 Submitting an inspection writes a `ReportDelivery` row for everyone responsible
@@ -186,6 +212,8 @@ Emailing the PDF out is still to come; today the report lands in the account.
 | `DELETE /api/inspections/:id` | discard a draft |
 | `GET/POST /api/users`, `PATCH/DELETE /api/users/:id` | accounts (super admin) |
 | `POST /api/centres`, `PATCH/DELETE /api/centres/:id` | centres (head office and above) |
+| `GET/POST /api/visits`, `PATCH/DELETE /api/visits/:id` | the visit diary |
+| `GET /api/coverage` | which centres need a visit, worst first |
 | `POST /api/me/password` | change your own password |
 | `POST /api/uploads` | store one photo or signature, returns its URL |
 | `GET /api/inspections/:id/pdf` | the report as a PDF (`?inline=1` to view rather than download) |

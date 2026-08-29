@@ -244,9 +244,12 @@ function CentreForm({
       </fieldset>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="block text-sm font-medium text-slate-700">
-          Status
+        <div>
+          <label htmlFor="centre-status" className="block text-sm font-medium text-slate-700">
+            Status
+          </label>
           <select
+            id="centre-status"
             value={status}
             onChange={(e) => setStatus(e.target.value as CentreStatus)}
             className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
@@ -254,7 +257,7 @@ function CentreForm({
             <option value="OPEN">Open — appears in the picker</option>
             <option value="CLOSED">Closed — hidden, history kept</option>
           </select>
-        </label>
+        </div>
         <label className="block text-sm font-medium text-slate-700">
           Sort order
           <input

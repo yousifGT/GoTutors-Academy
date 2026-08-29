@@ -5,7 +5,11 @@ import { requireUser } from "@/lib/session";
 import { canConduct, centreScope } from "@/lib/access";
 import { StartForm } from "./start-form";
 
-export default async function NewInspectionPage() {
+export default async function NewInspectionPage({
+  searchParams,
+}: {
+  searchParams: { centre?: string };
+}) {
   const user = await requireUser();
   if (!canConduct(user.role)) redirect("/");
 
@@ -24,7 +28,7 @@ export default async function NewInspectionPage() {
       <p className="mt-1 text-sm text-slate-500">
         The clock starts when you begin, and pauses whenever you leave the inspection.
       </p>
-      <StartForm centres={centres} />
+      <StartForm centres={centres} preselect={searchParams.centre} />
     </main>
   );
 }
