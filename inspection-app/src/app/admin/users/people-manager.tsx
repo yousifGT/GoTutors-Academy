@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Role } from "@prisma/client";
 import { ROLE_LABEL, shortDate } from "@/lib/format";
-import { CENTRE_SCOPED_ROLES, MIN_PASSWORD, ROLES } from "@/lib/user-rules";
+import { ASSIGNABLE_ROLES, CENTRE_SCOPED_ROLES, MIN_PASSWORD, ROLES } from "@/lib/user-rules";
 
 interface Person {
   id: string;
@@ -14,6 +14,7 @@ interface Person {
   active: boolean;
   lastLoginAt: string | null;
   centres: { id: string; name: string }[];
+  assignedCentres: { id: string; name: string }[];
   _count: { inspections: number };
 }
 
@@ -22,6 +23,7 @@ const ROLE_HELP: Record<string, string> = {
   HEAD_OFFICE: "Every centre. Inspects and edits the checklist.",
   REGIONAL_MANAGER: "Inspects, and reads their own centres.",
   FRANCHISEE: "Reads their own centres. Does not inspect.",
+  CENTRE_HEAD: "Runs a centre. Receives its reports; never inspects.",
   INSPECTOR: "Inspects anywhere; sees their own visits.",
   READ_ONLY: "Reads every centre. Changes nothing.",
 };
@@ -113,7 +115,8 @@ export function PeopleManager({
               <p className="truncate text-sm text-slate-500">{p.email}</p>
               <p className="text-xs text-slate-400">
                 {ROLE_LABEL[p.role]}
-                {p.centres.length > 0 && ` · ${p.centres.map((c) => c.name).join(", ")}`}
+                {p.centres.length > 0 && ` · responsible for ${p.centres.map((c) => c.name).join(", ")}`}
+                {p.assignedCentres.length > 0 && ` · assigned ${p.assignedCentres.map((c) => c.name).join(", ")}`}
                 {` · ${p._count.inspections} inspection${p._count.inspections === 1 ? "" : "s"}`}
                 {p.lastLoginAt ? ` · last in ${shortDate(p.lastLoginAt)}` : " · never signed in"}
               </p>
@@ -156,15 +159,22 @@ function PersonForm({
   const [password, setPassword] = useState("");
   const [active, setActive] = useState(person?.active ?? true);
   const [centreIds, setCentreIds] = useState<string[]>(person?.centres.map((c) => c.id) ?? []);
+  const [assignedIds, setAssignedIds] = useState<string[]>(person?.assignedCentres.map((c) => c.id) ?? []);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const scoped = CENTRE_SCOPED_ROLES.includes(role);
+  const assignable = ASSIGNABLE_ROLES.includes(role);
 
   async function save() {
     setBusy(true);
     setError("");
-    const body: Record<string, unknown> = { name, role, centreIds: scoped ? centreIds : [] };
+    const body: Record<string, unknown> = {
+      name,
+      role,
+      centreIds: scoped ? centreIds : [],
+      assignedCentreIds: assignable ? assignedIds : [],
+    };
     if (password) body.password = password;
     if (person) body.active = active;
     else {
@@ -233,11 +243,39 @@ function PersonForm({
         </div>
       </fieldset>
 
+      {assignable && (
+        <fieldset className="mt-4">
+          <legend className="text-sm font-medium text-slate-700">Centres they are expected to visit</legend>
+          <p className="text-xs text-slate-500">
+            Shown on their home screen. It does not stop them inspecting anywhere else — an inspector can always
+            be sent where they are needed.
+          </p>
+          <div className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
+            {centres.map((c) => {
+              const on = assignedIds.includes(c.id);
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setAssignedIds((v) => (on ? v.filter((x) => x !== c.id) : [...v, c.id]))}
+                  className={`rounded-full border px-2.5 py-1 text-xs ${
+                    on ? "border-sky-600 bg-sky-600 text-white" : "border-slate-300 bg-white text-slate-600"
+                  }`}
+                >
+                  {c.name}
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      )}
+
       {scoped && (
         <fieldset className="mt-4">
-          <legend className="text-sm font-medium text-slate-700">Their centres</legend>
+          <legend className="text-sm font-medium text-slate-700">Centres they are responsible for</legend>
           <p className="text-xs text-slate-500">
-            This role only sees the centres listed here. With none selected they see nothing but their own work.
+            They read these centres&apos; inspections and receive a report whenever one is submitted. With none
+            selected they see nothing but their own work.
           </p>
           <div className="mt-2 flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
             {centres.map((c) => {

@@ -17,6 +17,7 @@ export const ROLE_LABEL: Record<string, string> = {
   HEAD_OFFICE: "Head office",
   REGIONAL_MANAGER: "Regional manager",
   FRANCHISEE: "Franchisee",
+  CENTRE_HEAD: "Head of centre",
   INSPECTOR: "Inspector",
   READ_ONLY: "Read only",
 };

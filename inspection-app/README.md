@@ -136,19 +136,41 @@ version the screens were ported from.
 
 ## Roles
 
-| Role | Reads | Inspects | Edits the checklist |
-|---|---|---|---|
-| Super admin | every centre | yes | yes |
-| Head office | every centre | yes | yes |
-| Regional manager | their centres | yes | no |
-| Franchisee | their centres | no | no |
-| Inspector | their own visits | anywhere | no |
-| Read only | every centre | no | no |
+| Role | Reads | Inspects | Receives reports | Edits the checklist |
+|---|---|---|---|---|
+| Super admin | every centre | yes | — | yes |
+| Head office | every centre | yes | — | yes |
+| Regional manager | their centres | yes | yes | no |
+| Franchisee | their centres | no | yes | no |
+| Head of centre | their centres | no | yes | no |
+| Inspector | their own visits | anywhere | — | no |
+| Read only | every centre | no | — | no |
 
-An inspector has no centre list — they go where they are sent, and see their own
-work afterwards. A franchisee is the mirror image: tied to centres, never
-holding the clipboard. A centre-scoped viewer with no centres assigned falls back
-to their own work, never to everything.
+A head of centre runs a site: they read its inspections and receive its reports,
+but never carry one out, because a centre cannot inspect itself. A centre-scoped
+viewer with no centres assigned falls back to their own work, never to
+everything.
+
+An inspector's centre assignment says **where their work is, not what they may
+read**. It appears on their home screen as "your centres" and never stops them
+being sent elsewhere — so a visiting inspector still works, and a covering
+inspector does not need their assignment edited first.
+
+### Reports reaching the people who run the centre
+
+Submitting an inspection writes a `ReportDelivery` row for everyone responsible
+for that centre. That is what makes a report hard to miss: an unread row is
+still there tomorrow, unlike a notification that gets glanced past. The count
+appears on their home screen, the row is badged **New** until they open the
+report, and `readAt` records that they actually opened it rather than merely
+received it.
+
+`/reports` is the shared history screen, scoped to whatever the viewer may see —
+every centre, their own centres, or their own visits. Filter by centre, by month
+(only months that contain something are offered), by status, or "new only";
+search by centre, inspector or verdict. Every completed row has a PDF button.
+
+Emailing the PDF out is still to come; today the report lands in the account.
 
 ## API
 

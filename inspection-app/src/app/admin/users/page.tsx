@@ -19,6 +19,7 @@ export default async function UsersPage() {
         active: true,
         lastLoginAt: true,
         centres: { select: { id: true, name: true } },
+        assignedCentres: { select: { id: true, name: true } },
         _count: { select: { inspections: true } },
       },
     }),

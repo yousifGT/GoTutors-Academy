@@ -23,15 +23,39 @@ export const GET = withRoute(async (req: Request) => {
   const centreId = url.searchParams.get("centre");
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
-  const take = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+  /** YYYY-MM — the way people actually ask: "the March visits". */
+  const month = url.searchParams.get("month");
+  const status = url.searchParams.get("status");
+  const q = url.searchParams.get("q")?.trim();
+  const unreadOnly = url.searchParams.get("unread") === "1";
+  const take = Math.min(Number(url.searchParams.get("limit")) || 100, 500);
+
+  let range: { gte?: Date; lte?: Date } | null = null;
+  if (month && /^\d{4}-\d{2}$/.test(month)) {
+    const [y, m] = month.split("-").map(Number);
+    // Day 0 of the next month is the last day of this one, so this holds for
+    // February and for leap years without special-casing either.
+    range = { gte: new Date(Date.UTC(y, m - 1, 1)), lte: new Date(Date.UTC(y, m, 0)) };
+  } else if (from || to) {
+    range = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
+  }
 
   const inspections = await prisma.inspection.findMany({
     where: {
       AND: [
         inspectionScope(who.viewer),
         centreId ? { centreId } : {},
-        from || to
-          ? { date: { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) } }
+        range ? { date: range } : {},
+        status === "DRAFT" || status === "SUBMITTED" ? { status } : {},
+        unreadOnly ? { deliveries: { some: { userId: who.viewer.id, readAt: null } } } : {},
+        q
+          ? {
+              OR: [
+                { centre: { name: { contains: q, mode: "insensitive" } } },
+                { inspector: { name: { contains: q, mode: "insensitive" } } },
+                { verdict: { contains: q, mode: "insensitive" } },
+              ],
+            }
           : {},
       ],
     },
@@ -47,6 +71,11 @@ export const GET = withRoute(async (req: Request) => {
       activeMs: true,
       centre: { select: { id: true, name: true } },
       inspector: { select: { id: true, name: true } },
+      // Only this viewer's own delivery, so "unread" means unread by them.
+      deliveries: {
+        where: { userId: who.viewer.id },
+        select: { deliveredAt: true, readAt: true },
+      },
     },
   });
   return NextResponse.json(inspections);

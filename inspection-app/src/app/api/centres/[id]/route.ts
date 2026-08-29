@@ -15,6 +15,10 @@ const PatchSchema = z.object({
   size: z.enum(["SMALL", "MEDIUM", "LARGE"]).nullish(),
   status: z.enum(["OPEN", "CLOSED"]).optional(),
   sortOrder: z.number().int().min(0).max(9999).optional(),
+  /** Who is responsible for this centre — they read its inspections and receive its reports. */
+  managerIds: z.array(z.string().min(1)).max(50).optional(),
+  /** Who is expected to visit it. Does not restrict where they may inspect. */
+  inspectorIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
 export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
@@ -25,7 +29,19 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
   const parsed = await parseJson(req, PatchSchema);
   if (!parsed.ok) return parsed.response;
 
-  const centre = await prisma.centre.update({ where: { id: params.id }, data: parsed.data });
+  const { managerIds, inspectorIds, ...fields } = parsed.data;
+  const centre = await prisma.centre.update({
+    where: { id: params.id },
+    data: {
+      ...fields,
+      ...(managerIds ? { managers: { set: managerIds.map((id) => ({ id })) } } : {}),
+      ...(inspectorIds ? { inspectors: { set: inspectorIds.map((id) => ({ id })) } } : {}),
+    },
+    include: {
+      managers: { select: { id: true, name: true, role: true } },
+      inspectors: { select: { id: true, name: true, role: true } },
+    },
+  });
   await audit({ actorId: who.viewer.id, action: "centre.update", target: centre.id, metadata: parsed.data });
   return NextResponse.json(centre);
 });

@@ -9,12 +9,16 @@ export const ROLES: Role[] = [
   "HEAD_OFFICE",
   "REGIONAL_MANAGER",
   "FRANCHISEE",
+  "CENTRE_HEAD",
   "INSPECTOR",
   "READ_ONLY",
 ];
 
-/** Roles that are tied to particular centres. The rest are not. */
-export const CENTRE_SCOPED_ROLES: Role[] = ["REGIONAL_MANAGER", "FRANCHISEE"];
+/** Roles whose reach is defined by a list of centres. The rest see everything or only their own work. */
+export const CENTRE_SCOPED_ROLES: Role[] = ["REGIONAL_MANAGER", "FRANCHISEE", "CENTRE_HEAD"];
+
+/** Roles that can be given a list of centres they are expected to visit. */
+export const ASSIGNABLE_ROLES: Role[] = ["INSPECTOR", "REGIONAL_MANAGER"];
 
 export const MIN_PASSWORD = 12;
 

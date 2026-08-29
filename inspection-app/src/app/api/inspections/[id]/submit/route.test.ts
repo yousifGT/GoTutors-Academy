@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   inspection: { findUnique: vi.fn(), update: vi.fn() },
   answer: { update: vi.fn() },
+  reportDelivery: { createMany: vi.fn() },
   $transaction: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -49,6 +50,7 @@ function inspection(over: {
   size?: string;
   questions?: ReturnType<typeof question>[];
   answers?: { questionId: string; answer: string | null; entries: { note: string | null; who: string | null; photos: { url: string }[] }[] }[];
+  managers?: { id: string; role: string }[];
 }) {
   return {
     id: "i1",
@@ -56,6 +58,7 @@ function inspection(over: {
     inspectorId: "u1",
     status: over.status ?? "DRAFT",
     size: over.size ?? "SMALL",
+    centre: { id: "c1", managers: over.managers ?? [] },
     template: { sections: [{ title: "S", order: 0, questions: over.questions ?? [question({})] }] },
     answers: over.answers ?? [],
   };
@@ -65,6 +68,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   asUser("u1");
   db.$transaction.mockResolvedValue([]);
+  db.reportDelivery.createMany.mockResolvedValue({ count: 0 });
 });
 
 describe("POST /api/inspections/[id]/submit", () => {
@@ -160,6 +164,49 @@ describe("POST /api/inspections/[id]/submit", () => {
     expect(body.pct).toBe(50);
     expect(body.verdict.word).toBe("Serious finding");
     expect(body.criticalFails).toEqual(["Fire exits clear"]);
+  });
+
+  it("delivers the report to whoever runs the centre", async () => {
+    db.inspection.findUnique.mockResolvedValue(
+      inspection({
+        answers: [{ questionId: "q1", answer: "yes", entries: [] }],
+        managers: [
+          { id: "head", role: "CENTRE_HEAD" },
+          { id: "rm", role: "REGIONAL_MANAGER" },
+        ],
+      })
+    );
+    const res = await POST(req(), ctx);
+    expect(res.status).toBe(200);
+    expect((await res.json()).deliveredTo).toBe(2);
+    expect(db.reportDelivery.createMany).toHaveBeenCalledWith({
+      data: [
+        { inspectionId: "i1", userId: "head" },
+        { inspectionId: "i1", userId: "rm" },
+      ],
+      skipDuplicates: true,
+    });
+  });
+
+  it("does not deliver to someone attached to the centre who does not receive reports", async () => {
+    db.inspection.findUnique.mockResolvedValue(
+      inspection({
+        answers: [{ questionId: "q1", answer: "yes", entries: [] }],
+        managers: [{ id: "ro", role: "READ_ONLY" }],
+      })
+    );
+    const res = await POST(req(), ctx);
+    expect((await res.json()).deliveredTo).toBe(0);
+    expect(db.reportDelivery.createMany).not.toHaveBeenCalled();
+  });
+
+  it("submits fine when nobody is attached to the centre yet", async () => {
+    db.inspection.findUnique.mockResolvedValue(
+      inspection({ answers: [{ questionId: "q1", answer: "yes", entries: [] }] })
+    );
+    const res = await POST(req(), ctx);
+    expect(res.status).toBe(200);
+    expect((await res.json()).deliveredTo).toBe(0);
   });
 
   it("uses the inspection's own size, so a size-gated question can fail it", async () => {

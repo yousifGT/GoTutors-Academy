@@ -8,12 +8,14 @@ import type { Prisma, Role } from "@prisma/client";
  *   HEAD_OFFICE       reads every centre, runs inspections, edits the checklist
  *   REGIONAL_MANAGER  reads and inspects the centres assigned to them
  *   FRANCHISEE        reads their own centres; does not inspect
+ *   CENTRE_HEAD       runs a centre: reads its inspections, never runs one
  *   INSPECTOR         inspects anywhere; reads what they carried out
  *   READ_ONLY         reads every centre; changes nothing
  *
- * An inspector deliberately has no centre list: they visit wherever they are
- * sent, and see their own work afterwards. A franchisee is the mirror image —
- * tied to centres, but never the one holding the clipboard.
+ * An inspector's centre assignment says where their work is, not what they may
+ * read — they can still be sent anywhere, and they see their own visits
+ * wherever those were. A head of centre is the mirror image: tied to one site,
+ * never the one holding the clipboard, because a centre cannot inspect itself.
  */
 
 export interface Viewer {
@@ -26,9 +28,14 @@ export function canViewAllCentres(role: Role): boolean {
   return role === "SUPER_ADMIN" || role === "HEAD_OFFICE" || role === "READ_ONLY";
 }
 
+/** People who receive a report when their centre is inspected. */
+export function receivesReports(role: Role): boolean {
+  return role === "CENTRE_HEAD" || role === "FRANCHISEE" || role === "REGIONAL_MANAGER";
+}
+
 /** Reads inspections for the centres assigned to them. */
 export function isCentreScoped(role: Role): boolean {
-  return role === "REGIONAL_MANAGER" || role === "FRANCHISEE";
+  return role === "REGIONAL_MANAGER" || role === "FRANCHISEE" || role === "CENTRE_HEAD";
 }
 
 /** Carries out inspections. */

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withRoute } from "@/lib/api";
 import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
-import { canEditInspection } from "@/lib/access";
+import { canEditInspection, receivesReports } from "@/lib/access";
 import { canSubmit, scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score";
 
 type Ctx = { params: { id: string } };
@@ -28,6 +28,7 @@ export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
   const inspection = await prisma.inspection.findUnique({
     where: { id: params.id },
     include: {
+      centre: { select: { id: true, managers: { select: { id: true, role: true } } } },
       template: {
         include: {
           sections: {
@@ -89,6 +90,17 @@ export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
     }),
   ]);
 
+  // Put the finished report in front of whoever runs this centre. Delivery is a
+  // row rather than a notification: an unread one is still there tomorrow, so a
+  // report cannot be missed by being glanced past.
+  const recipients = inspection.centre.managers.filter((m) => receivesReports(m.role));
+  if (recipients.length) {
+    await prisma.reportDelivery.createMany({
+      data: recipients.map((m) => ({ inspectionId: inspection.id, userId: m.id })),
+      skipDuplicates: true,
+    });
+  }
+
   await audit({
     actorId: who.viewer.id,
     action: "inspection.submit",
@@ -99,11 +111,13 @@ export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
       pct: score.pct,
       verdict: score.verdict.word,
       criticalFails: score.criticalFails,
+      deliveredTo: recipients.length,
     },
   });
 
   return NextResponse.json({
     ok: true,
+    deliveredTo: recipients.length,
     pct: score.pct,
     verdict: score.verdict,
     criticalFails: score.criticalFails,

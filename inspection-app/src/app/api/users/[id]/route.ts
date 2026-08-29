@@ -7,7 +7,7 @@ import { parseJson, zName } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { canManageUsers } from "@/lib/access";
-import { CENTRE_SCOPED_ROLES, ROLES, isSelfLockout, passwordProblem } from "@/lib/user-rules";
+import { ASSIGNABLE_ROLES, CENTRE_SCOPED_ROLES, ROLES, isSelfLockout, passwordProblem } from "@/lib/user-rules";
 
 type Ctx = { params: { id: string } };
 
@@ -20,6 +20,7 @@ const publicUser = {
   lastLoginAt: true,
   createdAt: true,
   centres: { select: { id: true, name: true } },
+  assignedCentres: { select: { id: true, name: true } },
   _count: { select: { inspections: true } },
 };
 
@@ -29,6 +30,7 @@ const PatchSchema = z.object({
   active: z.boolean().optional(),
   password: z.string().min(1).max(200).optional(),
   centreIds: z.array(z.string().min(1)).max(100).optional(),
+  assignedCentreIds: z.array(z.string().min(1)).max(100).optional(),
 });
 
 export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
@@ -38,7 +40,7 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
 
   const parsed = await parseJson(req, PatchSchema);
   if (!parsed.ok) return parsed.response;
-  const { name, role, active, password, centreIds } = parsed.data;
+  const { name, role, active, password, centreIds, assignedCentreIds } = parsed.data;
 
   if (isSelfLockout(who.viewer.id, params.id, { active, role: role as never }))
     return NextResponse.json(
@@ -62,6 +64,13 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
         ? { set: centreIds.map((id) => ({ id })) }
         : { set: [] }; // a role that isn't centre-scoped keeps no centre list
 
+  const assignedUpdate =
+    assignedCentreIds === undefined
+      ? undefined
+      : ASSIGNABLE_ROLES.includes(finalRole as never)
+        ? { set: assignedCentreIds.map((id) => ({ id })) }
+        : { set: [] };
+
   const user = await prisma.user.update({
     where: { id: params.id },
     data: {
@@ -70,6 +79,7 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
       active,
       ...(password ? { password: await bcrypt.hash(password, 12) } : {}),
       ...(centreUpdate ? { centres: centreUpdate } : {}),
+      ...(assignedUpdate ? { assignedCentres: assignedUpdate } : {}),
     },
     select: publicUser,
   });

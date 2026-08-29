@@ -19,6 +19,9 @@ enum Role {
   HEAD_OFFICE
   REGIONAL_MANAGER
   FRANCHISEE
+  /// Runs one or more centres. Reads the inspections of their own centres and
+  /// nothing else; never carries one out.
+  CENTRE_HEAD
   INSPECTOR
   READ_ONLY
 }
@@ -62,15 +65,20 @@ model User {
   password    String
   name        String
   role        Role      @default(INSPECTOR)
-  /// Set for a regional manager or franchisee: the centres they are responsible
-  /// for. An inspector needs none — they visit wherever they are sent.
+  /// Centres this person is responsible for — a regional manager, a franchisee
+  /// or a head of centre. This is what they may read.
   centres     Centre[]  @relation("CentreManagers")
+  /// Centres an inspector is expected to visit. Separate from `centres` on
+  /// purpose: this says where their work is, not what they may read. An
+  /// inspector can still be sent elsewhere, so it never narrows access.
+  assignedCentres Centre[] @relation("CentreInspectors")
   active      Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
   inspections Inspection[]
+  deliveries  ReportDelivery[]
 
   @@index([role])
 }
@@ -88,6 +96,7 @@ model Centre {
   updatedAt DateTime     @updatedAt
 
   managers    User[]       @relation("CentreManagers")
+  inspectors  User[]       @relation("CentreInspectors")
   inspections Inspection[]
 
   @@index([status, sortOrder])
@@ -188,10 +197,11 @@ model Inspection {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  centre    Centre   @relation(fields: [centreId], references: [id])
-  template  Template @relation(fields: [templateId], references: [id])
-  inspector User     @relation(fields: [inspectorId], references: [id])
-  answers   Answer[]
+  centre     Centre           @relation(fields: [centreId], references: [id])
+  template   Template         @relation(fields: [templateId], references: [id])
+  inspector  User             @relation(fields: [inspectorId], references: [id])
+  answers    Answer[]
+  deliveries ReportDelivery[]
 
   @@index([centreId, date])
   @@index([inspectorId])
@@ -244,6 +254,26 @@ model Photo {
   entry Entry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([entryId])
+}
+
+/// A submitted report put in front of someone who runs the centre.
+///
+/// Written when an inspection is submitted, one row per person responsible for
+/// that centre. It is what makes an inspection impossible to miss: unread rows
+/// are the "new reports" count, and `readAt` records that it was actually
+/// opened rather than merely sent.
+model ReportDelivery {
+  id           String    @id @default(cuid())
+  inspectionId String
+  userId       String
+  deliveredAt  DateTime  @default(now())
+  readAt       DateTime?
+
+  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([inspectionId, userId])
+  @@index([userId, readAt])
 }
 
 model AuditLog {

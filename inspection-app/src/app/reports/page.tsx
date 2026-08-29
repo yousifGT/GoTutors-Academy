@@ -1,0 +1,56 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/session";
+import { canViewAllCentres, centreScope, inspectionScope, isCentreScoped } from "@/lib/access";
+import { Wordmark } from "@/components/brand";
+import { ReportBrowser } from "./report-browser";
+
+export default async function ReportsPage() {
+  const user = await requireUser();
+  const viewer = { id: user.id, role: user.role };
+
+  const [centres, months, unread] = await Promise.all([
+    // The centres worth offering as a filter: the ones this viewer can actually
+    // see inspections for.
+    prisma.centre.findMany({
+      where: centreScope(viewer),
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true },
+    }),
+    // Months that actually contain something, so the filter never offers an
+    // empty one.
+    prisma.inspection.findMany({
+      where: inspectionScope(viewer),
+      orderBy: { date: "desc" },
+      select: { date: true },
+    }),
+    prisma.reportDelivery.count({ where: { userId: user.id, readAt: null } }),
+  ]);
+
+  const monthKeys = Array.from(
+    new Set(months.map((m) => m.date.toISOString().slice(0, 7)))
+  ).sort((a, b) => b.localeCompare(a));
+
+  return (
+    <main className="mx-auto max-w-4xl p-6">
+      <div className="flex items-center justify-between">
+        <Link href="/">
+          <Wordmark className="text-lg" />
+        </Link>
+        <Link href="/" className="text-sm text-sky-600">
+          ← Home
+        </Link>
+      </div>
+      <h1 className="mt-4 text-2xl font-bold text-navy">Inspections</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        {canViewAllCentres(user.role)
+          ? "Every centre."
+          : isCentreScoped(user.role)
+            ? "The centres you are responsible for."
+            : "The inspections you carried out."}
+      </p>
+
+      <ReportBrowser centres={centres} months={monthKeys} unread={unread} />
+    </main>
+  );
+}

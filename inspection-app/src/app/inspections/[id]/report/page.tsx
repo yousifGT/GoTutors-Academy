@@ -23,6 +23,14 @@ export default async function ReportPage({ params }: { params: { id: string } })
   });
   if (!inspection) notFound();
 
+  // Opening the report is what "read" means — not receiving it. Only ever the
+  // viewer's own delivery, and only the first time, so the timestamp records
+  // when they actually saw it.
+  await prisma.reportDelivery.updateMany({
+    where: { inspectionId: params.id, userId: user.id, readAt: null },
+    data: { readAt: new Date() },
+  });
+
   // The same assembly the PDF uses, so the two cannot disagree.
   const report = buildReport(inspection);
   const colour = VERDICT_COLOR[report.verdict] ?? "#1C1960";

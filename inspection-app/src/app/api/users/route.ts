@@ -7,7 +7,7 @@ import { parseJson, zEmail, zName } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { canManageUsers } from "@/lib/access";
-import { CENTRE_SCOPED_ROLES, ROLES, passwordProblem } from "@/lib/user-rules";
+import { ASSIGNABLE_ROLES, CENTRE_SCOPED_ROLES, ROLES, passwordProblem } from "@/lib/user-rules";
 
 /** Never select `password`; it must not leave the server even hashed. */
 const publicUser = {
@@ -19,6 +19,7 @@ const publicUser = {
   lastLoginAt: true,
   createdAt: true,
   centres: { select: { id: true, name: true } },
+  assignedCentres: { select: { id: true, name: true } },
   _count: { select: { inspections: true } },
 };
 
@@ -27,8 +28,10 @@ const CreateSchema = z.object({
   name: zName,
   password: z.string().min(1).max(200),
   role: z.enum(ROLES as [string, ...string[]]),
-  /** Only meaningful for the centre-scoped roles. */
+  /** Centres they are responsible for — only meaningful for the centre-scoped roles. */
   centreIds: z.array(z.string().min(1)).max(100).optional(),
+  /** Centres they are expected to visit — only meaningful for the roles that inspect. */
+  assignedCentreIds: z.array(z.string().min(1)).max(100).optional(),
 });
 
 export const GET = withRoute(async () => {
@@ -50,7 +53,7 @@ export const POST = withRoute(async (req: Request) => {
 
   const parsed = await parseJson(req, CreateSchema);
   if (!parsed.ok) return parsed.response;
-  const { email, name, password, role, centreIds } = parsed.data;
+  const { email, name, password, role, centreIds, assignedCentreIds } = parsed.data;
 
   const problem = passwordProblem(password);
   if (problem) return NextResponse.json({ error: problem }, { status: 400 });
@@ -58,6 +61,7 @@ export const POST = withRoute(async (req: Request) => {
   // Centres only attach to the roles that are defined by them. Silently
   // ignoring them elsewhere would leave misleading data behind.
   const centres = CENTRE_SCOPED_ROLES.includes(role as never) ? (centreIds ?? []) : [];
+  const assigned = ASSIGNABLE_ROLES.includes(role as never) ? (assignedCentreIds ?? []) : [];
 
   const user = await prisma.user.create({
     data: {
@@ -66,6 +70,7 @@ export const POST = withRoute(async (req: Request) => {
       password: await bcrypt.hash(password, 12),
       role: role as never,
       centres: { connect: centres.map((id) => ({ id })) },
+      assignedCentres: { connect: assigned.map((id) => ({ id })) },
     },
     select: publicUser,
   });

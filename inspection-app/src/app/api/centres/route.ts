@@ -38,6 +38,12 @@ export const GET = withRoute(async (req: Request) => {
       status: true,
       sortOrder: true,
       _count: { select: { inspections: true } },
+      ...(all
+        ? {
+            managers: { select: { id: true, name: true, role: true } },
+            inspectors: { select: { id: true, name: true, role: true } },
+          }
+        : {}),
     },
   });
   return NextResponse.json(centres);

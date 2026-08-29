@@ -1,7 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { canConduct, canManageCentres, canManageUsers, centreScope, inspectionScope } from "@/lib/access";
+import {
+  canConduct,
+  canManageCentres,
+  canManageUsers,
+  centreScope,
+  inspectionScope,
+  isCentreScoped,
+} from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
 import { ROLE_LABEL, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
@@ -11,7 +18,7 @@ export default async function Home() {
   const user = await requireUser();
   const viewer = { id: user.id, role: user.role };
 
-  const [centres, inspections, template] = await Promise.all([
+  const [centres, inspections, template, unread, assigned] = await Promise.all([
     prisma.centre.count({ where: { ...centreScope(viewer), status: "OPEN" } }),
     prisma.inspection.findMany({
       where: inspectionScope(viewer),
@@ -33,6 +40,14 @@ export default async function Home() {
       where: { isActive: true },
       orderBy: { version: "desc" },
       select: { version: true, _count: { select: { sections: true } } },
+    }),
+    prisma.reportDelivery.count({ where: { userId: user.id, readAt: null } }),
+    // Where this inspector is expected to be. It does not limit where they may
+    // go — it is the list they will usually want.
+    prisma.centre.findMany({
+      where: { inspectors: { some: { id: user.id } }, status: "OPEN" },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, inspections: { orderBy: { date: "desc" }, take: 1, select: { date: true } } },
     }),
   ]);
 
@@ -61,6 +76,19 @@ export default async function Home() {
           </div>
         </div>
       </header>
+
+      {unread > 0 && (
+        <Link
+          href="/reports"
+          className="mt-6 flex items-center justify-between rounded-xl bg-sky-600 px-4 py-3.5 text-white"
+        >
+          <span className="font-semibold">
+            {unread} new inspection report{unread === 1 ? "" : "s"} for your centre
+            {unread === 1 ? "" : "s"}
+          </span>
+          <span className="font-semibold">→</span>
+        </Link>
+      )}
 
       <section className="mt-8 grid grid-cols-3 gap-4">
         <Stat label="Centres" value={centres} />
@@ -91,10 +119,35 @@ export default async function Home() {
         </div>
       )}
 
-      <h2 className="mt-8 text-sm font-semibold uppercase tracking-wide text-slate-500">Recent visits</h2>
+      {assigned.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Your centres</h2>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {assigned.map((c) => (
+              <li key={c.id} className="rounded-xl bg-white p-4 ring-1 ring-slate-200">
+                <p className="font-medium text-slate-800">{c.name}</p>
+                <p className="text-xs text-slate-500">
+                  {c.inspections[0]
+                    ? `Last inspected ${shortDate(c.inspections[0].date)}`
+                    : "Never inspected"}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <div className="mt-8 flex items-center justify-between">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Recent visits</h2>
+        <Link href="/reports" className="text-sm font-medium text-sky-600">
+          All inspections &amp; reports →
+        </Link>
+      </div>
       {inspections.length === 0 ? (
         <p className="mt-3 rounded-xl bg-white p-6 text-sm text-slate-500 ring-1 ring-slate-200">
-          Nothing recorded yet.
+          {isCentreScoped(user.role)
+            ? "No inspections of your centres yet. New reports appear here as soon as they are submitted."
+            : "Nothing recorded yet."}
         </p>
       ) : (
         <ul className="mt-3 divide-y divide-slate-200 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
