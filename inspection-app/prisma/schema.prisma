@@ -79,8 +79,9 @@ model User {
 
   inspections Inspection[]
   deliveries  ReportDelivery[]
-  visits      ScheduledVisit[] @relation("VisitInspector")
-  visitsBooked ScheduledVisit[] @relation("VisitCreator")
+  visits        ScheduledVisit[] @relation("VisitInspector")
+  visitsBooked  ScheduledVisit[] @relation("VisitCreator")
+  visitsMarked  ScheduledVisit[] @relation("VisitStatusSetter")
 
   @@index([role])
 }
@@ -286,14 +287,22 @@ model ScheduledVisit {
   status      VisitStatus @default(PLANNED)
   /// Set once an inspection at this centre on this date is started.
   inspectionId String?    @unique
+  /// Why the status was set by hand. Required when marking a visit missed: a
+  /// mark against someone's name should never be a bare flag.
+  statusReason String?
+  /// Who set it by hand, and when. Null while the status is what the system
+  /// worked out for itself, which is how the two are told apart.
+  statusSetById String?
+  statusSetAt   DateTime?
   createdById String?
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
 
-  centre     Centre      @relation(fields: [centreId], references: [id], onDelete: Cascade)
-  inspector  User        @relation("VisitInspector", fields: [inspectorId], references: [id], onDelete: Cascade)
-  createdBy  User?       @relation("VisitCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  inspection Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
+  centre      Centre      @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  inspector   User        @relation("VisitInspector", fields: [inspectorId], references: [id], onDelete: Cascade)
+  createdBy   User?       @relation("VisitCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  statusSetBy User?       @relation("VisitStatusSetter", fields: [statusSetById], references: [id], onDelete: SetNull)
+  inspection  Inspection? @relation(fields: [inspectionId], references: [id], onDelete: SetNull)
 
   /// One booking per inspector per centre per day.
   @@unique([centreId, inspectorId, date])

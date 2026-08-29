@@ -29,6 +29,7 @@ export const GET = withRoute(async (req: Request) => {
   if ("response" in who) return who.response;
 
   const url = new URL(req.url);
+  // Default to today forward. `from=` reaches back for the settling view.
   const from = url.searchParams.get("from") ?? todayISO();
   const to = url.searchParams.get("to");
   const mine = url.searchParams.get("mine") === "1" || !canScheduleVisits(who.viewer.role);
@@ -49,6 +50,9 @@ export const GET = withRoute(async (req: Request) => {
       note: true,
       status: true,
       inspectionId: true,
+      statusReason: true,
+      statusSetAt: true,
+      statusSetBy: { select: { name: true } },
       centre: { select: { id: true, name: true, size: true } },
       inspector: { select: { id: true, name: true } },
     },

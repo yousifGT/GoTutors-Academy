@@ -182,6 +182,24 @@ The size is still chosen by the inspector even when arriving from a booking: it
 decides how several questions are marked, and a centre can be busier or quieter
 than its default on the day.
 
+### Settling a booked day, and attendance
+
+Starting an inspection marks its visit done by itself. A booked day that passes
+with nothing recorded needs a person: the planner lists those separately and
+asks what happened — it was visited and written up elsewhere, or it was missed.
+
+Marking someone missed demands a reason and records who decided it, so a mark
+against an inspector's name always says who made it and why. A future visit
+cannot be marked missed; cancel it instead. The one thing no status can override
+is an inspection already on the record — that is evidence the visit happened, so
+such a booking can only be done, and cannot be deleted.
+
+Attendance is the share of *settled* visits that were made. Days nobody has
+looked at yet are counted separately and left out of the figure: an unresolved
+day is a gap in the paperwork, not a mark against the inspector, and folding the
+two together would make the number dishonest. A cancelled visit counts against
+nobody.
+
 ### Reports reaching the people who run the centre
 
 Submitting an inspection writes a `ReportDelivery` row for everyone responsible

@@ -6,19 +6,27 @@ import { parseJson } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { centreScope } from "@/lib/access";
-import { canScheduleVisits } from "@/lib/schedule";
+import { canScheduleVisits, statusChangeProblem } from "@/lib/schedule";
 
 type Ctx = { params: { id: string } };
 
 const PatchSchema = z.object({
   note: z.string().max(500).nullish(),
-  status: z.enum(["PLANNED", "CANCELLED"]).optional(),
+  status: z.enum(["PLANNED", "DONE", "MISSED", "CANCELLED"]).optional(),
+  /** Required when marking a visit missed. */
+  reason: z.string().max(500).nullish(),
 });
 
 /**
- * Change a booking. Only PLANNED and CANCELLED are settable: DONE and MISSED
- * describe what happened, and are decided by whether an inspection exists, not
- * by anyone's opinion.
+ * Change a booking, including settling what happened on the day.
+ *
+ * Starting an inspection marks a visit done on its own. This is for the days
+ * that need a person: nobody turned up, or they did and it was recorded on
+ * paper. Marking someone missed demands a reason and records who decided it, so
+ * a mark against an inspector's name always says who made it and why.
+ *
+ * The one thing that cannot be overridden is an inspection already on the
+ * record: it is evidence the visit happened, and no status may contradict it.
  */
 export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
   const who = await viewerOr401();
@@ -30,14 +38,42 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
 
   const visit = await prisma.scheduledVisit.findFirst({
     where: { AND: [{ id: params.id }, { centre: centreScope(who.viewer) }] },
-    select: { id: true, inspectionId: true },
+    select: { id: true, inspectionId: true, date: true, inspector: { select: { name: true } } },
   });
   if (!visit) return NextResponse.json({ error: "not found" }, { status: 404 });
-  if (visit.inspectionId && parsed.data.status === "CANCELLED")
-    return NextResponse.json({ error: "That visit has already been carried out." }, { status: 409 });
 
-  const updated = await prisma.scheduledVisit.update({ where: { id: visit.id }, data: parsed.data });
-  await audit({ actorId: who.viewer.id, action: "visit.update", target: visit.id, metadata: parsed.data });
+  const { note, status, reason } = parsed.data;
+
+  if (status) {
+    const problem = statusChangeProblem(
+      status,
+      { hasInspection: visit.inspectionId !== null, date: visit.date },
+      reason
+    );
+    if (problem) return NextResponse.json({ error: problem }, { status: 409 });
+  }
+
+  const updated = await prisma.scheduledVisit.update({
+    where: { id: visit.id },
+    data: {
+      ...(note !== undefined ? { note } : {}),
+      ...(status
+        ? {
+            status,
+            statusReason: reason?.trim() || null,
+            statusSetById: who.viewer.id,
+            statusSetAt: new Date(),
+          }
+        : {}),
+    },
+  });
+
+  await audit({
+    actorId: who.viewer.id,
+    action: status ? `visit.${status.toLowerCase()}` : "visit.update",
+    target: visit.id,
+    metadata: { inspector: visit.inspector.name, date: visit.date.toISOString().slice(0, 10), status, reason },
+  });
   return NextResponse.json(updated);
 });
 

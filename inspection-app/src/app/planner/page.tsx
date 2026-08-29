@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { canConduct, centreScope } from "@/lib/access";
-import { OVERDUE_DAYS, canScheduleVisits, coverage, todayISO } from "@/lib/schedule";
+import { OVERDUE_DAYS, attendance, canScheduleVisits, coverage, needsResolving, todayISO } from "@/lib/schedule";
 import { Wordmark } from "@/components/brand";
 import { Planner } from "./planner";
 
@@ -40,13 +40,22 @@ export default async function PlannerPage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true, role: true },
     }),
+    // Ninety days back as well as forward: settling a missed visit and judging
+    // attendance both need history, not just the diary ahead.
     prisma.scheduledVisit.findMany({
-      where: { centre: centreScope(viewer), date: { gte: today }, status: "PLANNED" },
+      where: {
+        centre: centreScope(viewer),
+        date: { gte: new Date(today.getTime() - 90 * 86_400_000) },
+      },
       orderBy: [{ date: "asc" }],
       select: {
         id: true,
         date: true,
         note: true,
+        status: true,
+        inspectionId: true,
+        statusReason: true,
+        statusSetBy: { select: { name: true } },
         centre: { select: { id: true, name: true } },
         inspector: { select: { id: true, name: true } },
       },
@@ -95,7 +104,24 @@ export default async function PlannerPage() {
           nextInspector: byId.get(r.centreId)!.visits[0]?.inspector.name ?? null,
         }))}
         inspectors={people.filter((p) => canConduct(p.role)).map(({ id, name }) => ({ id, name }))}
-        visits={visits.map((v) => ({ ...v, date: v.date.toISOString() }))}
+        visits={visits.map((v) => ({
+          ...v,
+          date: v.date.toISOString(),
+          needsResolving: needsResolving(
+            { status: v.status, hasInspection: v.inspectionId !== null, date: v.date },
+            today
+          ),
+        }))}
+        attendance={attendance(
+          visits.map((v) => ({
+            inspectorId: v.inspector.id,
+            inspector: v.inspector.name,
+            status: v.status,
+            hasInspection: v.inspectionId !== null,
+            date: v.date,
+          })),
+          today
+        )}
         today={todayISO()}
       />
     </main>
