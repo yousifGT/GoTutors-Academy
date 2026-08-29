@@ -5,13 +5,78 @@ on:
     branches: ["**"]
   pull_request:
 
-# Two applications live in this repository and they share nothing — separate
-# dependencies, separate databases, separate builds. They are checked as
-# separate jobs so a failure names which one broke, and so neither can mask the
-# other. Both must pass.
+# Two applications live in this repository and share no code — separate
+# dependencies, separate databases, separate builds. GitHub Actions is
+# per-repository rather than per-folder, so they are declared here together,
+# but they run as independent jobs and only when their own files change.
+#
+# Why the `changes` job rather than workflow-level `paths:` filters: a workflow
+# skipped by `paths` never reports a status at all, so any check made required
+# for merging sits pending forever. This workflow always runs; the expensive
+# jobs are what get skipped.
+
 jobs:
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    outputs:
+      academy: ${{ steps.filter.outputs.academy }}
+      inspection: ${{ steps.filter.outputs.inspection }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        # Plain git rather than a third-party action: this decides what gets
+        # tested, so it should not depend on someone else's code.
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          # A new branch, a force push, or a first commit leaves no usable base.
+          # Test everything rather than guess — skipping a job we cannot prove is
+          # unaffected is how a break reaches main.
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo "No usable base commit — running everything."
+            echo "academy=true"    >> "$GITHUB_OUTPUT"
+            echo "inspection=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Three dots: diff against the merge base, so commits that landed on
+          # the base branch since this one started are not counted as ours.
+          CHANGED="$(git diff --name-only "$BASE...${{ github.sha }}")"
+          echo "Changed files:"; echo "$CHANGED" | sed 's/^/  /'
+
+          # A change to CI itself re-checks both: the workflow is what decides
+          # whether either is sound.
+          if echo "$CHANGED" | grep -qE '^\.github/'; then
+            echo "CI configuration changed — running everything."
+            echo "academy=true"    >> "$GITHUB_OUTPUT"
+            echo "inspection=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Anything under inspection-app/ belongs to the inspection app;
+          # everything else in the repository belongs to the Academy.
+          if echo "$CHANGED" | grep -qE '^inspection-app/'; then INSPECTION=true; else INSPECTION=false; fi
+          if echo "$CHANGED" | grep -qvE '^inspection-app/'; then ACADEMY=true;   else ACADEMY=false;   fi
+
+          echo "academy=$ACADEMY"       >> "$GITHUB_OUTPUT"
+          echo "inspection=$INSPECTION" >> "$GITHUB_OUTPUT"
+          echo "→ academy=$ACADEMY inspection=$INSPECTION"
+
   academy:
     name: GoTutors Academy
+    needs: changes
+    if: needs.changes.outputs.academy == 'true'
     runs-on: ubuntu-latest
     env:
       # Placeholders so `prisma generate` / `next build` have the env they read.
@@ -34,6 +99,8 @@ jobs:
 
   inspection:
     name: Inspection app
+    needs: changes
+    if: needs.changes.outputs.inspection == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -58,9 +125,12 @@ jobs:
 
   # The scoring rules are the one thing both the server and any front end depend
   # on, and they carry no build step — so they are also checked on their own,
-  # with nothing installed. If this job needs a dependency, something has crept in.
+  # with nothing installed. If this job ever needs a dependency, something has
+  # crept in.
   inspection-core:
     name: Inspection core (no dependencies)
+    needs: changes
+    if: needs.changes.outputs.inspection == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -68,3 +138,31 @@ jobs:
         with:
           node-version: 20
       - run: node --test inspection-app/core/
+
+  # A single check to make required for merging. It passes when every job that
+  # needed to run did and succeeded, and when the ones that were skipped were
+  # genuinely not needed — so a skipped app never silently counts as a pass.
+  ci:
+    name: CI
+    needs: [changes, academy, inspection, inspection-core]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "changes:         ${{ needs.changes.result }}"
+          echo "academy:         ${{ needs.academy.result }}"
+          echo "inspection:      ${{ needs.inspection.result }}"
+          echo "inspection-core: ${{ needs.inspection-core.result }}"
+          # If the filter job broke, every app job reads as "skipped" — which
+          # would otherwise wave the whole thing through untested.
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "The change filter did not succeed, so nothing can be trusted as tested."
+            exit 1
+          fi
+          for r in "${{ needs.academy.result }}" "${{ needs.inspection.result }}" "${{ needs.inspection-core.result }}"; do
+            case "$r" in
+              success|skipped) ;;
+              *) echo "A required job did not pass."; exit 1 ;;
+            esac
+          done
+          echo "All jobs that needed to run passed."

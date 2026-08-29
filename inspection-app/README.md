@@ -8,6 +8,15 @@ photo evidence against failures, and leaves with a scored report and a debrief.
 GoTutors Academy LMS but shares nothing with it — its own database, its own user
 accounts, its own dependencies, its own port. Run them independently.
 
+Because one repository holds both, three things could otherwise couple them, and
+each is deliberately closed off:
+
+| | |
+|---|---|
+| The Academy's `tsconfig.json` | excludes `inspection-app`, or it would type-check this app against the Academy's copies of shared packages |
+| This app's `.eslintrc.json` | sets `"root": true`, so it does not inherit the Academy's config down the directory tree |
+| `.github/workflows/ci.yml` | one file, because Actions is per-repository — but each app runs as its own job, and only when its own files change |
+
 ```
 inspection-app/
   core/       inspection-core.js — the scoring rules, shared by server and browser
