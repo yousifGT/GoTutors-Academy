@@ -22,7 +22,7 @@ export default async function CoursePage({ params }: { params: { courseId: strin
   if (!enrollment && session.user.roleType !== "SUPER_ADMIN") {
     return (
       <div className="gt-card p-6">
-        <p>You're not enrolled in this course.</p>
+        <p>You&apos;re not enrolled in this course.</p>
         <div className="mt-4 max-w-xs"><EnrolButton courseId={course.id} label="Enrol now" /></div>
       </div>
     );

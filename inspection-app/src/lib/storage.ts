@@ -67,8 +67,11 @@ async function saveToS3(file: File, key: string): Promise<string> {
   // it: the package is optional, and must not be a compile-time dependency of a
   // build that never switches this backend on.
   const pkg = "@aws-sdk/client-s3";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const mod: any = await import(/* webpackIgnore: true */ pkg).catch(() => null);
+  // Untyped on purpose — see the comment above.
+  const mod = (await import(/* webpackIgnore: true */ pkg).catch(() => null)) as {
+    S3Client: new (cfg: unknown) => { send: (cmd: unknown) => Promise<unknown> };
+    PutObjectCommand: new (input: unknown) => unknown;
+  } | null;
   if (!mod) {
     throw new Error("UPLOAD_BACKEND=s3 but @aws-sdk/client-s3 is not installed. Run: npm i @aws-sdk/client-s3");
   }

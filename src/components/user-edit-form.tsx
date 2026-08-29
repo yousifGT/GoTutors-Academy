@@ -119,7 +119,7 @@ export function UserEditForm({
           <option value="">— none —</option>
           {supervisors.filter((s) => s.id !== userId).map((s) => <option key={s.id} value={s.id}>{s.name} ({s.role})</option>)}
         </select>
-        <p className="text-xs text-[var(--muted)] mt-1">A supervisor can view this user's certificates.</p>
+        <p className="text-xs text-[var(--muted)] mt-1">A supervisor can view this user&apos;s certificates.</p>
       </div>
       <div><label className="gt-label">Reset password (optional)</label><input className="gt-input" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Leave blank to keep existing" /></div>
       <label className="flex items-center gap-2 text-sm">

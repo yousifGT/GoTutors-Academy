@@ -21,6 +21,7 @@ interface Props {
   onDebrief: (patch: Partial<Debrief>) => void;
   onTargets: (t: string) => void;
   onSubmit: () => void;
+  onDiscard: () => void;
   onJumpTo: (questionText: string) => void;
 }
 
@@ -157,9 +158,18 @@ export function DebriefPanel(props: Props) {
       >
         Submit inspection
       </button>
-      <p className="pb-6 text-center text-xs text-slate-500">
+      <p className="text-center text-xs text-slate-500">
         Once submitted this becomes a record and cannot be edited. Correcting it means another visit.
       </p>
+
+      <div className="border-t border-slate-200 pb-8 pt-6 text-center">
+        <button onClick={props.onDiscard} className="text-sm text-red-700 underline">
+          Discard this inspection
+        </button>
+        <p className="mt-1 text-xs text-slate-500">
+          Deletes the visit and everything recorded in it. Only for one started by mistake.
+        </p>
+      </div>
     </div>
   );
 }

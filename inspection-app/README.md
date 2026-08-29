@@ -96,6 +96,9 @@ a known-password account must never exist by default.
 |---|---|
 | `/login` | sign in |
 | `/` | centres, checklist version, drafts to resume, recent visits |
+| `/admin/users` | accounts and roles (super admin) |
+| `/admin/centres` | the centre list, sizes, open/closed (head office and above) |
+| `/profile` | change your own password |
 | `/inspections/new` | pick a centre and its size for today |
 | `/inspections/[id]` | the inspection itself |
 | `/inspections/[id]/report` | the finished record |
@@ -150,6 +153,9 @@ to their own work, never to everything.
 | `PATCH /api/inspections/:id` | autosave — answers, notes, photos, `activeMs`, debrief |
 | `POST /api/inspections/:id/submit` | close it: score on the server, write the buckets, lock it |
 | `DELETE /api/inspections/:id` | discard a draft |
+| `GET/POST /api/users`, `PATCH/DELETE /api/users/:id` | accounts (super admin) |
+| `POST /api/centres`, `PATCH/DELETE /api/centres/:id` | centres (head office and above) |
+| `POST /api/me/password` | change your own password |
 | `POST /api/uploads` | store one photo or signature, returns its URL |
 | `GET /api/inspections/:id/pdf` | the report as a PDF (`?inline=1` to view rather than download) |
 
@@ -234,10 +240,11 @@ they were run under.
 
 1. ~~Database schema and seed importer.~~ Done.
 2. ~~Auth, roles, and the inspection API.~~ Done.
-3. The inspector screens, following the prototype.
+3. ~~The inspector screens.~~ Done, including the session tally counters.
 4. Photo and signature upload (the API takes URLs today).
 5. Report PDF, emailed and logged.
-6. Cross-centre dashboards.
+6. Cross-centre dashboards, CSV export, repeat-issue flagging, signature
+   capture, and a screen for editing the checklist.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

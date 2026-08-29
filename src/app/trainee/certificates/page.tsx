@@ -12,7 +12,7 @@ export default async function CertificatesPage() {
   });
 
   if (certs.length === 0) {
-    return <div className="gt-card p-6 text-[var(--muted)]">You haven't earned any certificates yet.</div>;
+    return <div className="gt-card p-6 text-[var(--muted)]">You haven&apos;t earned any certificates yet.</div>;
   }
 
   return (

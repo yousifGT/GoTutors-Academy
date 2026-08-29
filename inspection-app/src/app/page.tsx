@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { canConduct, centreScope, inspectionScope } from "@/lib/access";
+import { canConduct, canManageCentres, canManageUsers, centreScope, inspectionScope } from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
 import { ROLE_LABEL, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
@@ -48,7 +48,17 @@ export default async function Home() {
         <div className="text-right text-sm">
           <p className="font-medium text-slate-700">{user.name}</p>
           <p className="text-slate-500">{ROLE_LABEL[user.role] ?? user.role}</p>
-          <SignOut />
+          <div className="mt-1 flex justify-end gap-3 text-xs">
+            {(canManageUsers(user.role) || canManageCentres(user.role)) && (
+              <Link href="/admin/users" className="font-medium text-sky-600">
+                Manage
+              </Link>
+            )}
+            <Link href="/profile" className="font-medium text-sky-600">
+              Account
+            </Link>
+            <SignOut />
+          </div>
         </div>
       </header>
 

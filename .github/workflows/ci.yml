@@ -5,12 +5,17 @@ on:
     branches: ["**"]
   pull_request:
 
+# Two applications live in this repository and they share nothing — separate
+# dependencies, separate databases, separate builds. They are checked as
+# separate jobs so a failure names which one broke, and so neither can mask the
+# other. Both must pass.
 jobs:
-  build:
+  academy:
+    name: GoTutors Academy
     runs-on: ubuntu-latest
     env:
       # Placeholders so `prisma generate` / `next build` have the env they read.
-      # No real database is contacted — lint/test/build don't connect.
+      # No real database is contacted — lint, test and build don't connect.
       DATABASE_URL: "postgresql://user:pass@localhost:5432/db?schema=public"
       NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-at-runtime"
       NEXTAUTH_URL: "http://localhost:3000"
@@ -20,8 +25,46 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npx prisma generate
       - run: npm run lint
       - run: npm run test
       - run: npm run build
+
+  inspection:
+    name: Inspection app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: inspection-app
+    env:
+      DATABASE_URL: "postgresql://user:pass@localhost:5432/db?schema=public"
+      NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-at-runtime"
+      NEXTAUTH_URL: "http://localhost:3100"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: inspection-app/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run lint
+      # Runs both suites: Vitest, and the scoring rules under plain `node --test`.
+      - run: npm test
+      - run: npm run build
+
+  # The scoring rules are the one thing both the server and any front end depend
+  # on, and they carry no build step — so they are also checked on their own,
+  # with nothing installed. If this job needs a dependency, something has crept in.
+  inspection-core:
+    name: Inspection core (no dependencies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: node --test inspection-app/core/

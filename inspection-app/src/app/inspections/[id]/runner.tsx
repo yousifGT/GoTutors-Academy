@@ -9,6 +9,7 @@ import { scoreDbInspection, toCoreItem, toCoreSize, type QuestionRow } from "@/l
 import { SIZE_SHORT } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { QuestionCard } from "./question-card";
+import { TallyBar, type TallyTarget } from "./tally-bar";
 import { DebriefPanel } from "./debrief";
 
 export interface Entry {
@@ -96,6 +97,13 @@ export function Runner(props: Props) {
   );
 
   const coreSize = toCoreSize(props.size);
+
+  // The tally questions live in the last section, but the counters belong at the
+  // top all session — an inspector cannot tap a control they have to scroll to.
+  const tallyTargets: TallyTarget[] = props.sections
+    .flatMap((s) => s.questions)
+    .filter((q) => q.tallyKey)
+    .map((question) => ({ question, value: Number(answers.get(question.id)?.answer ?? 0) || 0 }));
   const totalQuestions = props.sections.reduce((n, s) => n + s.questions.length, 0);
 
   /* ---------- autosave ---------- */
@@ -175,8 +183,10 @@ export function Runner(props: Props) {
     scheduleSave(questionId);
   }
 
-  const setAnswer = (qid: string, value: string | null) =>
-    update(qid, (a) => ({ ...a, answer: a.answer === value ? null : value }));
+  /** Tapping the selected option again clears it — except for counters, where
+   *  landing on the same number twice must not wipe the count. */
+  const setAnswer = (qid: string, value: string | null, toggle = true) =>
+    update(qid, (a) => ({ ...a, answer: toggle && a.answer === value ? null : value }));
 
   const setEntry = (qid: string, index: number, patch: Partial<Entry>) =>
     update(qid, (a) => ({
@@ -191,6 +201,21 @@ export function Runner(props: Props) {
       const entries = a.entries.filter((_, i) => i !== index);
       return { ...a, entries: entries.length ? entries : [emptyEntry()] };
     });
+
+  async function discard() {
+    if (
+      !confirm(
+        "Discard this inspection? Everything recorded in it is deleted and cannot be recovered. Only do this for a visit started by mistake."
+      )
+    )
+      return;
+    const res = await fetch(`/api/inspections/${props.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setSubmitError("Could not discard this inspection.");
+      return;
+    }
+    router.push("/");
+  }
 
   /* ---------- submit ---------- */
   async function submit() {
@@ -235,6 +260,12 @@ export function Runner(props: Props) {
           clockRef.current = c;
         }}
         saveState={saveState}
+        tally={
+          <TallyBar
+            targets={tallyTargets}
+            onChange={(questionId, value) => setAnswer(questionId, String(value), false)}
+          />
+        }
       />
 
       <div className="mx-auto max-w-3xl px-4">
@@ -270,6 +301,7 @@ export function Runner(props: Props) {
               scheduleSave();
             }}
             onSubmit={submit}
+            onDiscard={discard}
             answeredCount={totalQuestions - score.unanswered}
             totalQuestions={totalQuestions}
             onJumpTo={(questionText) => {
@@ -365,6 +397,7 @@ function TopBar(props: {
   activeMs: number;
   onClock: (c: { total: () => number }) => void;
   saveState: "saved" | "saving" | "error";
+  tally: React.ReactNode;
 }) {
   return (
     <header className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -388,6 +421,7 @@ function TopBar(props: {
           </p>
         </div>
       </div>
+      {props.tally}
       {props.criticalCount > 0 && (
         <p className="bg-red-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
           ⚠ {props.criticalCount} critical {props.criticalCount === 1 ? "failure" : "failures"} — cannot be rated Good
