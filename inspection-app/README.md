@@ -128,6 +128,7 @@ a known-password account must never exist by default.
 | `/reports` | every inspection the viewer may see, filterable |
 | `/admin/users` | accounts and roles (super admin) |
 | `/admin/centres` | the centre list, sizes, open/closed (head office and above) |
+| `/admin/audit` | what was done, by whom and when (head office and above) |
 | `/profile` | change your own password |
 | `/inspections/new` | pick a centre and its size for today |
 | `/inspections/[id]` | the inspection itself |
@@ -196,6 +197,26 @@ it done, so a planned day and the record of what happened are one story rather
 than two lists to reconcile by eye. A day that passes with no inspection shows as
 missed rather than quietly disappearing — a visit nobody made is exactly the
 thing worth knowing about.
+
+### Activity
+
+Every account change, submission, report download and missed-visit mark is
+written to an audit log, and `/admin/audit` reads it back — filter by kind, by
+person or by date, and search. Until something reads it, an audit trail is a
+liability rather than a control: it costs storage, tells nobody anything, and is
+only discovered to be incomplete when someone actually needs it.
+
+A super admin sees everything. Head office sees the operation — centres,
+inspections, visits — but not account administration: that is the record of who
+holds access, and the people who hold access should not be the only ones able to
+read it quietly. Nobody else sees the log at all. The filtering happens in the
+query rather than after fetching, so a page of results is never silently short.
+
+An action nobody has given a name to is shown under its raw name rather than
+hidden — that means the log has outgrown the table describing it, which is
+exactly when it must not disappear. Entries hold plain ids rather than foreign
+keys so the log survives the person or the inspection being deleted; a removed
+account reads as "(deleted account)" rather than as nobody.
 
 ### Findings that have not been fixed
 
@@ -288,6 +309,7 @@ Emailing the PDF out is still to come; today the report lands in the account.
 | `POST /api/centres`, `PATCH/DELETE /api/centres/:id` | centres (head office and above) |
 | `GET/POST /api/visits`, `PATCH/DELETE /api/visits/:id` | the visit diary |
 | `GET /api/coverage` | which centres need a visit, worst first |
+| `GET /api/audit` | the activity log, filtered to what the role may read |
 | `POST /api/me/password` | change your own password |
 | `POST /api/uploads` | store one photo or signature, returns its URL |
 | `GET /api/inspections/:id/pdf` | the report as a PDF (`?inline=1` to view rather than download) |
@@ -376,8 +398,8 @@ they were run under.
 3. ~~The inspector screens.~~ Done, including the session tally counters.
 4. Photo and signature upload (the API takes URLs today).
 5. Report PDF, emailed and logged.
-6. Cross-centre dashboards, CSV export, signature capture, an audit-log viewer,
-   and a screen for editing the checklist.
+6. Cross-centre dashboards, CSV export, signature capture, and a screen for
+   editing the checklist.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

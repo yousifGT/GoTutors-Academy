@@ -14,6 +14,7 @@ import { asDate, canScheduleVisits, todayISO } from "@/lib/schedule";
 import { ROLE_LABEL, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { VisitList } from "@/components/visit-list";
+import { canReadAudit } from "@/lib/audit-view";
 import { SignOut } from "@/components/sign-out";
 
 export default async function Home() {
@@ -89,8 +90,8 @@ export default async function Home() {
                 Planner
               </Link>
             )}
-            {(canManageUsers(user.role) || canManageCentres(user.role)) && (
-              <Link href="/admin/users" className="font-medium text-sky-600">
+            {(canManageUsers(user.role) || canManageCentres(user.role) || canReadAudit(user.role)) && (
+              <Link href={canManageUsers(user.role) ? "/admin/users" : "/admin/audit"} className="font-medium text-sky-600">
                 Manage
               </Link>
             )}

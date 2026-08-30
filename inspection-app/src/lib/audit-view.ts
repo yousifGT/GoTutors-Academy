@@ -1,0 +1,134 @@
+import type { Role } from "@prisma/client";
+
+/**
+ * Reading the audit log back.
+ *
+ * Every account change, submission, report download and missed-visit mark is
+ * already written. Until something reads it, an audit trail is a liability
+ * rather than a control: it costs storage, tells nobody anything, and is only
+ * discovered to be incomplete when someone needs it.
+ */
+
+export type AuditGroup = "people" | "centres" | "inspections" | "visits";
+
+interface ActionMeta {
+  group: AuditGroup;
+  label: string;
+  /** Worth noticing at a glance: someone was marked, removed, or let in. */
+  notable?: boolean;
+}
+
+/**
+ * How each recorded action reads. Anything not listed still shows, using its
+ * raw name — an unknown action is better surfaced than hidden, since it means
+ * the log has outgrown this table.
+ */
+export const ACTIONS: Record<string, ActionMeta> = {
+  "user.create": { group: "people", label: "Account created", notable: true },
+  "user.update": { group: "people", label: "Account changed" },
+  "user.deactivate": { group: "people", label: "Account deactivated", notable: true },
+  "user.delete": { group: "people", label: "Account deleted", notable: true },
+  "user.password_change": { group: "people", label: "Password changed" },
+
+  "centre.create": { group: "centres", label: "Centre added" },
+  "centre.update": { group: "centres", label: "Centre changed" },
+  "centre.close": { group: "centres", label: "Centre closed", notable: true },
+  "centre.delete": { group: "centres", label: "Centre deleted", notable: true },
+
+  "inspection.start": { group: "inspections", label: "Inspection started" },
+  "inspection.submit": { group: "inspections", label: "Inspection submitted", notable: true },
+  "inspection.discard": { group: "inspections", label: "Draft discarded", notable: true },
+  "inspection.pdf": { group: "inspections", label: "Report downloaded" },
+
+  "visit.book": { group: "visits", label: "Visit booked" },
+  "visit.update": { group: "visits", label: "Visit changed" },
+  "visit.delete": { group: "visits", label: "Visit cancelled" },
+  "visit.done": { group: "visits", label: "Visit recorded as made" },
+  "visit.missed": { group: "visits", label: "Visit marked missed", notable: true },
+  "visit.planned": { group: "visits", label: "Visit reopened" },
+  "visit.cancelled": { group: "visits", label: "Visit cancelled" },
+};
+
+export const GROUP_LABEL: Record<AuditGroup, string> = {
+  people: "People",
+  centres: "Centres",
+  inspections: "Inspections",
+  visits: "Visits",
+};
+
+export function describe(action: string): ActionMeta {
+  return ACTIONS[action] ?? { group: groupOf(action), label: action };
+}
+
+function groupOf(action: string): AuditGroup {
+  const prefix = action.split(".")[0];
+  if (prefix === "user") return "people";
+  if (prefix === "centre") return "centres";
+  if (prefix === "visit") return "visits";
+  return "inspections";
+}
+
+/**
+ * Which groups a role may read.
+ *
+ * Head office oversees the operation, so they see what happened to inspections,
+ * visits and centres. Account administration — who was created, deactivated, or
+ * had their password changed — stays with the super admin: it is the record of
+ * who holds access, and the people who hold access should not be the only ones
+ * who can quietly read it.
+ */
+export function visibleGroups(role: Role): AuditGroup[] {
+  if (role === "SUPER_ADMIN") return ["people", "centres", "inspections", "visits"];
+  if (role === "HEAD_OFFICE") return ["centres", "inspections", "visits"];
+  return [];
+}
+
+export function canReadAudit(role: Role): boolean {
+  return visibleGroups(role).length > 0;
+}
+
+export function canRead(role: Role, action: string): boolean {
+  return visibleGroups(role).includes(describe(action).group);
+}
+
+/** The action names a role may see, for use as a database filter. */
+export function readableActions(role: Role, only?: AuditGroup): string[] {
+  const groups = visibleGroups(role).filter((g) => !only || g === only);
+  return Object.entries(ACTIONS)
+    .filter(([, m]) => groups.includes(m.group))
+    .map(([action]) => action);
+}
+
+/**
+ * The interesting parts of an entry's metadata, as short label/value pairs.
+ * Anything object-shaped or empty is left out — a wall of JSON is not a record
+ * anyone reads.
+ */
+export function summarise(metadata: unknown): { key: string; value: string }[] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return [];
+  return Object.entries(metadata as Record<string, unknown>)
+    .filter(([, v]) => v !== null && v !== undefined && v !== "" && typeof v !== "object")
+    .map(([key, v]) => ({ key: label(key), value: String(v) }));
+}
+
+const KEY_LABELS: Record<string, string> = {
+  pct: "score",
+  verdict: "verdict",
+  centreId: "centre",
+  inspector: "inspector",
+  date: "date",
+  role: "role",
+  active: "active",
+  passwordChanged: "password changed",
+  deliveredTo: "delivered to",
+  reason: "reason",
+  status: "status",
+  size: "size",
+  name: "name",
+  email: "email",
+  centre: "centre",
+};
+
+function label(key: string): string {
+  return KEY_LABELS[key] ?? key.replace(/([A-Z])/g, " $1").toLowerCase();
+}
