@@ -47,9 +47,17 @@ roles whose `type` is `TRAINEE`.
 - `tutorTitleFor` is **one-way and not injective**: "Maths", "Maths Trainee" and
   "Maths Tutor" all yield "Maths Tutor". `fieldNameForTutorTitle` matches forward
   against real field names because the transform cannot be reversed.
-- `promotion.ts` is the **only** writer of `teacherPositions` anywhere. Renames
-  and deletes do not maintain it, so damage there has no in-product repair path.
-  Treat any change to field names as needing a `teacherPositions` migration.
+- `promotion.ts` is the only writer of `teacherPositions` in normal operation;
+  the rename route now also rewrites it when a rename changes the tutor title.
+  Nothing else may touch that column — damage there has no in-product repair
+  path, because a title nobody can produce resolves to no field at all.
+- **Two fields must never promote to the same title.** Create and rename both
+  refuse it, and `fieldNameForTutorTitle` resolves deterministically if older
+  data already contains a pair.
+- **A field with holders cannot be deleted.** Holders are counted by name across
+  every role and include tutors (who hold it as a title), because deleting also
+  drops the field's course requirements — which can leave part-trained people
+  reading as fully trained.
 
 ## Config
 
@@ -67,7 +75,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 287 tests
+npx vitest run                # 301 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

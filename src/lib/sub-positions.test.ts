@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { effectiveSubPositions, tutorTitleFor, fieldNameForTutorTitle, tutoredFieldNames } from "./sub-positions";
+import { effectiveSubPositions, tutorTitleFor, fieldNameForTutorTitle, tutoredFieldNames, collidingFieldName } from "./sub-positions";
 
 describe("tutorTitleFor", () => {
   it("turns a '<subject> Trainee' field into '<subject> Tutor'", () => {
@@ -56,5 +56,47 @@ describe("fieldNameForTutorTitle / tutoredFieldNames", () => {
 
   it("handles an empty list", () => {
     expect(tutoredFieldNames([], fields)).toEqual([]);
+  });
+});
+
+describe("fieldNameForTutorTitle is deterministic when titles collide", () => {
+  // "Maths", "Maths Trainee" and "Maths Tutor" all promote to "Maths Tutor".
+  // `find` over an unordered query meant two call sites could disagree, and the
+  // answer could change between requests, evaluating a tutor against the wrong
+  // course set.
+  const colliding = ["Maths Trainee", "Maths Tutor", "Maths"];
+
+  it("prefers the field whose name is the title", () => {
+    expect(fieldNameForTutorTitle("Maths Tutor", colliding)).toBe("Maths Tutor");
+  });
+
+  it("gives the same answer whatever order the fields arrive in", () => {
+    const answers = new Set([
+      fieldNameForTutorTitle("Maths Tutor", ["Maths Trainee", "Maths"]),
+      fieldNameForTutorTitle("Maths Tutor", ["Maths", "Maths Trainee"]),
+    ]);
+    expect(answers.size).toBe(1);
+    expect([...answers][0]).toBe("Maths");
+  });
+
+  it("is unchanged when nothing collides", () => {
+    expect(fieldNameForTutorTitle("Maths Tutor", ["Maths Trainee", "English Trainee"])).toBe("Maths Trainee");
+    expect(fieldNameForTutorTitle("History Tutor", ["Maths Trainee"])).toBeNull();
+  });
+});
+
+describe("collidingFieldName", () => {
+  it("catches a new name that promotes to an existing title", () => {
+    expect(collidingFieldName("Maths Trainee", ["Maths Tutor", "English Trainee"])).toBe("Maths Tutor");
+    expect(collidingFieldName("Maths", ["Maths Trainee"])).toBe("Maths Trainee");
+  });
+
+  it("allows a genuinely new field", () => {
+    expect(collidingFieldName("History Trainee", ["Maths Tutor", "English Trainee"])).toBeNull();
+  });
+
+  // A rename passes the other fields, so the field must not clash with itself.
+  it("ignores the field's own name", () => {
+    expect(collidingFieldName("Maths Tutor", ["Maths Tutor"])).toBeNull();
   });
 });

@@ -38,7 +38,31 @@ export function tutorTitleFor(field: string): string {
  * deleted), which callers should treat as "nothing to require".
  */
 export function fieldNameForTutorTitle(title: string, knownFields: readonly string[]): string | null {
-  return knownFields.find((field) => tutorTitleFor(field) === title) ?? null;
+  const matches = knownFields.filter((field) => tutorTitleFor(field) === title);
+  if (matches.length <= 1) return matches[0] ?? null;
+  // Two fields can map to the same title ("Maths", "Maths Trainee" and "Maths
+  // Tutor" all yield "Maths Tutor"). Creating that pair is now refused, but
+  // older data may already contain one — and `find` over an unordered query
+  // meant the answer could differ between two call sites, or between two
+  // requests, silently evaluating a tutor against the wrong course set. Prefer
+  // the field whose name IS the title, else the first alphabetically: wrong is
+  // possible, arbitrary is not.
+  return matches.find((field) => field === title) ?? [...matches].sort()[0];
+}
+
+/**
+ * The existing field, if any, that already promotes to the same tutor title.
+ *
+ * tutorTitleFor is lossy, so two differently-named fields can produce one title
+ * and then compete to be resolved back from it. Rejecting the second one at
+ * creation is the only place this can be prevented cheaply.
+ */
+export function collidingFieldName(
+  name: string,
+  existingFields: readonly string[]
+): string | null {
+  const title = tutorTitleFor(name);
+  return existingFields.find((field) => field !== name && tutorTitleFor(field) === title) ?? null;
 }
 
 /** The field names a user is qualified to tutor, from their stored titles. */

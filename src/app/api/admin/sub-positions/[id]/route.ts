@@ -6,6 +6,8 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zPositionName } from "@/lib/validate";
+import { collidingFieldName, tutorTitleFor } from "@/lib/sub-positions";
+import { countFieldHolders, describeFieldHolders } from "@/lib/field-holders";
 
 const RenameSchema = z.object({ name: zPositionName });
 
@@ -30,6 +32,33 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   });
   if (dupe) return NextResponse.json({ error: "Another sub-position with that name already exists for this role" }, { status: 409 });
 
+  // Two fields must never promote to the same tutor title — the stored title is
+  // all a qualified tutor has, and it could then resolve back to either field.
+  const allFields = (await prisma.subPosition.findMany({ select: { name: true } })).map((r) => r.name);
+  const clash = collidingFieldName(newName, allFields.filter((n) => n !== existing.name));
+  if (clash) {
+    return NextResponse.json(
+      { error: `"${newName}" and "${clash}" would both qualify people as "${tutorTitleFor(newName)}". Pick a name that doesn't collide.` },
+      { status: 409 }
+    );
+  }
+
+  // A rename that changes the tutor title has to carry teacherPositions with it.
+  // promotion.ts is the ONLY writer of that column, so a title left behind can
+  // never be repaired through the product: the field silently drops out of the
+  // person's status, the retraining flag can never fire for it again, and new
+  // courses published to the field never reach them — while their profile goes
+  // on showing the badge.
+  const oldTitle = tutorTitleFor(existing.name);
+  const newTitle = tutorTitleFor(newName);
+  const titleHolders =
+    oldTitle === newTitle
+      ? []
+      : await prisma.user.findMany({
+          where: { teacherPositions: { has: oldTitle } },
+          select: { id: true, teacherPositions: true },
+        });
+
   // Rename and cascade-update denormalized strings on User + CourseRoleAssignment.
   // Array entries can't be rewritten with updateMany, so rewrite each holder's
   // array individually inside the same transaction.
@@ -46,6 +75,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         data: { subPositions: [...new Set(u.subPositions.map((n) => (n === existing.name ? newName : n)))] },
       })
     ),
+    ...titleHolders.map((u) =>
+      prisma.user.update({
+        where: { id: u.id },
+        data: { teacherPositions: [...new Set(u.teacherPositions.map((t) => (t === oldTitle ? newTitle : t)))] },
+      })
+    ),
     prisma.courseRoleAssignment.updateMany({
       where: { roleId: existing.roleId, subPosition: existing.name },
       data: { subPosition: newName },
@@ -56,9 +91,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     actorId: session.user.id,
     action: "sub-position.rename",
     target: `sub-position:${existing.name} → ${newName}`,
-    metadata: { role: existing.role.name },
+    metadata: {
+      role: existing.role.name,
+      ...(titleHolders.length ? { retitledTutors: titleHolders.length } : {}),
+    },
   });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, retitledTutors: titleHolders.length });
 }
 
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
@@ -71,12 +109,20 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   const sp = await prisma.subPosition.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!sp) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const userCount = await prisma.user.count({
-    where: { roleId: sp.roleId, OR: [{ subPosition: sp.name }, { subPositions: { has: sp.name } }] },
-  });
-  if (userCount > 0) {
+  // Counted by NAME across every role, and including the tutors who hold it as a
+  // title. Scoping to the field's own role skipped precisely the people
+  // promotion moves elsewhere, so a field could be deleted out from under its
+  // tutors: their qualification stops resolving, and — because deleting also
+  // drops the field's course requirements below — anyone left part-way through a
+  // same-named field can read as fully trained and be auto-promoted without
+  // finishing.
+  const holders = await countFieldHolders(sp.name);
+  if (holders.total > 0) {
     return NextResponse.json(
-      { error: `Cannot delete: ${userCount} user(s) currently have this sub-position.`, userCount },
+      {
+        error: `Cannot delete "${sp.name}": ${describeFieldHolders(holders)}. Move them off it first.`,
+        ...holders,
+      },
       { status: 409 }
     );
   }
