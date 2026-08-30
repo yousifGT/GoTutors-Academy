@@ -12,6 +12,8 @@
  * the next — so the list is always complete.
  */
 
+import { emailBackend, emailConfigProblems } from "@/lib/email-config";
+
 export type Severity = "fatal" | "warning";
 
 export interface Problem {
@@ -108,6 +110,18 @@ export function problems(env: NodeJS.ProcessEnv = process.env): Problem[] {
   } else if (backend && backend !== "s3") {
     warn("UPLOAD_BACKEND", `unrecognised value ${JSON.stringify(backend)}; falling back to local disk`);
   }
+
+  // --- sending the report on ------------------------------------------------
+  const backendName = emailBackend(env);
+  const missingEmail = emailConfigProblems(env);
+  for (const key of missingEmail) fatal(key, `required when EMAIL_BACKEND=${backendName}`);
+  if (backendName === "console" && deployed)
+    // The console backend writes the message to the log instead of sending it.
+    // That is the right default for a laptop and a silent catastrophe in
+    // production: every centre head would be shown a report in the app that
+    // they were also told had been emailed to them, and none of it would have
+    // left the building.
+    fatal("EMAIL_BACKEND", "not set: report emails would be written to the log instead of being sent. Set EMAIL_BACKEND=ses (or smtp)");
 
   // --- seeding -------------------------------------------------------------
   if (env.SEED_ADMIN_EMAIL && !env.SEED_ADMIN_PASSWORD)

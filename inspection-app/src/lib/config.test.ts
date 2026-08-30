@@ -9,6 +9,9 @@ const BASE = {
   UPLOAD_BACKEND: "s3",
   S3_BUCKET: "gotutors-inspection-uploads",
   S3_REGION: "eu-west-2",
+  EMAIL_BACKEND: "ses",
+  EMAIL_FROM: "GoTutors Inspections <inspections@gotutors.com>",
+  SES_REGION: "eu-west-2",
 } as unknown as NodeJS.ProcessEnv;
 
 const env = (over: Record<string, string | undefined>) => {
@@ -26,8 +29,8 @@ group("configuration check", () => {
   it("reports every fault at once, not the first one", () => {
     // An operator who fixes one variable, redeploys, waits, and finds the next
     // has been made to do the deployment four times.
-    const broken = env({ DATABASE_URL: undefined, NEXTAUTH_SECRET: undefined, NEXTAUTH_URL: undefined, S3_BUCKET: undefined });
-    expect(keys(broken)).toEqual(["DATABASE_URL", "NEXTAUTH_SECRET", "NEXTAUTH_URL", "S3_BUCKET"]);
+    const broken = env({ DATABASE_URL: undefined, NEXTAUTH_SECRET: undefined, NEXTAUTH_URL: undefined, S3_BUCKET: undefined, EMAIL_FROM: undefined });
+    expect(keys(broken)).toEqual(["DATABASE_URL", "EMAIL_FROM", "NEXTAUTH_SECRET", "NEXTAUTH_URL", "S3_BUCKET"]);
   });
 
   it("catches the Docker build placeholder reaching runtime", () => {
@@ -53,7 +56,11 @@ group("configuration check", () => {
     // you get building the app and running it on a laptop — which is how the
     // browser tests run. Keying the strict checks on NODE_ENV made the app
     // refuse to start there.
-    const local = env({ NEXTAUTH_URL: "http://localhost:3100", UPLOAD_BACKEND: undefined, S3_BUCKET: undefined, S3_REGION: undefined });
+    const local = env({
+      NEXTAUTH_URL: "http://localhost:3100",
+      UPLOAD_BACKEND: undefined, S3_BUCKET: undefined, S3_REGION: undefined,
+      EMAIL_BACKEND: undefined, EMAIL_FROM: undefined, SES_REGION: undefined,
+    });
     expect(isDeployed(local)).toBe(false);
     expect(problems(local)).toEqual([]);
     expect(isDeployed(env({ NEXTAUTH_URL: "http://127.0.0.1:3100" }))).toBe(false);
@@ -100,5 +107,29 @@ group("configuration check", () => {
     expect(text).toContain("NEXTAUTH_SECRET");
     expect(text).toContain("FATAL");
     expect(describe([])).toBe("Configuration OK.");
+  });
+});
+
+group("sending the report on", () => {
+  it("refuses to deploy with report emails going to the log", () => {
+    // The console backend prints the message instead of sending it. On a laptop
+    // that is right; in production every centre head is shown a report in the
+    // app and told it was emailed, and none of it ever left the building.
+    const found = fatals(env({ EMAIL_BACKEND: undefined, EMAIL_FROM: undefined, SES_REGION: undefined }));
+    expect(found.map((p) => p.key)).toEqual(["EMAIL_BACKEND"]);
+  });
+
+  it("names the settings the chosen backend is missing", () => {
+    expect(keys(env({ EMAIL_FROM: undefined }))).toEqual(["EMAIL_FROM"]);
+    expect(keys(env({ SES_REGION: undefined }))).toEqual(["SES_REGION"]);
+    expect(keys(env({ EMAIL_BACKEND: "smtp", SES_REGION: undefined }))).toEqual(["SMTP_HOST"]);
+  });
+
+  it("accepts an SMTP relay with no credentials, but not half of a pair", () => {
+    // A relay on a private network legitimately has no login. One of the two
+    // set is a typo, not a configuration.
+    expect(fatals(env({ EMAIL_BACKEND: "smtp", SMTP_HOST: "smtp.internal", SES_REGION: undefined }))).toEqual([]);
+    expect(keys(env({ EMAIL_BACKEND: "smtp", SMTP_HOST: "smtp.internal", SMTP_USER: "u", SES_REGION: undefined })))
+      .toEqual(["SMTP_USER/SMTP_PASSWORD"]);
   });
 });

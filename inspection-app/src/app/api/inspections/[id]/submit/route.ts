@@ -5,6 +5,7 @@ import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { canEditInspection, receivesReports } from "@/lib/access";
 import { canSubmit, scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score";
+import { sendReportsInBackground } from "@/lib/send-report";
 
 type Ctx = { params: { id: string } };
 
@@ -99,6 +100,11 @@ export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
       data: recipients.map((m) => ({ inspectionId: inspection.id, userId: m.id })),
       skipDuplicates: true,
     });
+    // And into their inbox. Started rather than awaited: the inspector is on a
+    // phone in a building, and rendering a PDF and talking to SES is not
+    // something their submit button should wait on. The rows are already
+    // written, so anything this does not finish is picked up by `email:flush`.
+    sendReportsInBackground(inspection.id);
   }
 
   await audit({

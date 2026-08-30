@@ -335,7 +335,24 @@ every centre, their own centres, or their own visits. Filter by centre, by month
 (only months that contain something are offered), by status, or "new only";
 search by centre, inspector or verdict. Every completed row has a PDF button.
 
-Emailing the PDF out is still to come; today the report lands in the account.
+**And into their inbox.** Submitting also emails the report, with the PDF
+attached, to each of those people. The message names the centre, the date, the
+verdict and the score in its subject line — that is what shows in a list of
+unread mail — and links back to the report on the site rather than restating the
+findings, so there is only ever one version of them.
+
+Sending is state on the delivery row, not a fire-and-forget call: `emailStatus`,
+the address it went to, when, how many attempts, and the last error. "It was
+emailed" is a claim someone will one day have to stand behind. The submit
+triggers a send immediately, without making the inspector's phone wait for it,
+and a sweep inside the app picks up anything that attempt did not finish —
+a task replaced mid-send, SES throttling, an address briefly unreachable. Failed
+attempts back off (a minute, five, twenty-five, two hours) and then stop at
+`FAILED`, which needs a person, rather than retrying out of sight forever.
+
+Set `EMAIL_BACKEND=ses` (or `smtp`). Left unset, messages go to the log instead
+of being sent — right on a laptop, and refused at boot on a deployment, so a
+forgotten setting cannot quietly mean nobody was told.
 
 ## API
 

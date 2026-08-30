@@ -367,11 +367,37 @@ model ReportDelivery {
   deliveredAt  DateTime  @default(now())
   readAt       DateTime?
 
+  /// The email side of the same delivery.
+  ///
+  /// Kept as state on the row rather than fired and forgotten, because "the
+  /// report was emailed" is a claim someone will one day have to stand behind.
+  /// A send that failed silently is worse than one that never happened: the
+  /// centre believes it was told.
+  emailStatus   EmailStatus @default(PENDING)
+  /// the address it went to, as it was at the time — not a join to a mutable one
+  emailTo       String?
+  emailedAt     DateTime?
+  emailAttempts Int         @default(0)
+  /// when the next attempt may run; backs off so a broken address is not retried in a tight loop
+  emailNextAt   DateTime?
+  emailError    String?
+
   inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
   user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([inspectionId, userId])
   @@index([userId, readAt])
+  @@index([emailStatus, emailNextAt])
+}
+
+enum EmailStatus {
+  /// waiting to be sent, or waiting to be retried
+  PENDING
+  SENT
+  /// gave up after repeated failures — needs a person to look
+  FAILED
+  /// deliberately not sent: no address, or sending is switched off
+  SKIPPED
 }
 
 model AuditLog {

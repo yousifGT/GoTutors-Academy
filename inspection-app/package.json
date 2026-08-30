@@ -2,7 +2,7 @@
   "name": "gotutors-inspection",
   "version": "0.1.0",
   "private": true,
-  "description": "GoTutors centre inspection app — runs standalone, with its own database.",
+  "description": "GoTutors centre inspection app \u2014 runs standalone, with its own database.",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "prisma generate && next build",
@@ -21,12 +21,14 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",
+    "@aws-sdk/client-sesv2": "^3.1121.0",
     "@prisma/client": "^5.22.0",
     "@react-pdf/renderer": "^4.8.1",
     "bcryptjs": "^2.4.3",
     "clsx": "^2.1.1",
     "next": "14.2.35",
     "next-auth": "^4.24.10",
+    "nodemailer": "^7.0.13",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "tailwind-merge": "^2.5.4",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.11",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
     "autoprefixer": "^10.4.20",
