@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
@@ -16,11 +16,27 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(creds) {
+      async authorize(creds, req) {
         if (!creds?.email || !creds.password) return null;
         const email = creds.email.toLowerCase();
-        // 5 sign-in attempts / 60s per email.
-        if (!rateLimit(`signin:${email}`, 5, 60).ok) return null;
+
+        // Two limits, because one of them alone is no limit at all.
+        //
+        // Per email stops someone working through a password list against one
+        // account. On its own it lets an attacker try the same likely password
+        // against every account in the company without ever hitting it, and it
+        // hands anyone who knows an address the ability to lock its owner out
+        // by burning the allowance on purpose.
+        //
+        // Per address stops the spray, and is the reason the per-email limit
+        // being exhaustible is survivable: the flood that would exhaust it is
+        // itself blocked.
+        const from = clientIp({ headers: new Headers((req?.headers ?? {}) as Record<string, string>) });
+        const [byEmail, byAddress] = await Promise.all([
+          rateLimit(`signin:email:${email}`, 5, 60),
+          rateLimit(`signin:ip:${from}`, 30, 60),
+        ]);
+        if (!byEmail.ok || !byAddress.ok) return null;
 
         const user = await prisma.user.findUnique({
           where: { email },

@@ -23,7 +23,7 @@ export const POST = withRoute(async (req: Request) => {
   if (!canConduct(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   // A visit generates a lot of photos, but not hundreds a minute.
-  if (!rateLimit(`upload:${who.viewer.id}`, 60, 60).ok)
+  if (!(await rateLimit(`upload:${who.viewer.id}`, 60, 60)).ok)
     return NextResponse.json({ error: "Too many uploads, slow down" }, { status: 429 });
 
   const form = await req.formData().catch(() => null);

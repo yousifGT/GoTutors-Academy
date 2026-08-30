@@ -26,7 +26,7 @@ export const POST = withRoute(async (req: Request) => {
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 
-  if (!rateLimit(`password:${who.viewer.id}`, 5, 300).ok)
+  if (!(await rateLimit(`password:${who.viewer.id}`, 5, 300)).ok)
     return NextResponse.json({ error: "Too many attempts. Wait a few minutes." }, { status: 429 });
 
   const parsed = await parseJson(req, Schema);

@@ -251,6 +251,24 @@ model Entry {
   @@index([answerId])
 }
 
+/// One counting bucket for a rate limit.
+///
+/// The limiter used to hold its counters in a Map inside the process. That works
+/// on one machine and nowhere else: behind a load balancer each task keeps its
+/// own tally, so N tasks means N times the limit, and a sign-in flood simply
+/// lands on whichever task has not seen it yet. The counters have to live
+/// somewhere all the tasks can see, and the database is already that place —
+/// Redis would be another service to run, pay for and monitor for a table that
+/// takes a few hundred rows.
+model RateLimit {
+  /// what is being limited plus the window it falls in, e.g. "signin:a@b.c|29761481"
+  key       String   @id
+  count     Int      @default(1)
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 /// A file put into object storage: who uploaded it, and where it went.
 ///
 /// Photos are attached to an entry by a later autosave, so between the upload
