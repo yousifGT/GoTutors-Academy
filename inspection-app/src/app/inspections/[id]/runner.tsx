@@ -7,6 +7,15 @@ import { fmtDuration, optionsFor, resolveGuide } from "@/lib/core";
 import { useActiveClock } from "@/lib/use-active-clock";
 import { scoreDbInspection, toCoreItem, toCoreSize, type QuestionRow } from "@/lib/score";
 import { SIZE_SHORT } from "@/lib/format";
+import {
+  browserStore,
+  clearDraft,
+  pruneDrafts,
+  readDraft,
+  shouldRestore,
+  writeDraft,
+  type Store,
+} from "@/lib/draft-store";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { QuestionCard } from "./question-card";
 import { TallyBar, type TallyTarget } from "./tally-bar";
@@ -38,6 +47,8 @@ interface Props {
   activeMs: number;
   sections: { title: string; questions: QuestionRow[] }[];
   saved: AnswerState[];
+  /** When the server last stored anything, so a newer local copy can be spotted. */
+  updatedAt: string;
   debrief: Debrief;
   targets: string;
 }
@@ -66,6 +77,9 @@ export function Runner(props: Props) {
   const [onDebrief, setOnDebrief] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
   const [submitError, setSubmitError] = useState("");
+  const [restored, setRestored] = useState(false);
+  const [online, setOnline] = useState(true);
+  const store = useRef<Store | null>(null);
   const [blockers, setBlockers] = useState<null | {
     unanswered: number;
     unansweredCritical: string[];
@@ -76,6 +90,41 @@ export function Runner(props: Props) {
   // The clock is the source of truth for duration; it pauses when the inspector
   // leaves the tab, so we send its value rather than a wall-clock difference.
   const clockRef = useRef<{ total: () => number } | null>(null);
+
+  /* ---------- work the server has not seen ---------- */
+  useEffect(() => {
+    store.current = browserStore();
+    if (!store.current) return;
+    pruneDrafts(store.current);
+
+    const draft = readDraft(store.current, props.id);
+    if (!shouldRestore(draft, props.updatedAt)) {
+      // Nothing newer here than the server already has.
+      clearDraft(store.current, props.id);
+      return;
+    }
+    setAnswers(new Map(draft!.answers.map((a) => [a.questionId, withEntry(a)])));
+    setDebrief(draft!.debrief);
+    setTargets(draft!.targets);
+    // Everything restored is unsaved by definition, so queue it all.
+    draft!.answers.forEach((a) => dirty.current.add(a.questionId));
+    setRestored(true);
+    setSaveState("error");
+    scheduleSave();
+    // Only on mount: this reads what was left behind, it does not follow state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const set = () => setOnline(navigator.onLine);
+    set();
+    window.addEventListener("online", set);
+    window.addEventListener("offline", set);
+    return () => {
+      window.removeEventListener("online", set);
+      window.removeEventListener("offline", set);
+    };
+  }, []);
 
   /* ---------- scoring, in the browser, with the same rules as the server ---------- */
   const score = useMemo(
@@ -112,6 +161,19 @@ export function Runner(props: Props) {
   const latest = useRef({ answers, debrief, targets });
   latest.current = { answers, debrief, targets };
 
+  /** Write the mirror of everything currently on screen. */
+  const mirror = useCallback(() => {
+    if (!store.current) return;
+    writeDraft(store.current, {
+      inspectionId: props.id,
+      savedAt: Date.now(),
+      answers: Array.from(latest.current.answers.values()),
+      debrief: latest.current.debrief,
+      targets: latest.current.targets,
+      activeMs: clockRef.current?.total() ?? props.activeMs,
+    });
+  }, [props.id, props.activeMs]);
+
   const flush = useCallback(async (): Promise<boolean> => {
     const ids = Array.from(dirty.current);
     dirty.current.clear();
@@ -144,6 +206,9 @@ export function Runner(props: Props) {
       });
       if (!res.ok) throw new Error(String(res.status));
       setSaveState("saved");
+      setRestored(false);
+      // The server has it now, so the mirror has nothing left to protect.
+      if (!dirty.current.size) clearDraft(store.current, props.id);
       return true;
     } catch {
       // Put the ids back so the next save retries them rather than losing work.
@@ -161,6 +226,21 @@ export function Runner(props: Props) {
     },
     [flush]
   );
+
+  /**
+   * Mirror after the render that applied the change, not during the handler
+   * that requested it. React state is not updated synchronously, so writing
+   * from the handler stores the *previous* answers — losing whichever change
+   * was made last, which is the one most likely to be lost anyway.
+   */
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true; // nothing has changed yet on the first render
+      return;
+    }
+    mirror();
+  }, [answers, debrief, targets, mirror]);
 
   // A last save on the way out, so closing the tab mid-visit doesn't lose the
   // final answer or the clock.
@@ -214,6 +294,7 @@ export function Runner(props: Props) {
       setSubmitError("Could not discard this inspection.");
       return;
     }
+    clearDraft(store.current, props.id);
     router.push("/");
   }
 
@@ -237,6 +318,7 @@ export function Runner(props: Props) {
       setSubmitError(body?.error ?? "The inspection could not be submitted.");
       return;
     }
+    clearDraft(store.current, props.id);
     router.push(`/inspections/${props.id}/report`);
   }
 
@@ -260,6 +342,8 @@ export function Runner(props: Props) {
           clockRef.current = c;
         }}
         saveState={saveState}
+        offline={!online}
+        restored={restored}
         tally={
           <TallyBar
             targets={tallyTargets}
@@ -397,6 +481,8 @@ function TopBar(props: {
   activeMs: number;
   onClock: (c: { total: () => number }) => void;
   saveState: "saved" | "saving" | "error";
+  offline: boolean;
+  restored: boolean;
   tally: React.ReactNode;
 }) {
   return (
@@ -416,11 +502,31 @@ function TopBar(props: {
           <p className="text-xl font-bold leading-none" style={{ color: VERDICT_COLOR[props.verdict] ?? "#1C1960" }}>
             {props.pct}%
           </p>
-          <p className="text-[11px] font-medium text-slate-500">
-            {props.saveState === "saving" ? "Saving…" : props.saveState === "error" ? "Not saved" : "Saved"}
+          <p
+            className={`text-[11px] font-medium ${
+              props.saveState === "error" ? "text-red-600" : "text-slate-500"
+            }`}
+          >
+            {props.offline
+              ? "Offline"
+              : props.saveState === "saving"
+                ? "Saving…"
+                : props.saveState === "error"
+                  ? "Not saved"
+                  : "Saved"}
           </p>
         </div>
       </div>
+      {props.offline && (
+        <p className="bg-amber-500 px-4 py-1.5 text-center text-xs font-semibold text-white">
+          No connection — keep going. Everything is held on this device and sent when you are back.
+        </p>
+      )}
+      {props.restored && !props.offline && (
+        <p className="bg-sky-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
+          Recovered answers that had not been saved. Sending them now.
+        </p>
+      )}
       {props.tally}
       {props.criticalCount > 0 && (
         <p className="bg-red-600 px-4 py-1.5 text-center text-xs font-semibold text-white">

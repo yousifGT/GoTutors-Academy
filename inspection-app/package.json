@@ -2,7 +2,7 @@
   "name": "gotutors-inspection",
   "version": "0.1.0",
   "private": true,
-  "description": "GoTutors centre inspection app — runs standalone, with its own database.",
+  "description": "GoTutors centre inspection app \u2014 runs standalone, with its own database.",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "prisma generate && next build",
@@ -13,7 +13,10 @@
     "test:core": "node --test core/",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:status": "prisma migrate status"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

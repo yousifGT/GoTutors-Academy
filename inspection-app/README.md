@@ -63,10 +63,29 @@ Then start the database, create the schema, and run it:
 
 ```bash
 docker compose up -d      # Postgres on port 5434 — its own database
-npm run db:push
+npm run db:deploy         # apply the migrations
 npm run db:seed           # checklist v13, the 23 centres, your admin account
 npm run dev               # http://localhost:3100
 ```
+
+### Changing the schema
+
+```bash
+npm run db:migrate        # dev: edit schema.prisma, then generate a migration
+npm run db:deploy         # anywhere real: apply what is already committed
+npm run db:status         # what has and has not been applied
+```
+
+`npm run db:push` still exists for a throwaway experiment, but it is not the
+normal path: it makes the database match the schema by whatever means necessary,
+including dropping a column, and leaves no history to roll back. CI applies the
+migrations to an empty database and then checks they produce exactly what
+`schema.prisma` describes, so a change that was never migrated fails there
+rather than on a real database.
+
+Migrations are not run by the container on start: two instances would race, and
+a failure would take the whole rollout down rather than one container. Run
+`npm run db:deploy` as a release step.
 
 Sign in with the email and password you put in `.env`.
 
@@ -177,6 +196,25 @@ it done, so a planned day and the record of what happened are one story rather
 than two lists to reconcile by eye. A day that passes with no inspection shows as
 missed rather than quietly disappearing — a visit nobody made is exactly the
 thing worth knowing about.
+
+### Working with no signal
+
+An inspection is mirrored to the device as it is filled in, so a centre with no
+reception costs nothing. The header says **Offline** and tells the inspector to
+keep going; answers, notes and photo references are held locally, and the moment
+the connection is back everything queued is sent and the local copy is dropped.
+
+The mirror is written *after* the render that applied a change, not in the
+handler that requested it — React state is not updated synchronously, so writing
+from the handler stores the previous answers and loses whichever change was made
+last, which is the one most likely to be lost anyway.
+
+Only work the server has not seen is ever restored: the local copy carries the
+time it was written and is used only when it is strictly newer than the
+inspection's own `updatedAt`. A copy that is malformed, belongs to another
+inspection, or is more than a fortnight old is discarded rather than restored,
+and every call is wrapped — `localStorage` throws outright in some private modes
+and when full, and losing the mirror must never take the inspection down with it.
 
 The size is still chosen by the inspector even when arriving from a booking: it
 decides how several questions are marked, and a centre can be busier or quieter

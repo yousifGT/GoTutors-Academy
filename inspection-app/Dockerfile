@@ -51,4 +51,8 @@ RUN mkdir -p public/uploads && chown -R node:node public/uploads
 USER node
 
 EXPOSE 3100
+
+# Migrations are NOT run here. Two instances starting at once would both try,
+# and a failed migration would take the whole rollout down rather than one
+# container. Run `npm run db:deploy` as a release step before starting these.
 CMD ["npm", "run", "start"]

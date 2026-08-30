@@ -105,6 +105,15 @@ jobs:
     defaults:
       run:
         working-directory: inspection-app
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: inspection
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: "postgresql://user:pass@localhost:5432/db?schema=public"
       NEXTAUTH_SECRET: "ci-placeholder-secret-not-used-at-runtime"
@@ -122,6 +131,27 @@ jobs:
       # Runs both suites: Vitest, and the scoring rules under plain `node --test`.
       - run: npm test
       - run: npm run build
+
+      # The migrations must build the schema the code expects. Without this a
+      # column added to schema.prisma but never migrated passes every other
+      # check and fails on deploy, against a real database.
+      - name: Migrations match the schema
+        run: |
+          set -euo pipefail
+          # prisma migrate diff needs the shadow database to already exist; it
+          # will not create one.
+          PGPASSWORD=postgres createdb -h localhost -U postgres shadow
+          npx prisma migrate deploy
+          # --exit-code returns 2 when the schema has changes the migrations do
+          # not, which fails the step. That is the whole point of running it.
+          npx prisma migrate diff \
+            --from-migrations prisma/migrations \
+            --to-schema-datamodel prisma/schema.prisma \
+            --shadow-database-url "$SHADOW_DATABASE_URL" \
+            --exit-code
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/inspection
+          SHADOW_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/shadow
 
   # The scoring rules are the one thing both the server and any front end depend
   # on, and they carry no build step — so they are also checked on their own,

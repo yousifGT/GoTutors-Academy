@@ -34,6 +34,7 @@ export default async function InspectionPage({ params }: { params: { id: string 
       size={inspection.size}
       date={inspection.date.toISOString().slice(0, 10)}
       activeMs={inspection.activeMs}
+      updatedAt={inspection.updatedAt.toISOString()}
       sections={inspection.template.sections.map((s) => ({ title: s.title, questions: s.questions }))}
       saved={inspection.answers.map((a) => ({
         questionId: a.questionId,
