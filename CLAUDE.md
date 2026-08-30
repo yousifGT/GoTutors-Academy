@@ -17,8 +17,17 @@ model have twice diverged (email lowercased on create but not on edit; field
 names resolved differently). When touching validation on one, open the other.
 
 **Verify with the running app, not with reasoning.** `npm test` and `tsc` pass
-happily on logic that is wrong end to end. The forced-password loop and the
+happily on logic that is wrong end to end. The forced-password hold and the
 video seek clamp were both green in unit tests and broken in the browser.
+
+**Navigation after a session change needs a full page load.** `router.push` /
+`router.replace` are served from Next's client router cache, which can still
+hold a middleware redirect issued seconds earlier — so a soft navigation lands
+back where it started even with a correct cookie. Use
+`window.location.assign()` after anything that changes the session. Login is the
+exception and does not need it: nothing is cached on a first visit, and
+`signOut` already does a full load. `scripts/e2e-forced-password.mjs` drives a
+real browser through the case that broke three times.
 
 ## Domain model — the part that causes bugs
 
