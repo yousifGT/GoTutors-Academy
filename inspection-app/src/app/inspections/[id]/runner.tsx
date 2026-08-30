@@ -19,6 +19,7 @@ import {
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { QuestionCard } from "./question-card";
 import { TallyBar, type TallyTarget } from "./tally-bar";
+import { isRepeat, previouslyFlaggedSet, wasFlaggedBefore } from "@/lib/repeat";
 import { DebriefPanel } from "./debrief";
 
 export interface Entry {
@@ -49,6 +50,8 @@ interface Props {
   saved: AnswerState[];
   /** When the server last stored anything, so a newer local copy can be spotted. */
   updatedAt: string;
+  /** Questions the previous visit to this centre flagged. */
+  previouslyFlagged: string[];
   debrief: Debrief;
   targets: string;
 }
@@ -146,6 +149,10 @@ export function Runner(props: Props) {
   );
 
   const coreSize = toCoreSize(props.size);
+  const previous = useMemo(() => previouslyFlaggedSet(props.previouslyFlagged), [props.previouslyFlagged]);
+  const unfixed = props.sections
+    .flatMap((s) => s.questions)
+    .filter((q) => isRepeat(q.text, score.answers.find((a) => a.questionId === q.id)?.bucket, previous)).length;
 
   // The tally questions live in the last section, but the counters belong at the
   // top all session — an inspector cannot tap a control they have to scroll to.
@@ -343,6 +350,7 @@ export function Runner(props: Props) {
         }}
         saveState={saveState}
         offline={!online}
+        unfixed={unfixed}
         restored={restored}
         tally={
           <TallyBar
@@ -421,6 +429,7 @@ export function Runner(props: Props) {
                     options={optionsFor(item)}
                     guide={resolveGuide(item, coreSize)}
                     scored={score.answers.find((a) => a.questionId === q.id)}
+                    flaggedLastVisit={wasFlaggedBefore(q.text, previous)}
                     onAnswer={(v) => setAnswer(q.id, v)}
                     onEntry={(idx, patch) => setEntry(q.id, idx, patch)}
                     onAddEntry={() => addEntry(q.id)}
@@ -483,6 +492,7 @@ function TopBar(props: {
   saveState: "saved" | "saving" | "error";
   offline: boolean;
   restored: boolean;
+  unfixed: number;
   tally: React.ReactNode;
 }) {
   return (
@@ -525,6 +535,11 @@ function TopBar(props: {
       {props.restored && !props.offline && (
         <p className="bg-sky-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
           Recovered answers that had not been saved. Sending them now.
+        </p>
+      )}
+      {props.unfixed > 0 && (
+        <p className="bg-amber-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
+          {props.unfixed} finding{props.unfixed === 1 ? "" : "s"} from the last visit still not fixed
         </p>
       )}
       {props.tally}

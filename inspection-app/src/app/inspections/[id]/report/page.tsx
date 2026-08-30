@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { inspectionScope } from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
 import { buildReport, reportInclude } from "@/lib/report";
+import { previouslyFlaggedAt } from "@/lib/previous";
 import { SIZE_SHORT, niceDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 
@@ -32,7 +33,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
   });
 
   // The same assembly the PDF uses, so the two cannot disagree.
-  const report = buildReport(inspection);
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
   const colour = VERDICT_COLOR[report.verdict] ?? "#1C1960";
 
   return (
@@ -90,6 +91,25 @@ export default async function ReportPage({ params }: { params: { id: string } })
         )}
       </header>
 
+      {report.repeats.length > 0 && (
+        <section className="mt-6 rounded-xl bg-red-50 p-5 ring-1 ring-red-200">
+          <h2 className="font-bold text-red-900">
+            Not fixed since the last visit ({report.repeats.length})
+          </h2>
+          <p className="mt-1 text-sm text-red-800">
+            These were raised at the previous inspection and are still failing.
+          </p>
+          <ul className="mt-2 space-y-1 text-sm text-red-900">
+            {report.repeats.map((r, i) => (
+              <li key={i}>
+                <span className="font-medium">{r.question}</span>
+                <span className="text-red-700"> — {r.answer}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {report.targets && (
         <section className="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
           <h2 className="font-semibold text-navy">Targets before the next inspection</h2>
@@ -112,6 +132,11 @@ export default async function ReportPage({ params }: { params: { id: string } })
                   {r.critical && (
                     <span className="ml-2 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
                       Critical
+                    </span>
+                  )}
+                  {r.repeat && (
+                    <span className="ml-2 rounded bg-amber-600 px-1.5 py-0.5 text-[10px] font-bold uppercase text-white">
+                      Repeat
                     </span>
                   )}
                 </p>

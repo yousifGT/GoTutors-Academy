@@ -197,6 +197,24 @@ than two lists to reconcile by eye. A day that passes with no inspection shows a
 missed rather than quietly disappearing — a visit nobody made is exactly the
 thing worth knowing about.
 
+### Findings that have not been fixed
+
+A first failure is a finding. The same failure at the next visit says the
+debrief was heard and nothing was done, which is the most useful thing an
+inspection produces — and it is only visible by comparing two visits, so the app
+works it out rather than leaving someone to spot it.
+
+During a visit, a question the last inspection flagged is badged **Flagged last
+visit** before it is answered — the point is that the inspector looks, not that
+they find out afterwards. Answer it badly again and the badge becomes **Still
+not fixed**, and the sticky header counts them. The report and the PDF both lead
+with a "Not fixed since the last visit" block ahead of everything else.
+
+Comparison is by question text, not question id: the checklist is versioned, and
+a visit run against v13 must still be comparable with one run against v14. Every
+answer snapshots its question text for exactly this reason. A finding that has
+since been put right simply stops appearing — that is the point of tracking it.
+
 ### Working with no signal
 
 An inspection is mirrored to the device as it is filled in, so a centre with no
@@ -358,8 +376,8 @@ they were run under.
 3. ~~The inspector screens.~~ Done, including the session tally counters.
 4. Photo and signature upload (the API takes URLs today).
 5. Report PDF, emailed and logged.
-6. Cross-centre dashboards, CSV export, repeat-issue flagging, signature
-   capture, and a screen for editing the checklist.
+6. Cross-centre dashboards, CSV export, signature capture, an audit-log viewer,
+   and a screen for editing the checklist.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

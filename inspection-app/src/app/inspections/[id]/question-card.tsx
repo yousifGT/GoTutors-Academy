@@ -12,6 +12,9 @@ interface Props {
   options: [string, string][];
   guide: { text: string; dos: string[]; donts: string[] };
   scored?: ScoredAnswer;
+  /** The previous visit flagged this question. Shown before it is answered — the
+   *  point is that the inspector looks, not that they are told afterwards. */
+  flaggedLastVisit: boolean;
   onAnswer: (value: string | null) => void;
   onEntry: (index: number, patch: Partial<Entry>) => void;
   onAddEntry: () => void;
@@ -43,6 +46,15 @@ export function QuestionCard(props: Props) {
             {q.critical && (
               <span className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
                 Critical
+              </span>
+            )}
+            {props.flaggedLastVisit && (
+              <span
+                className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                  scored?.bucket === "IMPROVE" ? "bg-amber-600 text-white" : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {scored?.bucket === "IMPROVE" ? "Still not fixed" : "Flagged last visit"}
               </span>
             )}
             {q.photoExempt && q.critical && (

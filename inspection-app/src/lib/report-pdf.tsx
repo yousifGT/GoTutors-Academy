@@ -43,6 +43,7 @@ const s = StyleSheet.create({
   question: { fontFamily: "Helvetica-Bold", marginTop: 1 },
   answerRow: { flexDirection: "row", alignItems: "center", marginTop: 4 },
   answer: { backgroundColor: "#f1f5f9", paddingVertical: 2, paddingHorizontal: 5, borderRadius: 3, fontSize: 9 },
+  repeatTag: { backgroundColor: "#b45309", color: "#fff", fontSize: 7, fontFamily: "Helvetica-Bold", paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginLeft: 5 },
   criticalTag: { backgroundColor: "#c0392b", color: "#fff", fontSize: 7, fontFamily: "Helvetica-Bold", paddingVertical: 2, paddingHorizontal: 4, borderRadius: 2, marginLeft: 5 },
   entry: { borderLeftWidth: 2, borderLeftColor: "#e2e8f0", paddingLeft: 7, marginTop: 5 },
   who: { fontSize: 8, fontFamily: "Helvetica-Bold", color: SLATE },
@@ -98,6 +99,17 @@ function ReportDoc({ report, photo }: { report: Report; photo: PhotoResolver }) 
             <Text style={[s.critItem, { fontFamily: "Helvetica-Bold", marginTop: 6 }]}>
               Escalate these immediately.
             </Text>
+          </View>
+        )}
+
+        {report.repeats.length > 0 && (
+          <View style={s.critBox}>
+            <Text style={s.critTitle}>Not fixed since the last visit</Text>
+            {report.repeats.map((r, i) => (
+              <Text key={i} style={s.critItem}>
+                • {r.question} — {r.answer}
+              </Text>
+            ))}
           </View>
         )}
 
@@ -179,6 +191,7 @@ function Row({ row, photo }: { row: ReportRow; photo: PhotoResolver }) {
       <View style={s.answerRow}>
         <Text style={s.answer}>{row.answer}</Text>
         {row.critical && <Text style={s.criticalTag}>CRITICAL</Text>}
+        {row.repeat && <Text style={s.repeatTag}>REPEAT</Text>}
       </View>
       {row.entries.map((e, i) => (
         <View key={i} style={s.entry}>

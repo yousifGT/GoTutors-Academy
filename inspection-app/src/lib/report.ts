@@ -1,5 +1,6 @@
 import type { Bucket } from "@prisma/client";
 import { answerText } from "@/lib/core";
+import { isRepeat, previouslyFlaggedSet, type PreviouslyFlagged } from "@/lib/repeat";
 import { scoreDbInspection, toCoreItem, type AnswerRow, type QuestionRow, type SectionRow } from "@/lib/score";
 
 /**
@@ -21,6 +22,8 @@ export interface ReportRow {
   answer: string;
   bucket: Bucket;
   critical: boolean;
+  /** Flagged at the previous visit and flagged again. */
+  repeat: boolean;
   entries: ReportEntry[];
 }
 
@@ -48,6 +51,12 @@ export interface Report {
   };
   /** Grouped by what the reader must do about them, not by walking order. */
   groups: { key: Bucket; title: string; rows: ReportRow[] }[];
+  /**
+   * Findings the centre was told about last time and has not fixed. Listed
+   * ahead of everything else: a second failure of the same thing says the
+   * debrief was heard and nothing was done.
+   */
+  repeats: ReportRow[];
 }
 
 /** The shape `buildReport` needs — a Prisma inspection with its template and answers. */
@@ -85,7 +94,7 @@ const GROUPS: { key: Bucket; title: string }[] = [
   { key: "WELL", title: "Done well" },
 ];
 
-export function buildReport(i: ReportSource): Report {
+export function buildReport(i: ReportSource, previouslyFlagged: PreviouslyFlagged = previouslyFlaggedSet([])): Report {
   const sections: SectionRow[] = i.template.sections.map((s) => ({ title: s.title, questions: s.questions }));
   const answers: AnswerRow[] = i.answers.map((a) => ({
     questionId: a.questionId,
@@ -98,12 +107,14 @@ export function buildReport(i: ReportSource): Report {
   const rows: ReportRow[] = sections.flatMap((s) =>
     s.questions.map((q) => {
       const stored = byQuestion.get(q.id);
+      const bucket = score.answers.find((a) => a.questionId === q.id)!.bucket;
       return {
         section: s.title,
         question: q.text,
         answer: answerText(toCoreItem(q, stored)),
-        bucket: score.answers.find((a) => a.questionId === q.id)!.bucket,
+        bucket,
         critical: q.critical,
+        repeat: isRepeat(q.text, bucket, previouslyFlagged),
         entries: (stored?.entries ?? [])
           .filter((e) => e.note?.trim() || e.who?.trim() || e.photos.length)
           .map((e) => ({ who: e.who, note: e.note, photos: e.photos.map((p) => p.url) })),
@@ -144,6 +155,7 @@ export function buildReport(i: ReportSource): Report {
     groups: GROUPS.map((g) => ({ ...g, rows: rows.filter((r) => r.bucket === g.key) })).filter(
       (g) => g.rows.length > 0
     ),
+    repeats: rows.filter((r) => r.repeat),
   };
 }
 

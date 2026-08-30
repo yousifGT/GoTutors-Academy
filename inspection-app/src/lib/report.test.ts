@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildReport, type ReportSource } from "./report";
+import { previouslyFlaggedSet } from "./repeat";
 import type { QuestionRow } from "./score";
 
 const question = (over: Partial<QuestionRow> & { id: string; text: string }): QuestionRow => ({
@@ -116,6 +117,29 @@ describe("buildReport", () => {
     const r = buildReport(source({ scorePct: 91, verdict: "Good" }));
     expect(r.pct).toBe(91);
     expect(r.verdictColor).toBe("#2f855a"); // not the live "Serious finding" red
+  });
+
+  it("marks a finding the previous visit already raised", () => {
+    const r = buildReport(source(), previouslyFlaggedSet(["Fire exits clear"]));
+    expect(r.repeats.map((x) => x.question)).toEqual(["Fire exits clear"]);
+    expect(r.groups[0].rows[0].repeat).toBe(true);
+  });
+
+  it("does not mark one that has since been fixed", () => {
+    const fixed = buildReport(
+      source({
+        answers: [
+          { questionId: "q1", answer: "yes", entries: [] },
+          { questionId: "q2", answer: "pass", entries: [] },
+        ],
+      }),
+      previouslyFlaggedSet(["Fire exits clear"])
+    );
+    expect(fixed.repeats).toEqual([]);
+  });
+
+  it("has no repeats when there was no previous visit", () => {
+    expect(buildReport(source()).repeats).toEqual([]);
   });
 
   it("keeps notes and photos with their question", () => {

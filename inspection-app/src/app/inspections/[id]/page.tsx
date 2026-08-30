@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { canEditInspection, inspectionScope } from "@/lib/access";
+import { previouslyFlaggedAt } from "@/lib/previous";
 import { Runner } from "./runner";
 
 export default async function InspectionPage({ params }: { params: { id: string } }) {
@@ -27,6 +28,10 @@ export default async function InspectionPage({ params }: { params: { id: string 
   // A submitted inspection is a record; it is read at /report, not here.
   if (!canEditInspection(viewer, inspection)) redirect(`/inspections/${inspection.id}/report`);
 
+  // What the last visit flagged, so the inspector knows where to look before
+  // they answer rather than finding out when the report is written.
+  const previouslyFlagged = await previouslyFlaggedAt(inspection.centreId, inspection.id);
+
   return (
     <Runner
       id={inspection.id}
@@ -35,6 +40,7 @@ export default async function InspectionPage({ params }: { params: { id: string 
       date={inspection.date.toISOString().slice(0, 10)}
       activeMs={inspection.activeMs}
       updatedAt={inspection.updatedAt.toISOString()}
+      previouslyFlagged={Array.from(previouslyFlagged)}
       sections={inspection.template.sections.map((s) => ({ title: s.title, questions: s.questions }))}
       saved={inspection.answers.map((a) => ({
         questionId: a.questionId,
