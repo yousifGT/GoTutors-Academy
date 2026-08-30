@@ -7,22 +7,26 @@ import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { canEditInspection, inspectionScope } from "@/lib/access";
 import { scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score";
+import { keyFromHref } from "@/lib/storage";
 
 type Ctx = { params: { id: string } };
 
 /**
- * A stored image: either a path from this app's own upload endpoint, or an
- * absolute URL when the object-store backend is in use. `z.string().url()`
- * rejects the relative form, which is what the default local backend returns —
- * so it would refuse the app's own uploads.
+ * An image reference the client is allowed to store.
+ *
+ * Only something this app itself put in the store. An arbitrary https URL used
+ * to be accepted here, which meant a caller could write any address into the
+ * database and have it rendered as an <img> in someone else's report — a
+ * tracking pixel at best. There is nothing legitimate on the far side of that:
+ * every image gets here through POST /api/uploads.
+ *
+ * The legacy `/uploads/...` form stays valid so inspections photographed before
+ * uploads moved behind an authenticated route still save.
  */
 const zStoredImage = z
   .string()
   .max(2000)
-  .refine(
-    (v) => /^\/uploads\/(photos|signatures)\/[a-f0-9]{32}\.[a-z]{3,4}$/.test(v) || /^https:\/\/\S+$/.test(v),
-    { message: "Must be an uploaded image path or an https URL" }
-  );
+  .refine((v) => keyFromHref(v) !== null, { message: "Must be an uploaded image" });
 
 const EntrySchema = z.object({
   note: z.string().max(4000).nullish(),

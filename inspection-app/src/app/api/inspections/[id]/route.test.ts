@@ -87,7 +87,7 @@ describe("PATCH /api/inspections/[id]", () => {
           {
             questionId: "q1",
             answer: "no",
-            entries: [{ note: "Boxes across the rear exit", who: "Sara", photos: ["https://s3.test/x.jpg"] }],
+            entries: [{ note: "Boxes across the rear exit", who: "Sara", photos: ["/api/uploads/photos/0123456789abcdef0123456789abcdef.jpg"] }],
           },
         ],
       }),
@@ -130,12 +130,18 @@ describe("PATCH /api/inspections/[id]", () => {
     expect(res.status).toBe(200);
   });
 
-  it("accepts an https photo URL from the object store", async () => {
+  it("accepts the authenticated upload path, whichever store the bytes went to", async () => {
+    // Local disk and S3 both return this shape: the stored value names the app
+    // route that serves the image, never the place it physically sits.
     db.question.findMany.mockResolvedValue([{ id: "q1", text: "Fire exits clear" }]);
     const res = await PATCH(
       patch({
         answers: [
-          { questionId: "q1", answer: "no", entries: [{ note: "Blocked", photos: ["https://cdn.test/photos/a.jpg"] }] },
+          {
+            questionId: "q1",
+            answer: "no",
+            entries: [{ note: "Blocked", photos: ["/api/uploads/photos/0123456789abcdef0123456789abcdef.jpg"] }],
+          },
         ],
       }),
       ctx
@@ -143,14 +149,29 @@ describe("PATCH /api/inspections/[id]", () => {
     expect(res.status).toBe(200);
   });
 
-  it("rejects a photo reference that is neither", async () => {
+  it("rejects a photo reference this app did not store", async () => {
     db.question.findMany.mockResolvedValue([{ id: "q1", text: "Fire exits clear" }]);
-    for (const bad of ["/etc/passwd", "file:///etc/passwd", "javascript:alert(1)", "/uploads/photos/../../secret.jpg"]) {
+    const bad = [
+      "/etc/passwd",
+      "file:///etc/passwd",
+      "javascript:alert(1)",
+      "/uploads/photos/../../secret.jpg",
+      // An arbitrary https URL was accepted once. It meant a caller could write
+      // any address into the database and have someone else's report render it
+      // as an <img> — a tracking pixel, pointed at whoever opens the report.
+      "https://cdn.test/photos/a.jpg",
+      "https://evil.example/pixel.gif",
+      // Right prefix, wrong shape: not a name this app generates.
+      "/api/uploads/photos/short.jpg",
+      "/api/uploads/photos/0123456789abcdef0123456789abcdef.exe",
+      "/api/uploads/other/0123456789abcdef0123456789abcdef.jpg",
+    ];
+    for (const url of bad) {
       const res = await PATCH(
-        patch({ answers: [{ questionId: "q1", answer: "no", entries: [{ note: "x", photos: [bad] }] }] }),
+        patch({ answers: [{ questionId: "q1", answer: "no", entries: [{ note: "x", photos: [url] }] }] }),
         ctx
       );
-      expect(res.status, bad).toBe(400);
+      expect(res.status, url).toBe(400);
     }
   });
 

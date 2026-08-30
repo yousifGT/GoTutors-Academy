@@ -82,6 +82,7 @@ model User {
   visits        ScheduledVisit[] @relation("VisitInspector")
   visitsBooked  ScheduledVisit[] @relation("VisitCreator")
   visitsMarked  ScheduledVisit[] @relation("VisitStatusSetter")
+  uploads       Upload[]
 
   @@index([role])
 }
@@ -248,6 +249,31 @@ model Entry {
   photos Photo[]
 
   @@index([answerId])
+}
+
+/// A file put into object storage: who uploaded it, and where it went.
+///
+/// Photos are attached to an entry by a later autosave, so between the upload
+/// and that save the file belongs to nobody — this row is what lets the person
+/// who took the photo see their own preview before it is attached to anything.
+/// It also gives orphaned objects a handle: an upload with no Photo and no
+/// signature pointing at it is uncollected, and can be swept.
+model Upload {
+  /// object key, e.g. "photos/<32 hex>.jpg" — the path under the store's root
+  key          String   @id
+  kind         String
+  contentType  String
+  bytes        Int
+  /// "local" or "s3": where the bytes actually went, so a store that was
+  /// switched over mid-life can still find the old ones.
+  backend      String
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  uploadedBy User @relation(fields: [uploadedById], references: [id])
+
+  @@index([uploadedById, createdAt])
+  @@index([createdAt])
 }
 
 model Photo {

@@ -1,12 +1,22 @@
 import crypto from "node:crypto";
+import path from "node:path";
 
 /**
  * Where inspection photos and debrief signatures are kept.
  *
  * Local disk by default so the app runs with nothing else installed. Set
- * UPLOAD_BACKEND=s3 for anything real: these are photographs taken inside a
- * children's setting, and they need the retention controls and access policy of
- * a proper object store, in a UK/EU region. See docs/BACKEND-HANDOFF.md §5.
+ * UPLOAD_BACKEND=s3 for anything real: a container filesystem does not survive
+ * a redeploy, two instances behind a load balancer cannot see each other's
+ * files, and these are photographs taken inside a children's setting — they
+ * need the retention controls and access policy of a proper object store, in a
+ * UK/EU region. See docs/BACKEND-HANDOFF.md §5.
+ *
+ * Both backends store the same thing: an object under a key like
+ * `photos/<32 hex>.jpg`. What is written into the database is never the storage
+ * location but an app URL, `/api/uploads/photos/<32 hex>.jpg`, which is served
+ * by an authenticated route. That keeps the bucket private, keeps the stored
+ * value stable if the backend changes, and means a photo cannot be read by
+ * anyone who merely knows its URL.
  */
 
 const EXT_BY_TYPE: Record<string, string> = {
@@ -16,89 +26,178 @@ const EXT_BY_TYPE: Record<string, string> = {
   "image/heic": "heic",
 };
 
+const TYPE_BY_EXT: Record<string, string> = {
+  jpg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+};
+
 export const ACCEPTED_TYPES = Object.keys(EXT_BY_TYPE);
 export const MAX_BYTES = 12 * 1024 * 1024; // a phone photo, not a video
 
 export type UploadKind = "photo" | "signature";
+export const UPLOAD_KINDS: UploadKind[] = ["photo", "signature"];
+
+/** The one shape a stored key may take. Anything else is not ours. */
+const KEY_RE = /^(photos|signatures)\/[a-f0-9]{32}\.(jpg|png|webp|heic)$/;
+
+/** Where uploads served from disk live. */
+export const LOCAL_ROOT = path.join(process.cwd(), "public", "uploads");
 
 export function isAcceptedType(type: string): boolean {
   return type in EXT_BY_TYPE;
 }
 
-export async function saveUpload(file: File, kind: UploadKind): Promise<string> {
+export function usingS3(): boolean {
+  return process.env.UPLOAD_BACKEND === "s3";
+}
+
+export function backendName(): "local" | "s3" {
+  return usingS3() ? "s3" : "local";
+}
+
+export function contentTypeForKey(key: string): string {
+  return TYPE_BY_EXT[path.extname(key).slice(1).toLowerCase()] ?? "application/octet-stream";
+}
+
+/** The URL stored in the database for an object key. */
+export function hrefForKey(key: string): string {
+  return `/api/uploads/${key}`;
+}
+
+/**
+ * The object key behind a stored URL, or null if this is not one of ours.
+ *
+ * Accepts the legacy `/uploads/...` form as well: rows written before uploads
+ * were served through an authenticated route still point at the static path,
+ * and those photos have to keep appearing in their reports.
+ */
+export function keyFromHref(href: string): string | null {
+  const rest = href.startsWith("/api/uploads/")
+    ? href.slice("/api/uploads/".length)
+    : href.startsWith("/uploads/")
+      ? href.slice("/uploads/".length)
+      : null;
+  if (rest === null) return null;
+  // Tested against the whole-key pattern, so `..` and any other traversal is
+  // rejected here rather than relied on being caught further down.
+  return KEY_RE.test(rest) ? rest : null;
+}
+
+/** Both URL forms a given key may be stored as, for looking a row up by URL. */
+export function hrefsForKey(key: string): string[] {
+  return [`/api/uploads/${key}`, `/uploads/${key}`];
+}
+
+export interface SavedUpload {
+  /** what goes in the database */
+  href: string;
+  key: string;
+  contentType: string;
+  bytes: number;
+  backend: "local" | "s3";
+}
+
+export async function saveUpload(file: File, kind: UploadKind): Promise<SavedUpload> {
   const ext = EXT_BY_TYPE[file.type];
   if (!ext) throw new Error(`Unsupported file type: ${file.type}`);
   // Random name: the original filename is attacker-controlled and can carry a
   // path or a second extension.
-  const filename = `${crypto.randomBytes(16).toString("hex")}.${ext}`;
-  const key = `${kind}s/${filename}`;
+  const key = `${kind}s/${crypto.randomBytes(16).toString("hex")}.${ext}`;
+  const body = Buffer.from(await file.arrayBuffer());
 
-  if (process.env.UPLOAD_BACKEND === "s3") return saveToS3(file, key);
-  return saveToLocalDisk(file, key);
-}
+  if (usingS3()) await putToS3(key, body, file.type);
+  else await putToDisk(key, body);
 
-async function saveToLocalDisk(file: File, key: string): Promise<string> {
-  const { promises: fs } = await import("node:fs");
-  const path = await import("node:path");
-  const dir = path.join(process.cwd(), "public", "uploads", path.dirname(key));
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(process.cwd(), "public", "uploads", key), Buffer.from(await file.arrayBuffer()));
-  return `/uploads/${key}`;
+  return { href: hrefForKey(key), key, contentType: file.type, bytes: body.length, backend: backendName() };
 }
 
 /**
- * S3-compatible upload (AWS S3, Cloudflare R2, MinIO).
+ * Read an object back.
  *
- * `@aws-sdk/client-s3` is an optional dependency, imported only when this
- * backend is switched on, so the default install stays small.
- *
- * Env: S3_BUCKET, S3_REGION, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY,
- *      S3_ENDPOINT (non-AWS), S3_PUBLIC_URL_BASE (CDN base)
+ * When the store is S3 but the object is not there, disk is tried as well: an
+ * app switched over to S3 still has to serve everything photographed before the
+ * switch, and those files are on the volume, not in the bucket.
  */
-async function saveToS3(file: File, key: string): Promise<string> {
-  const bucket = mustEnv("S3_BUCKET");
-  const region = mustEnv("S3_REGION");
-  const accessKeyId = mustEnv("S3_ACCESS_KEY_ID");
-  const secretAccessKey = mustEnv("S3_SECRET_ACCESS_KEY");
-  const endpoint = process.env.S3_ENDPOINT || undefined;
-  const publicBase = process.env.S3_PUBLIC_URL_BASE;
-
-  // The specifier is held in a variable so TypeScript does not try to resolve
-  // it: the package is optional, and must not be a compile-time dependency of a
-  // build that never switches this backend on.
-  const pkg = "@aws-sdk/client-s3";
-  // Untyped on purpose — see the comment above.
-  const mod = (await import(/* webpackIgnore: true */ pkg).catch(() => null)) as {
-    S3Client: new (cfg: unknown) => { send: (cmd: unknown) => Promise<unknown> };
-    PutObjectCommand: new (input: unknown) => unknown;
-  } | null;
-  if (!mod) {
-    throw new Error("UPLOAD_BACKEND=s3 but @aws-sdk/client-s3 is not installed. Run: npm i @aws-sdk/client-s3");
+export async function readUpload(key: string): Promise<Buffer | null> {
+  if (!KEY_RE.test(key)) return null;
+  if (usingS3()) {
+    const fromS3 = await getFromS3(key);
+    if (fromS3) return fromS3;
   }
-  const { S3Client, PutObjectCommand } = mod;
-  const client = new S3Client({
-    region,
-    endpoint,
-    credentials: { accessKeyId, secretAccessKey },
-    forcePathStyle: !!endpoint,
-  });
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: new Uint8Array(await file.arrayBuffer()),
-      ContentType: file.type,
-      CacheControl: "private, max-age=31536000, immutable",
-    })
-  );
-
-  if (publicBase) return `${publicBase.replace(/\/$/, "")}/${key}`;
-  if (endpoint) return `${endpoint.replace(/\/$/, "")}/${bucket}/${key}`;
-  return `https://${bucket}.s3.${region}.amazonaws.com/${key}`;
+  return readFromDisk(key);
 }
 
-function mustEnv(name: string): string {
-  const v = process.env[name];
-  if (!v) throw new Error(`Missing required env: ${name}`);
-  return v;
+/**
+ * Open an object for streaming, so a photo is never held in this process in
+ * full on its way to a browser.
+ *
+ * The bytes are proxied rather than handed over as a presigned URL. A redirect
+ * would save this app the bandwidth, but it puts a bucket address in the page —
+ * which the app's own content-security policy then has to be widened to allow,
+ * and which is a working link to a photograph for as long as the signature
+ * lasts, to anyone it is forwarded to. At the volume one inspection produces,
+ * that is not a trade worth making.
+ */
+export async function openUpload(key: string): Promise<ReadableStream<Uint8Array> | null> {
+  if (!KEY_RE.test(key)) return null;
+  if (usingS3()) {
+    const fromS3 = await (await s3()).open(key);
+    if (fromS3) return fromS3;
+  }
+  return openFromDisk(key);
+}
+
+async function putToDisk(key: string, body: Buffer): Promise<void> {
+  const { promises: fs } = await import("node:fs");
+  const full = path.join(LOCAL_ROOT, key);
+  await fs.mkdir(path.dirname(full), { recursive: true });
+  await fs.writeFile(full, body);
+}
+
+async function readFromDisk(key: string): Promise<Buffer | null> {
+  const { promises: fs } = await import("node:fs");
+  return fs.readFile(path.join(LOCAL_ROOT, key)).catch(() => null);
+}
+
+async function openFromDisk(key: string): Promise<ReadableStream<Uint8Array> | null> {
+  const data = await readFromDisk(key);
+  if (!data) return null;
+  // Read whole rather than piped: an upload is capped at 12MB, and bridging a
+  // Node stream to a web one goes through `node:stream`, which does not survive
+  // the bundler here — `Readable.toWeb` came back undefined at run time and
+  // turned every image on the local backend into a 500.
+  return new Response(new Uint8Array(data)).body;
+}
+
+export async function deleteUpload(key: string, backend: "local" | "s3"): Promise<void> {
+  if (!KEY_RE.test(key)) return;
+  if (backend === "s3") {
+    await deleteFromS3(key);
+    return;
+  }
+  const { promises: fs } = await import("node:fs");
+  await fs.unlink(path.join(LOCAL_ROOT, key)).catch(() => undefined);
+}
+
+/*
+ * S3 is loaded lazily. The SDK is a dependency so a deploy cannot forget it,
+ * but an install running on local disk should not pay to load it on boot.
+ */
+
+async function s3() {
+  return (await import("@/lib/s3")).default;
+}
+
+async function putToS3(key: string, body: Buffer, contentType: string): Promise<void> {
+  await (await s3()).put(key, body, contentType);
+}
+
+async function getFromS3(key: string): Promise<Buffer | null> {
+  return (await s3()).get(key);
+}
+
+async function deleteFromS3(key: string): Promise<void> {
+  await (await s3()).remove(key);
 }

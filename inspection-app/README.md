@@ -277,6 +277,50 @@ day is a gap in the paperwork, not a mark against the inspector, and folding the
 two together would make the number dishonest. A cancelled visit counts against
 nobody.
 
+### Where the photographs go
+
+Every photo and signature is stored under a random name and written into the
+database as **an app path**, `/api/uploads/photos/<name>.jpg` — never a place in
+a bucket. Serving them goes through that route, which decides per request
+whether the person asking may see the inspection the image belongs to. A random
+name makes a URL hard to guess, and "hard to guess" is not an access policy for
+photographs taken inside a children's setting.
+
+Two backends sit behind that one path:
+
+| | |
+|---|---|
+| **local disk** (default) | `public/uploads`. Runs with nothing else installed. Not for production: a container filesystem is wiped by every redeploy, and two instances behind a load balancer cannot see each other's files. |
+| **S3** (`UPLOAD_BACKEND=s3`) | AWS S3, or anything speaking its API — MinIO, Cloudflare R2 — via `S3_ENDPOINT`. |
+
+The bucket is expected to be **private**. The app reads objects out of it and
+streams them on, rather than redirecting a browser to a presigned URL: a
+presigned URL is a working link to a photograph for as long as it lasts, to
+anyone it is forwarded to, and it drags the app's content-security policy open
+to allow it. At the volume one inspection produces, that is not a trade worth
+making.
+
+On AWS, leave `S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY` unset and give the
+task or instance role `s3:GetObject`, `s3:PutObject` and `s3:DeleteObject` on the
+bucket — no long-lived secret to leak or rotate. `GET /api/health` returns 503 if
+the bucket cannot be reached, so a misconfigured deploy is caught by the load
+balancer rather than by an inspector losing a photograph on site.
+
+Rows written before uploads moved behind that route still say `/uploads/...`.
+Those keep working: the route accepts both forms, and when the store is S3 but
+an object is not in the bucket it falls back to disk, so an app switched over
+still serves everything photographed before the switch.
+
+**Sweeping what is left behind.** A photo uploaded and never attached — the
+inspection was abandoned between taking it and the autosave — or one removed
+from an answer leaves an object nothing points at. `npm run uploads:gc` reports
+them; `npm run uploads:gc -- --apply` deletes them, ignoring anything uploaded in
+the last day so a visit in progress is never touched. Worth running on a
+schedule: a photograph belonging to no inspection has nobody reviewing it. It is
+a maintenance script, not part of the served app — the runtime image prunes the
+dev dependencies it needs, so run it from a checkout with the production
+`DATABASE_URL` and the same `S3_*` settings.
+
 ### Reports reaching the people who run the centre
 
 Submitting an inspection writes a `ReportDelivery` row for everyone responsible
@@ -311,7 +355,9 @@ Emailing the PDF out is still to come; today the report lands in the account.
 | `GET /api/coverage` | which centres need a visit, worst first |
 | `GET /api/audit` | the activity log, filtered to what the role may read |
 | `POST /api/me/password` | change your own password |
-| `POST /api/uploads` | store one photo or signature, returns its URL |
+| `POST /api/uploads` | store one photo or signature, returns the URL to save against the answer |
+| `GET /api/uploads/:kind/:name` | serve one stored image, to whoever may see the inspection it belongs to |
+| `GET /api/health` | for a load balancer: 200 when the database and the object store answer, 503 when either does not |
 | `GET /api/inspections/:id/pdf` | the report as a PDF (`?inline=1` to view rather than download) |
 
 Rules the API enforces, not just the UI:
@@ -372,6 +418,12 @@ npm test          # both suites
 npm run test:core # the rules alone, no bundler — plain node --test
 ```
 
+The S3 backend is tested against a real S3 API rather than a mock — point
+`S3_ENDPOINT` at a MinIO or `moto` server, set `UPLOAD_BACKEND=s3`, and run the
+app against it. Two things only that turns up: the app's own content-security
+policy blocks a browser from following a redirect to the store, and
+`Readable.toWeb` does not survive the bundler.
+
 The rules in `core/` test themselves with `node --test`, exactly as they ship.
 Everything else runs under Vitest. The core suite also asserts the shipped
 checklist still matches: 15 sections, 101 questions, 23 centres, 8 critical items.
@@ -396,10 +448,12 @@ they were run under.
 1. ~~Database schema and seed importer.~~ Done.
 2. ~~Auth, roles, and the inspection API.~~ Done.
 3. ~~The inspector screens.~~ Done, including the session tally counters.
-4. Photo and signature upload (the API takes URLs today).
-5. Report PDF, emailed and logged.
+4. ~~Photo and signature upload.~~ Done, on local disk or S3.
+5. Report PDF. ~~Generated and logged.~~ Done — **emailing it has not been built**;
+   a report reaches the head of centre through the app, not their inbox.
 6. Cross-centre dashboards, CSV export, signature capture, and a screen for
    editing the checklist.
+7. Password reset. An account that forgets its password needs an administrator.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

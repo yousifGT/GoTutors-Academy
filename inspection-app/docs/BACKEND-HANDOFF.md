@@ -233,6 +233,27 @@ Run the prototype and the hosted version in parallel; cut over per centre.
   inspectors **not** to photograph DBS records; keep that constraint server-side too.
 - Audit log of access and changes.
 
+**As built.** The app implements this as follows, and a deployment should not
+undo it:
+
+- The uploads bucket is **private**. Objects are put with `ServerSideEncryption:
+  AES256`, read back by the server and streamed on through
+  `GET /api/uploads/...`, which authorises every request against the inspection
+  the image belongs to. No presigned URLs are issued and no bucket address ever
+  reaches a browser, so an image URL is worthless to anyone it is forwarded to.
+- Nothing but this app's own upload paths can be written into the database as an
+  image; an arbitrary URL is rejected, and the content-security policy allows
+  `img-src 'self' data: blob:` only. A URL smuggled into a report cannot load a
+  tracking pixel in front of whoever opens it.
+- Credentials come from the ECS task role or EC2 instance role when
+  `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` are unset. Prefer that: there is then
+  no long-lived secret in the environment to leak or rotate.
+- Retention has a handle: every upload is recorded with who made it and when, and
+  `npm run uploads:gc --apply` deletes objects no inspection references. Pair it
+  with an S3 lifecycle rule for whatever the retention policy turns out to be.
+- Access and changes are logged; `GET /api/audit` reads the log back, filtered to
+  what the viewer's role may see.
+
 *(Not legal advice — confirm the data-protection specifics professionally.)*
 
 ---
@@ -244,8 +265,10 @@ Run the prototype and the hosted version in parallel; cut over per centre.
 - **API:** API Gateway + Lambda (or ECS/Fargate) in a UK/EU region.
 - **DB:** RDS PostgreSQL or Aurora Serverless v2.
 - **Auth:** Cognito (map to the `role` on `profiles`).
-- **Storage:** S3 (photos + signatures) with signed URLs.
-- **Email:** SES for the report PDF, with delivery logging.
+- **Storage:** S3 (photos + signatures), private, served through the app — see §5.
+- **Email:** SES for the report PDF, with delivery logging. **Not built yet:** a
+  report reaches the head of centre through the app, and `ReportDelivery` records
+  that they opened it; nothing is sent to an inbox.
 - `inspection-core.js` runs identically in Lambda (Node) and the browser.
 
 ---

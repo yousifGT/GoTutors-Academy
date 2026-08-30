@@ -4,9 +4,9 @@
 #   docker run -p 3100:3100 --env-file inspection-app/.env gotutors-inspection
 #
 # Multi-stage so the image ships the built app and production dependencies only,
-# not the toolchain. Next's standalone output is not used: the app reads photo
-# uploads from disk at request time, and standalone's file tracing does not carry
-# a directory written to at runtime.
+# not the toolchain. Next's standalone output is not used: on the default local
+# backend the app reads photo uploads from disk at request time, and standalone's
+# file tracing does not carry a directory written to at runtime.
 
 FROM node:20-slim AS deps
 WORKDIR /app
@@ -45,12 +45,20 @@ COPY --from=build /app/prisma ./prisma
 COPY --from=build /app/data ./data
 COPY --from=build /app/core ./core
 
-# Photos and signatures are written here. Mount a volume over it, or set
-# UPLOAD_BACKEND=s3 — a container filesystem does not survive a redeploy.
+# Photos and signatures land here on the default backend. In production set
+# UPLOAD_BACKEND=s3 instead: this directory does not survive a redeploy, and two
+# tasks behind a load balancer cannot see each other's files. Kept writable so a
+# single-machine install still works.
 RUN mkdir -p public/uploads && chown -R node:node public/uploads
 USER node
 
 EXPOSE 3100
+
+# Returns 503 when the database or the object store cannot be reached, so a task
+# that cannot serve photos is taken out of rotation rather than left failing
+# uploads. A load balancer should point its target-group check at the same path.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3100)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Migrations are NOT run here. Two instances starting at once would both try,
 # and a failed migration would take the whole rollout down rather than one

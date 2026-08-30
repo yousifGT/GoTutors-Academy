@@ -15,9 +15,14 @@ const securityHeaders = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: blob: https:",
+      // Every image the app shows is one it stored itself, served from
+      // /api/uploads — photos are proxied out of the object store rather than
+      // linked to it, so there is no third-party image host to allow. Leaving
+      // `https:` open here would let a URL written into the database load a
+      // tracking pixel in front of whoever opens the report.
+      "img-src 'self' data: blob:",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https:",
+      "connect-src 'self'",
       "frame-src 'none'",
       "object-src 'none'",
       "base-uri 'self'",
