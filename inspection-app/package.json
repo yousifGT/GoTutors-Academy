@@ -2,7 +2,7 @@
   "name": "gotutors-inspection",
   "version": "0.1.0",
   "private": true,
-  "description": "GoTutors centre inspection app \u2014 runs standalone, with its own database.",
+  "description": "GoTutors centre inspection app — runs standalone, with its own database.",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "prisma generate && next build",
@@ -41,6 +41,7 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.4.2",
     "eslint": "^9.39.5",
     "eslint-config-next": "^16.3.3",
     "postcss": "^8.4.47",

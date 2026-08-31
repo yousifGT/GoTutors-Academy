@@ -21,6 +21,11 @@
  * and says how to add one. Inspection records include photographs taken in a
  * children's setting, so a known-password account must never exist by default.
  */
+// Loads .env before anything reads it. Prisma's own CLI does this for
+// `migrate deploy`, which is why that command works without it and this one
+// did not: run straight through tsx, nothing had populated DATABASE_URL, and
+// the script failed on its first query with "Environment variable not found".
+import "dotenv/config";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import bcrypt from "bcryptjs";
@@ -85,8 +90,20 @@ async function main() {
 
   // ── Template ───────────────────────────────────────────────────────────────
   // Replacing the sections wholesale keeps the import idempotent; the cascade
-  // clears the old questions. Recorded inspections are untouched — their answers
-  // hold their own snapshot of the question text.
+  // clears the old questions.
+  //
+  // THIS ONLY WORKS ON A CHECKLIST NOTHING HAS BEEN INSPECTED AGAINST YET.
+  // `Answer.questionId` is a real foreign key, so once a single inspection has
+  // been recorded against this version, deleting its questions is refused and
+  // this whole import fails. An earlier comment here claimed recorded
+  // inspections were untouched because each answer snapshots its question text
+  // — the text is snapshotted, but the key still points at the row.
+  //
+  // So: this is a first-time import, not a way to edit a live checklist.
+  // Changing the questions after go-live means publishing a NEW version — a new
+  // Template row alongside the old one, leaving recorded inspections readable
+  // against the checklist they were actually run under. That path is not built
+  // yet; see docs/DEPLOY.md §6.
   const tpl = await prisma.template.upsert({
     where: { name_version: { name: TEMPLATE_NAME, version: checklistVersion } },
     update: { isActive: true },

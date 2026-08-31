@@ -40,49 +40,47 @@ export interface SendOutcome {
   error?: string;
 }
 
-/** How long a claimed delivery is left alone for, so two instances cannot both send it. */
+/** How long a claimed delivery is left alone for, so two senders cannot both take it. */
 const LEASE_SEC = 300;
 
 /**
- * Take ownership of some deliveries that are due, so no other instance sends
- * them too.
+ * Take ownership of one delivery, or find that somebody else already has.
  *
  * `emailNextAt` doubles as the lease: it already means "do not touch before
- * this", whether that is because a failed attempt is backing off or because
- * somebody else is working on it. Pushing it forward before sending means a
- * second instance sweeping at the same moment sees nothing to do, and a sender
- * that dies mid-send has its work picked up again once the lease runs out
- * rather than being stranded.
+ * this", whether because a failed attempt is backing off or because another
+ * sender is working on it. Pushing it forward BEFORE sending is what stops the
+ * same report going out twice.
  *
- * Claimed one row at a time on purpose: `updateMany` cannot say which rows it
- * changed, so a batch claim cannot tell this instance what it now owns.
+ * This lives inside `sendOneDelivery` rather than in the sweep, because the
+ * sweep was not the only caller. Submitting an inspection also sends
+ * immediately, and that path did not claim anything — so a sweep landing in the
+ * same moment picked up the row the submit was already sending, and the centre
+ * head got the report twice. Observed, in the mailbox: two identical messages,
+ * consecutive. One claim, in the one place every path goes through.
  */
-export async function claimDeliveries(limit = 20, now = new Date()) {
-  const due = await prisma.reportDelivery.findMany({
+async function claim(deliveryId: string, now: Date): Promise<boolean> {
+  const { count } = await prisma.reportDelivery.updateMany({
+    where: {
+      id: deliveryId,
+      emailStatus: "PENDING",
+      OR: [{ emailNextAt: null }, { emailNextAt: { lte: now } }],
+    },
+    data: { emailNextAt: new Date(now.getTime() + LEASE_SEC * 1000) },
+  });
+  return count === 1;
+}
+
+/** Deliveries that are due to be sent, oldest first. */
+export async function dueDeliveries(limit = 20, now = new Date()) {
+  return prisma.reportDelivery.findMany({
     where: {
       emailStatus: "PENDING",
       OR: [{ emailNextAt: null }, { emailNextAt: { lte: now } }],
     },
     orderBy: { deliveredAt: "asc" },
     take: limit,
-    select: { id: true, emailNextAt: true },
+    select: { id: true },
   });
-
-  const mine: string[] = [];
-  for (const row of due) {
-    const claimed = await prisma.reportDelivery.updateMany({
-      // The same condition again, so a row another instance took between the
-      // read above and this write is not claimed twice.
-      where: {
-        id: row.id,
-        emailStatus: "PENDING",
-        OR: [{ emailNextAt: null }, { emailNextAt: { lte: now } }],
-      },
-      data: { emailNextAt: new Date(now.getTime() + LEASE_SEC * 1000) },
-    });
-    if (claimed.count === 1) mine.push(row.id);
-  }
-  return mine;
 }
 
 /**
@@ -104,6 +102,10 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
   });
   if (!delivery) return { deliveryId, status: "FAILED", error: "delivery not found" };
   if (delivery.emailStatus === "SENT") return { deliveryId, status: "SENT" };
+
+  // Claimed before anything is rendered or sent. If another sender got there
+  // first this returns without doing anything, which is the whole point.
+  if (!(await claim(deliveryId, new Date()))) return { deliveryId, status: "PENDING", error: "already being sent" };
 
   // Nothing to send to, or nowhere to send it. Both are settled states rather
   // than failures to retry — retrying will not conjure an address.
@@ -263,9 +265,9 @@ export function sendReportsInBackground(inspectionId: string): void {
 /**
  * The sweep: anything a submit did not manage to send, tried again.
  *
- * Every instance runs one. They do not coordinate beyond the lease in
- * `claimDeliveries`, which is enough — the work is idempotent and a delivery
- * already SENT is returned untouched.
+ * Every instance runs one. They do not coordinate beyond the lease each send
+ * takes for itself, which is enough — a delivery somebody else is already
+ * sending is left alone, and one already SENT is returned untouched.
  */
 const SWEEP_MS = 60_000;
 let sweeping: ReturnType<typeof setInterval> | null = null;
@@ -280,9 +282,9 @@ export function startReportEmailSweep(): void {
 
 export async function sweepOnce(): Promise<SendOutcome[]> {
   try {
-    const ids = await claimDeliveries();
+    const due = await dueDeliveries();
     const out: SendOutcome[] = [];
-    for (const id of ids) out.push(await sendOneDelivery(id));
+    for (const row of due) out.push(await sendOneDelivery(row.id));
     const failed = out.filter((o) => o.status === "FAILED");
     if (failed.length) console.error(`report email: gave up on ${failed.length} delivery(ies)`, failed);
     return out;

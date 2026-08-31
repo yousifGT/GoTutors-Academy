@@ -68,6 +68,17 @@ npm run db:seed           # checklist v13, the 23 centres, your admin account
 npm run dev               # http://localhost:3100
 ```
 
+The password must be at least 12 characters and cannot contain `password`,
+`admin`, `gotutors`, `12345678`, `qwerty` or `letmein` — the seed refuses it
+otherwise, rather than creating an administrator account with a guessable
+password on a system holding photographs from a children's setting.
+
+`db:seed` is a **first-time import**. It replaces the checklist's questions in
+place, and `Answer.questionId` is a foreign key — so once a single inspection
+has been recorded, re-running it fails on that constraint. Changing the
+questions after go-live means publishing a new checklist version rather than
+rewriting the current one; that path is not built yet.
+
 ### Changing the schema
 
 ```bash

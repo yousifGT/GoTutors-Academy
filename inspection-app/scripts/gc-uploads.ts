@@ -19,6 +19,11 @@
  * likely a photo whose autosave has not landed yet, and deleting it would take
  * an image out of an inspection in progress. The default is a day.
  */
+// Loads .env before anything reads it. Prisma's own CLI does this for
+// `migrate deploy`, which is why that command works without it and this one
+// did not: run straight through tsx, nothing had populated DATABASE_URL, and
+// the script failed on its first query with "Environment variable not found".
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { deleteUpload, hrefsForKey } from "../src/lib/storage";
 
