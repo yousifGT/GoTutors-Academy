@@ -94,7 +94,18 @@ const GROUPS: { key: Bucket; title: string }[] = [
   { key: "WELL", title: "Done well" },
 ];
 
-export function buildReport(i: ReportSource, previouslyFlagged: PreviouslyFlagged = previouslyFlaggedSet([])): Report {
+/**
+ * `previouslyFlagged` is required rather than defaulted, deliberately.
+ *
+ * It used to default to an empty set, and both documents that leave the
+ * building — the PDF download and the copy attached to the centre head's email
+ * — simply forgot to pass it. Neither failed; they quietly reported that
+ * nothing had been left unfixed, while the same inspection on screen showed the
+ * repeats. A default turned "we forgot" into "there were none", which for the
+ * single most consequential line in the report is the worst way to be wrong.
+ * Now it does not compile without an answer.
+ */
+export function buildReport(i: ReportSource, previouslyFlagged: PreviouslyFlagged): Report {
   const sections: SectionRow[] = i.template.sections.map((s) => ({ title: s.title, questions: s.questions }));
   const answers: AnswerRow[] = i.answers.map((a) => ({
     questionId: a.questionId,

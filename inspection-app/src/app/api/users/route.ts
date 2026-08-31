@@ -20,7 +20,8 @@ const publicUser = {
   createdAt: true,
   centres: { select: { id: true, name: true } },
   assignedCentres: { select: { id: true, name: true } },
-  _count: { select: { inspections: true } },
+  // What deleting them would take with them — see the DELETE handler.
+  _count: { select: { inspections: true, deliveries: true, visits: true, uploads: true } },
 };
 
 const CreateSchema = z.object({

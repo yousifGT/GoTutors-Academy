@@ -5,6 +5,7 @@ import { renderReportPdf, reportFilename } from "@/lib/report-pdf";
 import { reportBody, reportSubject } from "@/lib/report-email";
 import { sendEmail } from "@/lib/email";
 import { emailBackend } from "@/lib/email-config";
+import { previouslyFlaggedAt } from "@/lib/previous";
 
 /**
  * Getting a finished report into somebody's inbox.
@@ -123,7 +124,7 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
     });
     if (!inspection) throw new Error("inspection not found");
 
-    const report = buildReport(inspection);
+    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
     const photos = await loadPhotos(photoUrls(report));
     const pdf = await renderReportPdf(report, photos);
     const body = reportBody(report, {
@@ -132,12 +133,29 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
       appUrl: process.env.NEXTAUTH_URL || "",
     });
 
+    // A report with a lot of photographs can be too big to send. Base64 in a
+    // MIME message adds a third, SES will not carry it, and Gmail and Outlook
+    // refuse it inbound. Attaching it anyway means five failed attempts, five
+    // full re-renders each, and then a permanent FAILED — the centre head is
+    // never told anything. Sending the message without the attachment gets them
+    // the finding and a link to the whole thing, which is the part that matters.
+    const tooBig = pdf.length > maxAttachmentBytes();
+    if (tooBig) {
+      console.warn("report PDF too large to attach; sending a link instead", {
+        deliveryId,
+        bytes: pdf.length,
+        limit: maxAttachmentBytes(),
+      });
+    }
+
     await sendEmail({
       to,
       subject: reportSubject(report),
-      text: body.text,
-      html: body.html,
-      attachments: [{ filename: reportFilename(report), content: pdf, contentType: "application/pdf" }],
+      text: tooBig ? withoutAttachmentNote(body.text) : body.text,
+      html: tooBig ? withoutAttachmentNote(body.html) : body.html,
+      attachments: tooBig
+        ? []
+        : [{ filename: reportFilename(report), content: pdf, contentType: "application/pdf" }],
     });
 
     await prisma.reportDelivery.update({
@@ -174,6 +192,30 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
     console.error("report email failed", { deliveryId, attempts, giveUp, to, err: message });
     return { deliveryId, status: giveUp ? "FAILED" : "PENDING", to, error: message };
   }
+}
+
+/**
+ * The largest PDF worth attaching.
+ *
+ * Well under what SES accepts, because the receiving end is stricter: Outlook
+ * refuses over 20MB and Gmail over 25MB, and base64 adds a third on the way.
+ */
+function maxAttachmentBytes(): number {
+  const raw = Number(process.env.EMAIL_MAX_ATTACHMENT_BYTES);
+  if (Number.isFinite(raw) && raw > 0) return Math.floor(raw);
+  return 12 * 1024 * 1024;
+}
+
+/** Says plainly that the attachment is missing, rather than leaving them looking for it. */
+function withoutAttachmentNote(body: string): string {
+  const note =
+    "This report has too many photographs to attach to an email. Open it on the site with the link above — everything is there, at full size.";
+  return body.includes("</p>")
+    ? body.replace(
+        "</div>\n</body>",
+        `<p style="margin:16px 0 0;padding:12px 16px;border-radius:8px;background:#fffbeb;color:#78350f">${note}</p></div>\n</body>`
+      )
+    : `${body}\n\n${note}\n`;
 }
 
 function skipReason(user: { email: string; active: boolean }): string | null {

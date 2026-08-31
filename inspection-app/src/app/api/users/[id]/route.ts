@@ -21,7 +21,8 @@ const publicUser = {
   createdAt: true,
   centres: { select: { id: true, name: true } },
   assignedCentres: { select: { id: true, name: true } },
-  _count: { select: { inspections: true } },
+  // What deleting them would take with them, so the screen can say so.
+  _count: { select: { inspections: true, deliveries: true, visits: true, uploads: true } },
 };
 
 const PatchSchema = z.object({
@@ -111,17 +112,42 @@ export const DELETE = withRoute(async (_req: Request, ctx: Ctx) => {
 
   const user = await prisma.user.findUnique({
     where: { id: params.id },
-    select: { id: true, email: true, _count: { select: { inspections: true } } },
+    select: {
+      id: true,
+      email: true,
+      // Everything that would be taken with them. Inspections are the obvious
+      // one, but they are not the only history attached to a person.
+      _count: { select: { inspections: true, deliveries: true, visits: true, uploads: true } },
+    },
   });
   if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  if (user._count.inspections > 0) {
+  // A centre head has no inspections — they never hold the clipboard — so
+  // offboarding one used to fall straight through to a hard delete, and
+  // ReportDelivery cascades. That row is the only evidence a report about a
+  // children's setting reached the person responsible for it and that they
+  // opened it. Deleting the departing head erased, with no warning, the answer
+  // to "was the head of centre told about the finding on 3 March?" — the first
+  // question anyone asks afterwards. The same applies to an inspector's booked
+  // visits and to their uploads.
+  const held: string[] = [];
+  if (user._count.inspections) held.push(`${user._count.inspections} inspection(s)`);
+  if (user._count.deliveries) held.push(`${user._count.deliveries} report delivery record(s)`);
+  if (user._count.visits) held.push(`${user._count.visits} booked visit(s)`);
+  if (user._count.uploads) held.push(`${user._count.uploads} uploaded photo(s)`);
+
+  if (held.length) {
     await prisma.user.update({ where: { id: user.id }, data: { active: false } });
-    await audit({ actorId: who.viewer.id, action: "user.deactivate", target: user.id, metadata: { email: user.email } });
+    await audit({
+      actorId: who.viewer.id,
+      action: "user.deactivate",
+      target: user.id,
+      metadata: { email: user.email, held: held.join(", ") },
+    });
     return NextResponse.json({
       ok: true,
       deactivated: true,
-      message: `${user.email} has ${user._count.inspections} inspection(s) on record, so the account was deactivated rather than deleted.`,
+      message: `${user.email} has ${held.join(", ")} on record, so the account was deactivated rather than deleted. They can no longer sign in.`,
     });
   }
 

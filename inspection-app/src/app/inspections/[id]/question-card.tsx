@@ -1,5 +1,7 @@
 "use client";
 
+import { shrinkForUpload, UndecodableImage } from "@/lib/downscale";
+
 import { useState } from "react";
 import Image from "next/image";
 import type { QuestionRow, ScoredAnswer } from "@/lib/score";
@@ -182,7 +184,25 @@ function EntryEditor(props: {
     setUploading(true);
     setUploadError("");
     const urls: string[] = [];
-    for (const file of Array.from(files)) {
+    for (const original of Array.from(files)) {
+      // Shrunk here rather than on the server: a straight-from-the-camera photo
+      // is 3-5MB, and ten of them make a report PDF too large for SES to send
+      // and for Gmail to accept — so the centre head would simply never be
+      // emailed it. This also turns an iPhone's HEIC into JPEG, which the
+      // report renderer can actually draw.
+      let file = original;
+      try {
+        file = (await shrinkForUpload(original)).file;
+      } catch (e) {
+        if (e instanceof UndecodableImage) {
+          setUploadError(
+            "That photo is in a format this app cannot read. On an iPhone: Settings → Camera → Formats → Most Compatible."
+          );
+          break;
+        }
+        // Anything else: send the original and let the server's limits decide.
+      }
+
       const form = new FormData();
       form.append("file", file);
       form.append("kind", "photo");

@@ -31,6 +31,9 @@ suite("who may read what", () => {
       "user.deactivate",
       "user.delete",
       "user.password_change",
+      "auth.signin",
+      "auth.failed",
+      "auth.blocked",
       "password.forgot",
       "password.reset",
     ]);

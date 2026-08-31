@@ -16,5 +16,13 @@ declare module "next-auth/jwt" {
     uid?: string;
     role?: Role;
     invalid?: boolean;
+    /**
+     * When this session was actually opened, in epoch milliseconds.
+     *
+     * Deliberately not `iat`: next-auth re-stamps that on every token re-encode,
+     * so it says when the token was last refreshed, not when the person signed
+     * in. Revocation has to compare against the latter.
+     */
+    signedInAt?: number;
   }
 }

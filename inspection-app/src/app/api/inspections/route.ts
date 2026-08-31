@@ -10,9 +10,22 @@ import { canConduct, centreScope, inspectionScope } from "@/lib/access";
 const StartSchema = z.object({
   centreId: z.string().min(1),
   size: z.enum(["SMALL", "MEDIUM", "LARGE"]),
-  /** ISO date (YYYY-MM-DD). Defaults to today. */
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
+
+/**
+ * An inspection is dated the day it is carried out, and the client does not get
+ * to say when that was.
+ *
+ * The field used to be accepted from the request. Nothing sent it, but an
+ * inspector — the largest role, signed in on a personal phone — could post a
+ * date of their choosing, and the visit booked for that day was then marked
+ * DONE with no person recorded as having marked it. A centre could be dropped
+ * off the overdue list for a year by one request, and the record would read as
+ * though the system had worked it out itself.
+ */
+function today(): Date {
+  return new Date(new Date().toISOString().slice(0, 10));
+}
 
 /** Inspections this viewer may see, newest first. */
 export const GET = withRoute(async (req: Request) => {
@@ -96,7 +109,7 @@ export const POST = withRoute(async (req: Request) => {
 
   const parsed = await parseJson(req, StartSchema);
   if (!parsed.ok) return parsed.response;
-  const { centreId, size, date } = parsed.data;
+  const { centreId, size } = parsed.data;
 
   // Scoped lookup: a regional manager cannot open a visit at a centre that
   // isn't theirs by passing its id directly.
@@ -116,7 +129,7 @@ export const POST = withRoute(async (req: Request) => {
 
   // One open draft per inspector per centre per day — reopening the app should
   // resume the visit in progress, not start a second one beside it.
-  const day = new Date(date ?? new Date().toISOString().slice(0, 10));
+  const day = today();
   const existing = await prisma.inspection.findFirst({
     where: { centreId, inspectorId: who.viewer.id, date: day, status: "DRAFT" },
     select: { id: true },
@@ -138,8 +151,12 @@ export const POST = withRoute(async (req: Request) => {
   // If this visit was in the diary, tie the two together: a planned day and the
   // record of what happened should be one story, not two lists to reconcile by
   // eye. Nothing depends on a booking existing — an unplanned visit is normal.
+  // Only a visit that is still outstanding. Without `status: "PLANNED"` a day
+  // already settled as MISSED would be quietly rewritten to DONE by starting an
+  // inspection, erasing the fact that it was missed — which is the thing the
+  // status exists to record.
   await prisma.scheduledVisit.updateMany({
-    where: { centreId, inspectorId: who.viewer.id, date: day, inspectionId: null },
+    where: { centreId, inspectorId: who.viewer.id, date: day, inspectionId: null, status: "PLANNED" },
     data: { inspectionId: inspection.id, status: "DONE" },
   });
 

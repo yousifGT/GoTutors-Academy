@@ -4,6 +4,28 @@ import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { clientIp, forget, rateLimit } from "@/lib/rate-limit";
+import { audit } from "@/lib/audit";
+
+/**
+ * True the first time a given key is blocked within a minute.
+ *
+ * Per process, and that is fine: the point is to keep a guessing run from
+ * writing a row per attempt into a table with no retention, not to guarantee
+ * exactly one row across a fleet. A handful of rows instead of thousands is the
+ * difference that matters.
+ */
+const blockedRecently = new Map<string, number>();
+function firstBlock(email: string, from: string): boolean {
+  const key = `${email}|${from}`;
+  const now = Date.now();
+  const last = blockedRecently.get(key) ?? 0;
+  if (now - last < 60_000) return false;
+  blockedRecently.set(key, now);
+  if (blockedRecently.size > 1000) {
+    for (const [k, t] of blockedRecently) if (now - t > 60_000) blockedRecently.delete(k);
+  }
+  return true;
+}
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
@@ -36,7 +58,21 @@ export const authOptions: NextAuthOptions = {
           rateLimit(`signin:email:${email}`, 5, 60),
           rateLimit(`signin:ip:${from}`, 30, 60),
         ]);
-        if (!byEmail.ok || !byAddress.ok) return null;
+        if (!byEmail.ok || !byAddress.ok) {
+          // Recorded once when the limit first bites, not on every blocked
+          // attempt. A sustained guessing run would otherwise write thousands
+          // of rows into the same table an investigator has to read afterwards,
+          // which buries the signal it exists to provide.
+          if (firstBlock(email, from)) {
+            await audit({
+              actorId: null,
+              action: "auth.blocked",
+              target: email,
+              metadata: { from, limit: !byEmail.ok ? "email" : "address" },
+            });
+          }
+          return null;
+        }
 
         const user = await prisma.user.findUnique({
           where: { email },
@@ -46,7 +82,20 @@ export const authOptions: NextAuthOptions = {
         // and a wrong password take the same time to fail.
         const hash = user?.password ?? "$2a$12$invalidinvalidinvalidinvalidinvalidinvalidinvalidinvalidin";
         const ok = await bcrypt.compare(creds.password, hash);
-        if (!user || !user.active || !ok) return null;
+        if (!user || !user.active || !ok) {
+          // Who tried, from where, and which way it failed. `lastLoginAt` is a
+          // single overwritten column and cannot answer "how many attempts,
+          // from where, since when" — which is the first question asked about a
+          // system holding photographs from a children's setting once an
+          // account is suspected of being taken over.
+          await audit({
+            actorId: user?.id ?? null,
+            action: "auth.failed",
+            target: email,
+            metadata: { from, reason: !user ? "no account" : !user.active ? "inactive" : "wrong password" },
+          });
+          return null;
+        }
 
         // Getting in clears both counts. Only failures are worth counting: the
         // limit exists to slow guessing, and someone who signed in successfully
@@ -55,6 +104,7 @@ export const authOptions: NextAuthOptions = {
         await Promise.all([forget(`signin:email:${email}`, 60), forget(`signin:ip:${from}`, 60)]);
 
         await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
+        await audit({ actorId: user.id, action: "auth.signin", target: user.email, metadata: { from } });
         return { id: user.id, email: user.email, name: user.name, role: user.role };
       },
     }),
@@ -64,6 +114,16 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.uid = user.id;
         token.role = (user as unknown as { role: Role }).role;
+        // Stamped once, here, and only here — `user` is present only when
+        // credentials were actually checked. This must NOT be read from the
+        // standard `iat` claim: next-auth re-encodes the token and gives it a
+        // fresh `iat` every time the browser touches /api/auth/session, which
+        // SessionProvider does on a timer and on window focus. Anchoring
+        // revocation to `iat` therefore locks someone out for about a second
+        // and then lets them straight back in — which is exactly what happened,
+        // and what a browser test caught. A claim next-auth does not rewrite is
+        // carried through those re-encodes untouched.
+        token.signedInAt = Date.now();
       }
       if (token.uid) {
         // Re-read on every request so deactivating an account takes effect at
@@ -72,15 +132,28 @@ export const authOptions: NextAuthOptions = {
           where: { id: token.uid as string },
           select: { role: true, active: true, sessionsValidFrom: true },
         });
-        // A token issued before the account's cut-off is spent. There is no
+
+        // A session opened before the account's cut-off is spent. There is no
         // server-side session list to delete from with this strategy, so this
-        // is the only way a password change can actually end the sessions the
-        // old password opened — otherwise whoever prompted the change keeps
-        // the one they already had, for up to twelve hours.
-        const issuedAt = typeof token.iat === "number" ? token.iat * 1000 : 0;
-        const revoked = !!fresh && issuedAt > 0 && issuedAt < fresh.sessionsValidFrom.getTime();
-        if (!fresh || !fresh.active || revoked) token.invalid = true;
-        else {
+        // is the only way a password change can end the sessions the old
+        // password opened — otherwise whoever prompted the change keeps the one
+        // they already had, for up to twelve hours.
+        //
+        // A token with no stamp at all is treated as revoked. Those are the
+        // ones issued before this existed, and there is no way to tell when
+        // they were opened; the cost is that everyone signs in once after this
+        // ships, which is a great deal cheaper than a revocation that does not.
+        const openedAt = typeof token.signedInAt === "number" ? token.signedInAt : 0;
+        const revoked = !!fresh && openedAt < fresh.sessionsValidFrom.getTime();
+
+        if (!fresh || !fresh.active || revoked) {
+          token.invalid = true;
+          // Cleared with it. A hard-deleted administrator's row is gone, so
+          // `fresh` is null and nothing refreshes the role below — leaving
+          // SUPER_ADMIN sitting in the token of an account that no longer
+          // exists, for anything that reads the role without checking the flag.
+          token.role = undefined;
+        } else {
           token.role = fresh.role;
           token.invalid = false;
         }

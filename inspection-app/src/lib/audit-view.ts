@@ -32,6 +32,9 @@ export const ACTIONS: Record<string, ActionMeta> = {
   // A reset is deliberately in the same group as the rest of account
   // administration: who asked for a link, and whether one went out, is exactly
   // what someone investigating a compromised account needs to see.
+  "auth.signin": { group: "people", label: "Signed in" },
+  "auth.failed": { group: "people", label: "Sign-in failed", notable: true },
+  "auth.blocked": { group: "people", label: "Sign-in blocked by rate limit", notable: true },
   "password.forgot": { group: "people", label: "Password reset requested" },
   "password.reset": { group: "people", label: "Password reset used", notable: true },
 

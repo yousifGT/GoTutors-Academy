@@ -4,6 +4,7 @@ import { withRoute } from "@/lib/api";
 import { viewerOr401 } from "@/lib/session";
 import { inspectionScope } from "@/lib/access";
 import { buildReport, reportInclude } from "@/lib/report";
+import { previouslyFlaggedAt } from "@/lib/previous";
 import { loadPhotos, photoUrls } from "@/lib/report-photos";
 import { renderReportPdf, reportFilename } from "@/lib/report-pdf";
 import { audit } from "@/lib/audit";
@@ -32,7 +33,11 @@ export const GET = withRoute(async (req: Request, ctx: Ctx) => {
   });
   if (!inspection) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const report = buildReport(inspection);
+  // With the repeat findings, exactly as the screen assembles it. Without them
+  // the document that leaves the building says nothing was left unfixed, while
+  // head office looking at the same inspection in a browser sees it flagged —
+  // two versions of the same record disagreeing on the most consequential line.
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
   const photos = await loadPhotos(photoUrls(report));
   const pdf = await renderReportPdf(report, photos);
 

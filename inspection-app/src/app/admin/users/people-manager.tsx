@@ -15,7 +15,7 @@ interface Person {
   lastLoginAt: string | null;
   centres: { id: string; name: string }[];
   assignedCentres: { id: string; name: string }[];
-  _count: { inspections: number };
+  _count: { inspections: number; deliveries: number; visits: number; uploads: number };
 }
 
 const ROLE_HELP: Record<string, string> = {
@@ -27,6 +27,16 @@ const ROLE_HELP: Record<string, string> = {
   INSPECTOR: "Inspects anywhere; sees their own visits.",
   READ_ONLY: "Reads every centre. Changes nothing.",
 };
+
+/** What deleting this person would take with them. */
+function held(p: { _count: { inspections: number; deliveries: number; visits: number; uploads: number } }): string[] {
+  const out: string[] = [];
+  if (p._count.inspections) out.push(`${p._count.inspections} inspection(s)`);
+  if (p._count.deliveries) out.push(`${p._count.deliveries} report delivery record(s)`);
+  if (p._count.visits) out.push(`${p._count.visits} booked visit(s)`);
+  if (p._count.uploads) out.push(`${p._count.uploads} uploaded photo(s)`);
+  return out;
+}
 
 export function PeopleManager({
   me,
@@ -51,8 +61,12 @@ export function PeopleManager({
 
   async function remove(p: Person) {
     const warning =
-      p._count.inspections > 0
-        ? `${p.name} has ${p._count.inspections} inspection(s) on record, so the account will be deactivated rather than deleted. Continue?`
+      // Everything that would be taken with them, not just inspections. A
+      // centre head has none of those and plenty of report deliveries, so this
+      // used to promise "nothing is lost" and then hard-delete their record of
+      // having been told about a finding.
+      held(p).length > 0
+        ? `${p.name} has ${held(p).join(", ")} on record, so the account will be deactivated rather than deleted. Continue?`
         : `Delete ${p.name}? They have carried out no inspections, so nothing is lost.`;
     if (!confirm(warning)) return;
     const res = await fetch(`/api/users/${p.id}`, { method: "DELETE" });

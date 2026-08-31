@@ -3,6 +3,9 @@ import { buildReport, type ReportSource } from "./report";
 import { previouslyFlaggedSet } from "./repeat";
 import type { QuestionRow } from "./score";
 
+/** No previous visit to compare with. */
+const NONE = previouslyFlaggedSet([]);
+
 const question = (over: Partial<QuestionRow> & { id: string; text: string }): QuestionRow => ({
   type: "RATING",
   options: null,
@@ -63,7 +66,7 @@ function source(over: Partial<ReportSource> = {}): ReportSource {
 
 describe("buildReport", () => {
   it("groups rows by what the reader must act on", () => {
-    const r = buildReport(source());
+    const r = buildReport(source(), NONE);
     expect(r.groups.map((g) => g.key)).toEqual(["IMPROVE", "WELL"]);
     expect(r.groups[0].rows[0].question).toBe("Fire exits clear");
     expect(r.groups[0].rows[0].answer).toBe("No");
@@ -72,24 +75,24 @@ describe("buildReport", () => {
   });
 
   it("omits a group with nothing in it", () => {
-    const r = buildReport(source());
+    const r = buildReport(source(), NONE);
     expect(r.groups.some((g) => g.key === "OBS")).toBe(false);
   });
 
   it("carries the critical override, not just the percentage", () => {
-    const r = buildReport(source());
+    const r = buildReport(source(), NONE);
     expect(r.criticalFails).toEqual(["Fire exits clear"]);
   });
 
   it("reports the score recorded at submission, not a recomputation", () => {
     // A submitted inspection is a record: if the checklist later changes, the
     // report must still show what the centre was actually told.
-    const r = buildReport(source({ scorePct: 42, verdict: "Needs attention" }));
+    const r = buildReport(source({ scorePct: 42, verdict: "Needs attention" }), NONE);
     expect(r.pct).toBe(42);
   });
 
   it("a draft reports where it currently stands", () => {
-    const r = buildReport(source({ status: "DRAFT", scorePct: null, verdict: null }));
+    const r = buildReport(source({ status: "DRAFT", scorePct: null, verdict: null }), NONE);
     expect(r.status).toBe("DRAFT");
     expect(r.pct).toBe(50); // one pass, one fail
     // The failed critical still overrides, draft or not.
@@ -107,14 +110,14 @@ describe("buildReport", () => {
           { questionId: "q2", answer: "pass", entries: [] },
         ],
       })
-    );
+    , NONE);
     expect(r.pct).toBe(100);
     expect(r.verdict).toBe("Good");
     expect(r.verdictColor).toBe("#2f855a");
   });
 
   it("colours the verdict that is actually shown", () => {
-    const r = buildReport(source({ scorePct: 91, verdict: "Good" }));
+    const r = buildReport(source({ scorePct: 91, verdict: "Good" }), NONE);
     expect(r.pct).toBe(91);
     expect(r.verdictColor).toBe("#2f855a"); // not the live "Serious finding" red
   });
@@ -139,11 +142,11 @@ describe("buildReport", () => {
   });
 
   it("has no repeats when there was no previous visit", () => {
-    expect(buildReport(source()).repeats).toEqual([]);
+    expect(buildReport(source(), NONE).repeats).toEqual([]);
   });
 
   it("keeps notes and photos with their question", () => {
-    const r = buildReport(source());
+    const r = buildReport(source(), NONE);
     const row = r.groups[0].rows[0];
     expect(row.entries).toEqual([{ who: null, note: "Blocked", photos: ["/uploads/photos/a.jpg"] }]);
   });
@@ -156,11 +159,11 @@ describe("buildReport", () => {
           { questionId: "q2", answer: "pass", entries: [] },
         ],
       })
-    );
+    , NONE);
     expect(r.groups[0].rows[0].entries).toEqual([]);
   });
 
   it("passes the checklist version through, so an old report stays readable", () => {
-    expect(buildReport(source()).checklistVersion).toBe(13);
+    expect(buildReport(source(), NONE).checklistVersion).toBe(13);
   });
 });
