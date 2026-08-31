@@ -104,7 +104,7 @@ export function problems(env: NodeJS.ProcessEnv = process.env): Problem[] {
     // installs can say so; nobody should reach that state by omission.
     fatal(
       "UPLOAD_BACKEND",
-      "not set to s3: photographs would be written to a container filesystem that does not survive a redeploy. " +
+      "not set to s3: photographs would be written to a container filesystem that does not survive a redeploy, and two tasks cannot see each other's. " +
         "Set UPLOAD_BACKEND=s3, or ALLOW_LOCAL_UPLOADS=1 if this really is one machine with a persistent volume"
     );
   } else if (backend && backend !== "s3") {

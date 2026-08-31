@@ -3,5 +3,5 @@ node_modules/
 .env
 .env.local
 next-env.d.ts
-public/uploads/
+var/uploads/
 tsconfig.tsbuildinfo

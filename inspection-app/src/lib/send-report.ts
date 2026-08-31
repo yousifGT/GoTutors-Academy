@@ -124,9 +124,19 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
     });
     if (!inspection) throw new Error("inspection not found");
 
-    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
+    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
     const photos = await loadPhotos(photoUrls(report));
-    const pdf = await renderReportPdf(report, photos);
+    const pdf = await renderReportPdf(report, photos.resolve);
+    if (photos.missing.length) {
+      // Sent anyway — a report with a gap in it beats no report — but recorded,
+      // because the centre head is being sent a document that is not complete.
+      console.error("emailing a report with photographs missing", {
+        deliveryId,
+        inspectionId: delivery.inspectionId,
+        missing: photos.missing.length,
+        of: photos.requested,
+      });
+    }
     const body = reportBody(report, {
       name: delivery.user.name,
       inspectionId: delivery.inspectionId,

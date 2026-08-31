@@ -34,7 +34,7 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
   });
 
   // The same assembly the PDF uses, so the two cannot disagree.
-  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
   const colour = VERDICT_COLOR[report.verdict] ?? "#1C1960";
 
   return (

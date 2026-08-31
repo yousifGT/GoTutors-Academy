@@ -25,21 +25,46 @@ const FORMAT_BY_EXT: Record<string, "png" | "jpg"> = {
  * Load every photo the report references, once, so the renderer never has to go
  * looking mid-render. Returns a resolver for `renderReportPdf`.
  */
-export async function loadPhotos(urls: string[]): Promise<PhotoResolver> {
+export interface LoadedPhotos {
+  resolve: PhotoResolver;
+  /** how many distinct images the report referred to */
+  requested: number;
+  /** the ones that could not be drawn, and why */
+  missing: { url: string; reason: "unreadable path" | "unsupported format" | "not in the store" }[];
+}
+
+export async function loadPhotos(urls: string[]): Promise<LoadedPhotos> {
   const resolved = new Map<string, { data: Buffer; format: "png" | "jpg" }>();
+  const missing: LoadedPhotos["missing"] = [];
+  const wanted = Array.from(new Set(urls));
 
   await Promise.all(
-    Array.from(new Set(urls)).map(async (url) => {
+    wanted.map(async (url) => {
       const key = keyFromHref(url);
-      if (!key) return;
+      if (!key) return void missing.push({ url, reason: "unreadable path" });
       const format = FORMAT_BY_EXT[path.extname(key).toLowerCase()];
-      if (!format) return;
+      if (!format) return void missing.push({ url, reason: "unsupported format" });
       const data = await readUpload(key).catch(() => null);
       if (data) resolved.set(url, { data, format });
+      else missing.push({ url, reason: "not in the store" });
     })
   );
 
-  return (url) => resolved.get(url) ?? null;
+  // Said out loud. A photograph that could not be read used to disappear from
+  // the report in silence: the route still returned 200, the audit row still
+  // recorded that a complete report had been downloaded, and the only sign was
+  // a gap on a page nobody was comparing against anything. An object store
+  // returning AccessDenied for an hour would have produced a stack of formal
+  // reports missing their evidence, with nothing anywhere to say so.
+  if (missing.length) {
+    console.error("report photos could not be drawn", {
+      requested: wanted.length,
+      missing: missing.length,
+      reasons: missing.map((m) => m.reason),
+    });
+  }
+
+  return { resolve: (url) => resolved.get(url) ?? null, requested: wanted.length, missing };
 }
 
 /** Every photo URL in a report, including the signature. */

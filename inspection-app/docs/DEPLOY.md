@@ -182,7 +182,9 @@ Notes on the parts that are easy to get wrong:
   either blocks the load balancer or stops nobody.
 - **`stopTimeout: 30`** gives in-flight work time to finish. The app closes
   cleanly on SIGTERM — verified: a report render already in progress completes
-  before the process exits.
+  before the process exits. The container runs Next directly rather than through
+  `npm`, because as PID 1 npm has no default disposition for SIGTERM and does
+  not forward it: the signal would be ignored and the task killed outright.
 
 ### 2.6 Load balancer
 
@@ -190,7 +192,10 @@ Notes on the parts that are easy to get wrong:
   2, unhealthy after 3, interval 30s.
 - **Deregistration delay 30s**, to match `stopTimeout`.
 - Listener on 443 with an ACM certificate; redirect 80 to 443.
-- Idle timeout 60s is fine — the slowest thing here is rendering a PDF.
+- Idle timeout 60s is fine — the slowest thing here is rendering a PDF. The
+  container passes `--keepAliveTimeout 65000` to stay above it; Node's 5s default
+  closes sockets the balancer still believes are open, which surfaces as
+  intermittent 502s that it will not retry on a POST.
 
 `/api/health` returns 503 when the database or the bucket cannot be reached, so
 a task that cannot serve photographs leaves rotation instead of failing uploads
@@ -203,9 +208,14 @@ would both try, and a failed migration would take the whole rollout down rather
 than one container. Run them as a release step, before the new tasks start:
 
 ```bash
-# one-off ECS task, same image, same secrets
+# one-off ECS task from the `tools` image, same commit, same secrets
+docker build --target tools -t gotutors-inspection-tools:<tag> ./inspection-app
 npm run db:deploy
 ```
+
+The `tools` target exists because the serving image is pruned of its dev
+dependencies and has no `prisma` binary — `npm run db:deploy` from it fails with
+`prisma: not found`. Build both targets from the same commit and push both.
 
 Then update the service. The order matters for any migration that removes or
 renames something the running code still reads: add first, deploy, then remove
@@ -303,3 +313,16 @@ say what the answer is:
    captures one during the visit but deliberately does not email it: sending
    photographs from a children's setting to an unverified address someone typed
    on a phone should be a decision, not a default.
+
+---
+
+## 7. `UPLOAD_BACKEND` unset, on one machine
+
+`ALLOW_LOCAL_UPLOADS=1` is a supported way to run this on a single box with a
+persistent volume. Two things to know:
+
+- Photographs go to `var/uploads`, **not** `public/uploads`. Anything under
+  `public/` is served by Next as a static file, with no session and no scope
+  check, which would put every photograph one guessed URL away from anybody at
+  all. Mount the volume at `var/uploads`, or set `UPLOAD_DIR`.
+- Back it up. It holds evidence, and nothing else has a copy.

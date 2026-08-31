@@ -290,7 +290,7 @@ Two backends sit behind that one path:
 
 | | |
 |---|---|
-| **local disk** (default) | `public/uploads`. Runs with nothing else installed. Not for production: a container filesystem is wiped by every redeploy, and two instances behind a load balancer cannot see each other's files. |
+| **local disk** (default) | `var/uploads` — deliberately not under `public/`, which Next serves as static files with no session and no scope check. Runs with nothing else installed. Not for production: a container filesystem is wiped by every redeploy, and two instances behind a load balancer cannot see each other's files. |
 | **S3** (`UPLOAD_BACKEND=s3`) | AWS S3, or anything speaking its API — MinIO, Cloudflare R2 — via `S3_ENDPOINT`. |
 
 The bucket is expected to be **private**. The app reads objects out of it and
@@ -307,9 +307,10 @@ the bucket cannot be reached, so a misconfigured deploy is caught by the load
 balancer rather than by an inspector losing a photograph on site.
 
 Rows written before uploads moved behind that route still say `/uploads/...`.
-Those keep working: the route accepts both forms, and when the store is S3 but
-an object is not in the bucket it falls back to disk, so an app switched over
-still serves everything photographed before the switch.
+Those keep working, and are now checked too: a rewrite sends that path through
+the same authenticated route, and when the store is S3 but an object is not in
+the bucket it falls back to disk, so an app switched over still serves
+everything photographed before the switch.
 
 **Sweeping what is left behind.** A photo uploaded and never attached — the
 inspection was abandoned between taking it and the autosave — or one removed

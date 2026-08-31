@@ -37,15 +37,23 @@ export const GET = withRoute(async (req: Request, ctx: Ctx) => {
   // the document that leaves the building says nothing was left unfixed, while
   // head office looking at the same inspection in a browser sees it flagged —
   // two versions of the same record disagreeing on the most consequential line.
-  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id));
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
   const photos = await loadPhotos(photoUrls(report));
-  const pdf = await renderReportPdf(report, photos);
+  const pdf = await renderReportPdf(report, photos.resolve);
 
   await audit({
     actorId: who.viewer.id,
     action: "inspection.pdf",
     target: inspection.id,
-    metadata: { centre: report.centre, pct: report.pct },
+    // Recorded on the download itself: "a report was downloaded" is not the
+    // same claim as "a complete report was downloaded", and the difference
+    // matters when the document is the evidence.
+    metadata: {
+      centre: report.centre,
+      pct: report.pct,
+      photos: photos.requested,
+      photosMissing: photos.missing.length || undefined,
+    },
   });
 
   const inline = new URL(req.url).searchParams.get("inline") === "1";

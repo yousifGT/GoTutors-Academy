@@ -38,5 +38,15 @@ const nextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },
+  async rewrites() {
+    return [
+      // Photographs stored before uploads moved behind an authenticated route
+      // are recorded in the database as "/uploads/...". They used to be served
+      // by Next straight off the filesystem, to anybody at all. Sending the old
+      // path through the route means those images keep working AND are now
+      // checked against who is asking, without rewriting a single stored row.
+      { source: "/uploads/:path*", destination: "/api/uploads/:path*" },
+    ];
+  },
 };
 module.exports = nextConfig;

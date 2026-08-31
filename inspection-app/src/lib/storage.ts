@@ -42,8 +42,23 @@ export const UPLOAD_KINDS: UploadKind[] = ["photo", "signature"];
 /** The one shape a stored key may take. Anything else is not ours. */
 const KEY_RE = /^(photos|signatures)\/[a-f0-9]{32}\.(jpg|png|webp|heic)$/;
 
-/** Where uploads served from disk live. */
-export const LOCAL_ROOT = path.join(process.cwd(), "public", "uploads");
+/**
+ * Where uploads served from disk live.
+ *
+ * NOT under `public/`. Next serves everything it finds there as a static file,
+ * with no session and no scope check — so while these sat in `public/uploads`,
+ * every photograph was readable by anyone who had the URL, straight past the
+ * authenticated route built to decide who may see it. A random filename was the
+ * only thing in the way, which is exactly the "hard to guess is not an access
+ * policy" this app says it does not rely on.
+ *
+ * Legacy rows still say `/uploads/...`; a rewrite in next.config.js sends that
+ * path through the authenticated route, so those images keep working and are
+ * now checked too.
+ */
+export const LOCAL_ROOT = process.env.UPLOAD_DIR
+  ? path.resolve(process.env.UPLOAD_DIR)
+  : path.join(process.cwd(), "var", "uploads");
 
 export function isAcceptedType(type: string): boolean {
   return type in EXT_BY_TYPE;
