@@ -59,6 +59,11 @@ export default async function Home() {
       where: {
         inspectorId: user.id,
         status: { in: ["PLANNED", "DONE"] },
+        // Server component: this runs once per request, on the server, and the
+        // "now" it needs is the moment of the request. The purity rule is about
+        // client renders, which can be replayed or discarded; there is no such
+        // thing happening here.
+        // eslint-disable-next-line react-hooks/purity
         date: { gte: asDate(new Date(Date.now() - 14 * 86_400_000).toISOString().slice(0, 10)) },
       },
       orderBy: { date: "asc" },

@@ -8,7 +8,7 @@ import { loadPhotos, photoUrls } from "@/lib/report-photos";
 import { renderReportPdf, reportFilename } from "@/lib/report-pdf";
 import { audit } from "@/lib/audit";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * The inspection report as a PDF.
@@ -21,7 +21,8 @@ type Ctx = { params: { id: string } };
  * Downloading a report is worth recording: it is the moment findings about a
  * centre leave the system.
  */
-export const GET = withRoute(async (req: Request, { params }: Ctx) => {
+export const GET = withRoute(async (req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 

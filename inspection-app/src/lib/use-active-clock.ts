@@ -18,7 +18,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 export function useActiveClock(startMs: number) {
   const accumulated = useRef(startMs);
-  const segmentStart = useRef<number | null>(Date.now());
+  // Started on mount rather than at the first render. `useRef(Date.now())`
+  // evaluates its argument on every render even though only the first is kept,
+  // and reading the clock during render is not something React guarantees
+  // happens once — under a discarded or replayed render the segment would begin
+  // at a moment the inspector was not yet on the page.
+  const segmentStart = useRef<number | null>(null);
   const [display, setDisplay] = useState(startMs);
 
   const total = useCallback(() => {
@@ -37,6 +42,8 @@ export function useActiveClock(startMs: number) {
   }, []);
 
   useEffect(() => {
+    // The clock starts here: mounted, visible, and actually in front of someone.
+    resume();
     const onVisibility = () => {
       if (document.hidden) pause();
       else resume();

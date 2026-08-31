@@ -94,30 +94,6 @@ export function Runner(props: Props) {
   // leaves the tab, so we send its value rather than a wall-clock difference.
   const clockRef = useRef<{ total: () => number } | null>(null);
 
-  /* ---------- work the server has not seen ---------- */
-  useEffect(() => {
-    store.current = browserStore();
-    if (!store.current) return;
-    pruneDrafts(store.current);
-
-    const draft = readDraft(store.current, props.id);
-    if (!shouldRestore(draft, props.updatedAt)) {
-      // Nothing newer here than the server already has.
-      clearDraft(store.current, props.id);
-      return;
-    }
-    setAnswers(new Map(draft!.answers.map((a) => [a.questionId, withEntry(a)])));
-    setDebrief(draft!.debrief);
-    setTargets(draft!.targets);
-    // Everything restored is unsaved by definition, so queue it all.
-    draft!.answers.forEach((a) => dirty.current.add(a.questionId));
-    setRestored(true);
-    setSaveState("error");
-    scheduleSave();
-    // Only on mount: this reads what was left behind, it does not follow state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   useEffect(() => {
     const set = () => setOnline(navigator.onLine);
     set();
@@ -166,7 +142,14 @@ export function Runner(props: Props) {
   const dirty = useRef<Set<string>>(new Set());
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latest = useRef({ answers, debrief, targets });
-  latest.current = { answers, debrief, targets };
+  // Updated after the render commits, not during it. A render can be started
+  // and thrown away — React may render speculatively and discard the result —
+  // and assigning here would leave the ref holding state from a render that
+  // never happened, which `flush` would then send to the server. The autosave
+  // it feeds is debounced by 900ms, so it always reads a committed value.
+  useEffect(() => {
+    latest.current = { answers, debrief, targets };
+  }, [answers, debrief, targets]);
 
   /** Write the mirror of everything currently on screen. */
   const mirror = useCallback(() => {
@@ -233,6 +216,34 @@ export function Runner(props: Props) {
     },
     [flush]
   );
+
+  /* ---------- work the server has not seen ---------- */
+  // Placed after `scheduleSave` rather than with the other mount effects: it
+  // calls it, and a `const` referenced above its own declaration is only safe
+  // because effects happen to run late. That is a fact about when this runs,
+  // not something the code says, and it reads as a bug to anyone checking.
+  useEffect(() => {
+    store.current = browserStore();
+    if (!store.current) return;
+    pruneDrafts(store.current);
+
+    const draft = readDraft(store.current, props.id);
+    if (!shouldRestore(draft, props.updatedAt)) {
+      // Nothing newer here than the server already has.
+      clearDraft(store.current, props.id);
+      return;
+    }
+    setAnswers(new Map(draft!.answers.map((a) => [a.questionId, withEntry(a)])));
+    setDebrief(draft!.debrief);
+    setTargets(draft!.targets);
+    // Everything restored is unsaved by definition, so queue it all.
+    draft!.answers.forEach((a) => dirty.current.add(a.questionId));
+    setRestored(true);
+    setSaveState("error");
+    scheduleSave();
+    // Only on mount: this reads what was left behind, it does not follow state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /**
    * Mirror after the render that applied the change, not during the handler

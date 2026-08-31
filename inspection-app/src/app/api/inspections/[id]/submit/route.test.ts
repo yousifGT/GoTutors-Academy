@@ -18,7 +18,7 @@ const auth = viewerOr401 as unknown as ReturnType<typeof vi.fn>;
 const asUser = (id: string, role = "INSPECTOR") => auth.mockResolvedValue({ viewer: { id, role } });
 
 const req = () => new Request("https://app.test/api/inspections/i1/submit", { method: "POST" });
-const ctx = { params: { id: "i1" } };
+const ctx = { params: Promise.resolve({ id: "i1" }) };
 
 const question = (over: Record<string, unknown>) => ({
   id: "q1",

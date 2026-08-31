@@ -15,7 +15,7 @@ import { PATCH, DELETE } from "./route";
 
 const auth = viewerOr401 as unknown as ReturnType<typeof vi.fn>;
 const asUser = (id: string, role = "INSPECTOR") => auth.mockResolvedValue({ viewer: { id, role } });
-const ctx = { params: { id: "i1" } };
+const ctx = { params: Promise.resolve({ id: "i1" }) };
 
 const patch = (body: unknown) =>
   new Request("https://app.test/api/inspections/i1", {

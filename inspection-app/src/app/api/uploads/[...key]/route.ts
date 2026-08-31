@@ -6,7 +6,7 @@ import { inspectionScope, type Viewer } from "@/lib/access";
 import { contentTypeForKey, hrefsForKey, keyFromHref, openUpload } from "@/lib/storage";
 
 interface Ctx {
-  params: { key: string[] };
+  params: Promise<{ key: string[] }>;
 }
 
 /**
@@ -20,7 +20,8 @@ interface Ctx {
  * An image nobody may see is reported as missing rather than forbidden, exactly
  * as scoped reads elsewhere are — a 403 would confirm that a given photo exists.
  */
-export const GET = withRoute(async (_req: Request, { params }: Ctx) => {
+export const GET = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 

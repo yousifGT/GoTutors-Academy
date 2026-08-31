@@ -5,11 +5,14 @@ import { requireUser } from "@/lib/session";
 import { canConduct, centreScope } from "@/lib/access";
 import { StartForm } from "./start-form";
 
-export default async function NewInspectionPage({
-  searchParams,
-}: {
-  searchParams: { centre?: string };
+export default async function NewInspectionPage(props: {
+  // A promise since Next 16. Awaiting it is not optional: reading `.centre` off
+  // the promise itself is not a type error and not a runtime error either — it
+  // is simply `undefined`, so the centre a planner booked silently stopped
+  // being pre-selected and the build said nothing. The browser tests caught it.
+  searchParams: Promise<{ centre?: string }>;
 }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!canConduct(user.role)) redirect("/");
 

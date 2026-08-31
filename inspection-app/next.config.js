@@ -35,10 +35,6 @@ const securityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  // Runs src/instrumentation.ts once at server start. That is where the
-  // environment is checked, so a misconfigured container fails to start rather
-  // than starting and failing one request at a time.
-  experimental: { instrumentationHook: true },
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }];
   },

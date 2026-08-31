@@ -8,7 +8,7 @@ import { viewerOr401 } from "@/lib/session";
 import { centreScope } from "@/lib/access";
 import { canScheduleVisits, statusChangeProblem } from "@/lib/schedule";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 const PatchSchema = z.object({
   note: z.string().max(500).nullish(),
@@ -28,7 +28,8 @@ const PatchSchema = z.object({
  * The one thing that cannot be overridden is an inspection already on the
  * record: it is evidence the visit happened, and no status may contradict it.
  */
-export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
+export const PATCH = withRoute(async (req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canScheduleVisits(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -77,7 +78,8 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
   return NextResponse.json(updated);
 });
 
-export const DELETE = withRoute(async (_req: Request, { params }: Ctx) => {
+export const DELETE = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canScheduleVisits(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });

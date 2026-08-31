@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withRoute } from "@/lib/api";
 import { viewerOr401 } from "@/lib/session";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * Mark a delivered report as read.
@@ -12,7 +12,8 @@ type Ctx = { params: { id: string } };
  * timestamp records when they actually opened it, so re-reading later must not
  * move it.
  */
-export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
+export const POST = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 

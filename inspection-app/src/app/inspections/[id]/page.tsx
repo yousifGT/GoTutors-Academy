@@ -5,7 +5,8 @@ import { canEditInspection, inspectionScope } from "@/lib/access";
 import { previouslyFlaggedAt } from "@/lib/previous";
 import { Runner } from "./runner";
 
-export default async function InspectionPage({ params }: { params: { id: string } }) {
+export default async function InspectionPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const viewer = { id: user.id, role: user.role };
 

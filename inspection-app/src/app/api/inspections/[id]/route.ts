@@ -9,7 +9,7 @@ import { canEditInspection, inspectionScope } from "@/lib/access";
 import { scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score";
 import { keyFromHref } from "@/lib/storage";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * An image reference the client is allowed to store.
@@ -66,7 +66,8 @@ const fullInclude = {
 };
 
 /** One inspection, with the checklist it was run against and its live score. */
-export const GET = withRoute(async (_req: Request, { params }: Ctx) => {
+export const GET = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 
@@ -105,7 +106,8 @@ export const GET = withRoute(async (_req: Request, { params }: Ctx) => {
  * which keeps the client simple: it owns the entry list for a question and
  * sends the current state of it.
  */
-export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
+export const PATCH = withRoute(async (req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 
@@ -183,7 +185,8 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
 });
 
 /** Discard a draft. A submitted inspection is a record and cannot be deleted here. */
-export const DELETE = withRoute(async (_req: Request, { params }: Ctx) => {
+export const DELETE = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 

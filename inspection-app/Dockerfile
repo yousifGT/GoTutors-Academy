@@ -8,7 +8,8 @@
 # backend the app reads photo uploads from disk at request time, and standalone's
 # file tracing does not carry a directory written to at runtime.
 
-FROM node:20-slim AS deps
+# Node 22: Next 16 requires >= 20.9, and Node 20 is out of support.
+FROM node:22-slim AS deps
 WORKDIR /app
 # openssl is required by Prisma's query engine on slim images.
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
@@ -17,7 +18,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 RUN npm ci
 
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*
@@ -30,7 +31,7 @@ ENV NEXTAUTH_SECRET="build-time-placeholder"
 ENV NEXTAUTH_URL="http://localhost:3100"
 RUN npm run build && npm prune --omit=dev
 
-FROM node:20-slim AS runtime
+FROM node:22-slim AS runtime
 WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends openssl \
     && rm -rf /var/lib/apt/lists/*

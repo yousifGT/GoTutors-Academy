@@ -101,7 +101,7 @@ describe("counting in the database", () => {
     const { forget } = await import("@/lib/rate-limit");
     await forget("signin:ip:203.0.113.9", 60);
     expect(db.rateLimit.deleteMany).toHaveBeenCalled();
-    const where = db.rateLimit.deleteMany.mock.calls.at(-1)[0].where;
+    const where = db.rateLimit.deleteMany.mock.calls.at(-1)![0].where;
     // Both the current window and the previous one, or the one still in view
     // keeps counting against them.
     expect(where.key.in).toHaveLength(2);

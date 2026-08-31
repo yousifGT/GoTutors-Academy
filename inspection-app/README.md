@@ -443,6 +443,16 @@ app against it. Two things only that turns up: the app's own content-security
 policy blocks a browser from following a redirect to the store, and
 `Readable.toWeb` does not survive the bundler.
 
+Email is tested the same way, against a real SMTP server rather than a mock, so
+what the mailbox holds is the exact MIME message that would go to SES.
+
+Neither of those, nor a green build, is what catches the worst kind of
+regression. Upgrading to Next 16 built cleanly, type-checked cleanly, passed
+every unit test — and silently stopped pre-selecting the centre when an
+inspector starts a booked visit, because `searchParams` became a promise and
+reading a property off a promise is `undefined` rather than an error. Only
+driving the app in a browser found it.
+
 The rules in `core/` test themselves with `node --test`, exactly as they ship.
 Everything else runs under Vitest. The core suite also asserts the shipped
 checklist still matches: 15 sections, 101 questions, 23 centres, 8 critical items.

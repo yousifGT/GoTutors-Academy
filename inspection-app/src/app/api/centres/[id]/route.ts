@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
 import { canManageCentres } from "@/lib/access";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 const PatchSchema = z.object({
   name: zName.optional(),
@@ -21,7 +21,8 @@ const PatchSchema = z.object({
   inspectorIds: z.array(z.string().min(1)).max(50).optional(),
 });
 
-export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
+export const PATCH = withRoute(async (req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canManageCentres(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -51,7 +52,8 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
  * are the record of visits that happened; deleting the centre would take them
  * with it. Closing keeps the history and takes the centre off the picker.
  */
-export const DELETE = withRoute(async (_req: Request, { params }: Ctx) => {
+export const DELETE = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canManageCentres(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });

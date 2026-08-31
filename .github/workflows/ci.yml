@@ -122,7 +122,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          # Next 16 needs >= 20.9, and Node 20 is out of support. The Academy
+          # job above keeps its own version: the two apps share a repository,
+          # not a toolchain.
+          node-version: 22
           cache: npm
           cache-dependency-path: inspection-app/package-lock.json
       - run: npm ci
@@ -166,7 +169,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: node --test inspection-app/core/
 
   # A single check to make required for merging. It passes when every job that

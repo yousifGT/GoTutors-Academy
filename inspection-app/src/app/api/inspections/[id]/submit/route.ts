@@ -7,7 +7,7 @@ import { canEditInspection, receivesReports } from "@/lib/access";
 import { canSubmit, scoreDbInspection, type AnswerRow, type SectionRow } from "@/lib/score";
 import { sendReportsInBackground } from "@/lib/send-report";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 /**
  * Close an inspection.
@@ -22,7 +22,8 @@ type Ctx = { params: { id: string } };
  * missing note, or a critical failure with no photo evidence. Those are the same
  * checks the inspector sees on screen, enforced again where it counts.
  */
-export const POST = withRoute(async (_req: Request, { params }: Ctx) => {
+export const POST = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
 

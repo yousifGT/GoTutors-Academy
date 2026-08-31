@@ -15,7 +15,8 @@ const GROUP_TONE: Record<string, string> = {
   WELL: "text-emerald-800",
 };
 
-export default async function ReportPage({ params }: { params: { id: string } }) {
+export default async function ReportPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
 
   const inspection = await prisma.inspection.findFirst({

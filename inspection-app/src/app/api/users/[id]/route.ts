@@ -9,7 +9,7 @@ import { viewerOr401 } from "@/lib/session";
 import { canManageUsers } from "@/lib/access";
 import { ASSIGNABLE_ROLES, CENTRE_SCOPED_ROLES, ROLES, isSelfLockout, passwordProblem } from "@/lib/user-rules";
 
-type Ctx = { params: { id: string } };
+type Ctx = { params: Promise<{ id: string }> };
 
 const publicUser = {
   id: true,
@@ -33,7 +33,8 @@ const PatchSchema = z.object({
   assignedCentreIds: z.array(z.string().min(1)).max(100).optional(),
 });
 
-export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
+export const PATCH = withRoute(async (req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canManageUsers(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
@@ -99,7 +100,8 @@ export const PATCH = withRoute(async (req: Request, { params }: Ctx) => {
  * name is part of the record of those visits, and removing them would either
  * fail on the foreign key or orphan the history.
  */
-export const DELETE = withRoute(async (_req: Request, { params }: Ctx) => {
+export const DELETE = withRoute(async (_req: Request, ctx: Ctx) => {
+  const params = await ctx.params;
   const who = await viewerOr401();
   if ("response" in who) return who.response;
   if (!canManageUsers(who.viewer.role)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
