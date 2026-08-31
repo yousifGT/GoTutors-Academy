@@ -3,7 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import type { Role } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { clientIp, forget, rateLimit } from "@/lib/rate-limit";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt", maxAge: 60 * 60 * 12 },
@@ -48,6 +48,12 @@ export const authOptions: NextAuthOptions = {
         const ok = await bcrypt.compare(creds.password, hash);
         if (!user || !user.active || !ok) return null;
 
+        // Getting in clears both counts. Only failures are worth counting: the
+        // limit exists to slow guessing, and someone who signed in successfully
+        // is not guessing. Counting successes as well would lock out a real
+        // office where a dozen people arrive at once behind one address.
+        await Promise.all([forget(`signin:email:${email}`, 60), forget(`signin:ip:${from}`, 60)]);
+
         await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
         return { id: user.id, email: user.email, name: user.name, role: user.role };
       },
@@ -64,9 +70,16 @@ export const authOptions: NextAuthOptions = {
         // once rather than when the token happens to expire.
         const fresh = await prisma.user.findUnique({
           where: { id: token.uid as string },
-          select: { role: true, active: true },
+          select: { role: true, active: true, sessionsValidFrom: true },
         });
-        if (!fresh || !fresh.active) token.invalid = true;
+        // A token issued before the account's cut-off is spent. There is no
+        // server-side session list to delete from with this strategy, so this
+        // is the only way a password change can actually end the sessions the
+        // old password opened — otherwise whoever prompted the change keeps
+        // the one they already had, for up to twelve hours.
+        const issuedAt = typeof token.iat === "number" ? token.iat * 1000 : 0;
+        const revoked = !!fresh && issuedAt > 0 && issuedAt < fresh.sessionsValidFrom.getTime();
+        if (!fresh || !fresh.active || revoked) token.invalid = true;
         else {
           token.role = fresh.role;
           token.invalid = false;
@@ -75,6 +88,14 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
+      // A token the check above rejected must not become a usable session.
+      // Middleware only consults `token.invalid` for page routes — API routes
+      // are allowed through so they can answer with JSON rather than a redirect
+      // — so without this a deactivated account, or one whose sessions were
+      // revoked by a password change, kept full use of the API until its token
+      // expired. Dropping the user is what `viewerOr401` and `requireUser`
+      // read: no user, no session.
+      if (token.invalid) return { ...session, user: undefined as unknown as typeof session.user };
       if (session.user) {
         session.user.id = token.uid as string;
         session.user.role = token.role as Role;

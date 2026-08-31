@@ -94,6 +94,20 @@ describe("counting in the database", () => {
     }
   });
 
+  it("forgets a key, so a success can clear what failures counted", async () => {
+    // Only failures are worth counting: the limit exists to slow guessing, and
+    // someone who signed in is not guessing. Counting successes too would lock
+    // out an office where a dozen people arrive at once behind one address.
+    const { forget } = await import("@/lib/rate-limit");
+    await forget("signin:ip:203.0.113.9", 60);
+    expect(db.rateLimit.deleteMany).toHaveBeenCalled();
+    const where = db.rateLimit.deleteMany.mock.calls.at(-1)[0].where;
+    // Both the current window and the previous one, or the one still in view
+    // keeps counting against them.
+    expect(where.key.in).toHaveLength(2);
+    expect(where.key.in.every((k: string) => k.startsWith("signin:ip:203.0.113.9|"))).toBe(true);
+  });
+
   it("lets the request through when the database cannot answer", async () => {
     // Open on purpose. Everything this protects needs the database for its real
     // work, so a database that cannot count cannot serve the request either —

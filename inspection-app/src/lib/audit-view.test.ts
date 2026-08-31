@@ -31,7 +31,21 @@ suite("who may read what", () => {
       "user.deactivate",
       "user.delete",
       "user.password_change",
+      "password.forgot",
+      "password.reset",
     ]);
+    // Not a prefix rule: who asked for a reset link belongs with account
+    // administration even though it is not named "user.something".
+    expect(headOffice).not.toContain("password.forgot");
+  });
+
+  it("keeps an unclassified action out of the wider audience", () => {
+    // An action nobody has listed is one nobody has decided the audience for.
+    // Falling back to a group head office can read would mean adding an action
+    // and forgetting to classify it quietly widens who can see it.
+    expect(canRead("HEAD_OFFICE", "something.new")).toBe(false);
+    expect(canRead("SUPER_ADMIN", "something.new")).toBe(true);
+    expect(describe("something.new").group).toBe("people");
   });
 });
 
@@ -55,8 +69,11 @@ suite("describe", () => {
     expect(canRead("HEAD_OFFICE", "visit.something_new")).toBe(true);
   });
 
-  it("puts an unprefixed action with the inspections", () => {
-    expect(describe("odd").group).toBe("inspections");
+  it("puts an unprefixed action with the most restricted group", () => {
+    // This used to fall through to "inspections", which head office can read.
+    // An action nobody has classified is one nobody has decided the audience
+    // for, so it goes where only a super admin sees it until somebody does.
+    expect(describe("odd").group).toBe("people");
   });
 });
 

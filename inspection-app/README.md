@@ -372,6 +372,8 @@ forgotten setting cannot quietly mean nobody was told.
 | `GET /api/coverage` | which centres need a visit, worst first |
 | `GET /api/audit` | the activity log, filtered to what the role may read |
 | `POST /api/me/password` | change your own password |
+| `POST /api/password/forgot` | ask for a reset link; answers identically whether or not the address exists |
+| `POST /api/password/reset` | spend a link, set the password, and revoke every session the account had |
 | `POST /api/uploads` | store one photo or signature, returns the URL to save against the answer |
 | `GET /api/uploads/:kind/:name` | serve one stored image, to whoever may see the inspection it belongs to |
 | `GET /api/health` | for a load balancer: 200 when the database and the object store answer, 503 when either does not |
@@ -470,7 +472,7 @@ they were run under.
    a report reaches the head of centre through the app, not their inbox.
 6. Cross-centre dashboards, CSV export, signature capture, and a screen for
    editing the checklist.
-7. Password reset. An account that forgets its password needs an administrator.
+7. ~~Password reset.~~ Done.
 
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.

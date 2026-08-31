@@ -62,6 +62,12 @@ export function LoginForm() {
       >
         {busy ? "Signing in…" : "Sign in"}
       </button>
+
+      <p className="mt-4 text-center text-sm">
+        <a href="/forgot" className="font-medium text-sky-700 hover:underline">
+          Forgotten your password?
+        </a>
+      </p>
     </form>
   );
 }

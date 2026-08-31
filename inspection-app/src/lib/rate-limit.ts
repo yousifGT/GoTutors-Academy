@@ -106,6 +106,23 @@ function trustedProxyHops(): number {
   return 1;
 }
 
+/**
+ * Clear a key's count.
+ *
+ * For sign-in: a successful one forgets both the email and the address it came
+ * from. Rate limiting successful sign-ins protects against nothing — somebody
+ * who can sign in already has the password — while it does lock out a real
+ * office where a dozen people arrive at once behind one address. What the limit
+ * is for is slowing down guessing, and guesses are the attempts that fail.
+ */
+export async function forget(key: string, windowSec: number): Promise<void> {
+  const window = windowSec * 1000;
+  const bucket = Math.floor(Date.now() / window);
+  await prisma.rateLimit
+    .deleteMany({ where: { key: { in: [`${key}|${bucket}`, `${key}|${bucket - 1}`] } } })
+    .catch((e) => console.error("rate limit forget failed", { key, err: e }));
+}
+
 export function tooMany(retryAfterSec: number): Response {
   return new Response(JSON.stringify({ error: "Too many requests" }), {
     status: 429,

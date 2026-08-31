@@ -29,6 +29,11 @@ export const ACTIONS: Record<string, ActionMeta> = {
   "user.deactivate": { group: "people", label: "Account deactivated", notable: true },
   "user.delete": { group: "people", label: "Account deleted", notable: true },
   "user.password_change": { group: "people", label: "Password changed" },
+  // A reset is deliberately in the same group as the rest of account
+  // administration: who asked for a link, and whether one went out, is exactly
+  // what someone investigating a compromised account needs to see.
+  "password.forgot": { group: "people", label: "Password reset requested" },
+  "password.reset": { group: "people", label: "Password reset used", notable: true },
 
   "centre.create": { group: "centres", label: "Centre added" },
   "centre.update": { group: "centres", label: "Centre changed" },
@@ -60,12 +65,22 @@ export function describe(action: string): ActionMeta {
   return ACTIONS[action] ?? { group: groupOf(action), label: action };
 }
 
+/**
+ * Where an action that is not in the table above belongs.
+ *
+ * The fallback is `people`, the group only a super admin may read — not
+ * `inspections`, which head office can. An action nobody has classified yet is
+ * one nobody has decided the audience for, and the safe assumption about an
+ * unclassified record of who did what is that it is account administration.
+ * Defaulting the other way means adding an action and forgetting to list it
+ * quietly widens who can read it.
+ */
 function groupOf(action: string): AuditGroup {
   const prefix = action.split(".")[0];
-  if (prefix === "user") return "people";
   if (prefix === "centre") return "centres";
   if (prefix === "visit") return "visits";
-  return "inspections";
+  if (prefix === "inspection") return "inspections";
+  return "people";
 }
 
 /**

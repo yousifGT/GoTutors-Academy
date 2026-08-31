@@ -74,6 +74,14 @@ model User {
   assignedCentres Centre[] @relation("CentreInspectors")
   active      Boolean   @default(true)
   lastLoginAt DateTime?
+  /// Sessions issued before this moment are no longer valid.
+  ///
+  /// The session strategy is a signed token, so there is no server-side session
+  /// list to delete from: a token stays good until it expires no matter what
+  /// happens to the account. Moving this forward is how everything already
+  /// issued is revoked at once — which is what a password change has to do, or
+  /// the attacker whose presence prompted it keeps the session they already had.
+  sessionsValidFrom DateTime @default(now())
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -83,6 +91,7 @@ model User {
   visitsBooked  ScheduledVisit[] @relation("VisitCreator")
   visitsMarked  ScheduledVisit[] @relation("VisitStatusSetter")
   uploads       Upload[]
+  passwordResets PasswordReset[]
 
   @@index([role])
 }
@@ -249,6 +258,30 @@ model Entry {
   photos Photo[]
 
   @@index([answerId])
+}
+
+/// A pending "I have forgotten my password".
+///
+/// Only a hash of the token is kept. The token itself goes out in the email and
+/// is never stored, so a copy of this table — a backup, a leaked dump, a support
+/// engineer with read access — is not a set of working links into people's
+/// accounts.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  /// sha-256 of the token; unique so a token can be looked up without knowing the user
+  tokenHash String    @unique
+  expiresAt DateTime
+  /// set the moment it is spent, so a link cannot be used twice
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  /// where the request came from, for working out afterwards who asked
+  requestedFrom String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt])
+  @@index([expiresAt])
 }
 
 /// One counting bucket for a rate limit.
