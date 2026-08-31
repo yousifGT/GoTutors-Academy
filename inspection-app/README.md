@@ -484,5 +484,16 @@ they were run under.
    editing the checklist.
 7. ~~Password reset.~~ Done.
 
+## Deploying it
+
+`docs/DEPLOY.md` is the AWS runbook: what the app needs and why, the IAM policy,
+the task definition, the release step for migrations, what to check once it is
+up, and what it costs. It also lists the decisions that belong to GoTutors
+rather than to this repository — chiefly how long photographs are kept.
+
+The app refuses to start if it can detect that its configuration is wrong: a
+placeholder session secret, http on a deployed host, photographs pointed at a
+container filesystem, report emails pointed at the log. See `src/lib/config.ts`.
+
 Before real data: a UK/EU region, a retention policy and a DPIA — inspection
 photos are taken in a children's setting. See `docs/BACKEND-HANDOFF.md` §5.
