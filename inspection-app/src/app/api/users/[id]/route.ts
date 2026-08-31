@@ -79,7 +79,12 @@ export const PATCH = withRoute(async (req: Request, ctx: Ctx) => {
       name,
       role: role as never,
       active,
-      ...(password ? { password: await bcrypt.hash(password, 12) } : {}),
+      // An administrator resetting somebody's password, or deactivating them,
+      // is very often doing it because that account is believed to be in the
+      // wrong hands. Both have to end the sessions it already has, or the change
+      // is cosmetic for the next twelve hours.
+      ...(password ? { password: await bcrypt.hash(password, 12), sessionsValidFrom: new Date() } : {}),
+      ...(active === false ? { sessionsValidFrom: new Date() } : {}),
       ...(centreUpdate ? { centres: centreUpdate } : {}),
       ...(assignedUpdate ? { assignedCentres: assignedUpdate } : {}),
     },

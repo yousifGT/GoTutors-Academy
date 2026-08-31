@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { signIn, useSession } from "next-auth/react";
 import { MIN_PASSWORD } from "@/lib/user-rules";
 
 export function PasswordForm() {
+  const { data: session } = useSession();
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -25,12 +27,24 @@ export function PasswordForm() {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ current, next }),
     });
-    setBusy(false);
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
+      setBusy(false);
       setError(body.error ?? "Could not change your password.");
       return;
     }
+    // Changing the password signs out every session opened with the old one —
+    // which includes this browser, since the point is that someone else may
+    // have had it. Signing straight back in with the password they just chose
+    // keeps them where they are and leaves everything else signed out; without
+    // this, changing your password throws you out of the page you did it on.
+    if (session?.user?.email) {
+      await signIn("credentials", { email: session.user.email, password: next, redirect: false });
+    }
+
+    // Only now: the button stayed disabled through the re-authentication too,
+    // rather than going idle while the form was still working.
+    setBusy(false);
     setDone(true);
     setCurrent("");
     setNext("");
@@ -55,7 +69,9 @@ export function PasswordForm() {
 
       {error && <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {done && (
-        <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">Your password has been changed.</p>
+        <p className="mt-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800" role="status">
+          Your password has been changed. Anywhere else you were signed in has been signed out.
+        </p>
       )}
 
       <button

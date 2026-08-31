@@ -44,7 +44,14 @@ export const POST = withRoute(async (req: Request) => {
 
   await prisma.user.update({
     where: { id: who.viewer.id },
-    data: { password: await bcrypt.hash(next, 12) },
+    data: {
+      password: await bcrypt.hash(next, 12),
+      // And sign out everything else holding a session opened with the old one.
+      // Somebody changing their password because they think someone else has it
+      // is the whole reason this endpoint exists; leaving those sessions alive
+      // means the change accomplishes nothing for up to twelve hours.
+      sessionsValidFrom: new Date(),
+    },
   });
   await audit({ actorId: who.viewer.id, action: "user.password_change", target: who.viewer.id });
 

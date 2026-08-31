@@ -146,7 +146,11 @@ export const authOptions: NextAuthOptions = {
         const openedAt = typeof token.signedInAt === "number" ? token.signedInAt : 0;
         const revoked = !!fresh && openedAt < fresh.sessionsValidFrom.getTime();
 
-        if (!fresh || !fresh.active || revoked) {
+        // Once invalid, always invalid. Nothing writes it back to false: an
+        // account deactivated and later reactivated would otherwise bring its
+        // old sessions back with it, which is not what deactivating an account
+        // in an incident is meant to mean. Signing in again issues a new token.
+        if (token.invalid || !fresh || !fresh.active || revoked) {
           token.invalid = true;
           // Cleared with it. A hard-deleted administrator's row is gone, so
           // `fresh` is null and nothing refreshes the role below — leaving
@@ -155,7 +159,6 @@ export const authOptions: NextAuthOptions = {
           token.role = undefined;
         } else {
           token.role = fresh.role;
-          token.invalid = false;
         }
       }
       return token;
