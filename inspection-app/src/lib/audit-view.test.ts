@@ -3,7 +3,7 @@ import { canRead, canReadAudit, describe, readableActions, summarise, visibleGro
 
 suite("who may read what", () => {
   it("a super admin sees everything", () => {
-    expect(visibleGroups("SUPER_ADMIN")).toEqual(["people", "centres", "inspections", "visits"]);
+    expect(visibleGroups("SUPER_ADMIN")).toEqual(["people", "checklist", "centres", "inspections", "visits"]);
   });
 
   it("head office sees the operation but not account administration", () => {

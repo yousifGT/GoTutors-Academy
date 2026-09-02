@@ -5,7 +5,7 @@ import type { Prisma, Role } from "@prisma/client";
  * this is a plain table rather than a permission system with its own tables.
  *
  *   SUPER_ADMIN       everything, including the checklist and user accounts
- *   HEAD_OFFICE       reads every centre, runs inspections, edits the checklist
+ *   HEAD_OFFICE       reads every centre, runs inspections, manages centres
  *   REGIONAL_MANAGER  reads and inspects the centres assigned to them
  *   FRANCHISEE        reads their own centres; does not inspect
  *   CENTRE_HEAD       runs a centre: reads its inspections, never runs one
@@ -43,9 +43,19 @@ export function canConduct(role: Role): boolean {
   return role === "SUPER_ADMIN" || role === "HEAD_OFFICE" || role === "REGIONAL_MANAGER" || role === "INSPECTOR";
 }
 
-/** Edits the checklist and publishes a new version. */
+/**
+ * Edits the checklist and publishes a new version.
+ *
+ * The super admin alone. The checklist is what every inspection is scored
+ * against and what a critical finding is defined by, so a change to it reaches
+ * backwards through every comparison the reports draw and forwards into every
+ * visit still to come — a wider blast radius than adding a centre or a person.
+ * Head office runs the operation and reads all of it; setting the standard the
+ * operation is judged against is a separate decision, and is kept with the one
+ * role that also holds account administration.
+ */
 export function canManageTemplate(role: Role): boolean {
-  return role === "SUPER_ADMIN" || role === "HEAD_OFFICE";
+  return role === "SUPER_ADMIN";
 }
 
 /** Creates and edits user accounts and centres. */

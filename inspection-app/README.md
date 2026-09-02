@@ -75,9 +75,13 @@ password on a system holding photographs from a children's setting.
 
 `db:seed` is a **first-time import**. It replaces the checklist's questions in
 place, and `Answer.questionId` is a foreign key — so once a single inspection
-has been recorded, re-running it fails on that constraint. Changing the
-questions after go-live means publishing a new checklist version rather than
-rewriting the current one; that path is not built yet.
+has been recorded against a version, its questions cannot be replaced. The seed
+checks for that and refuses with an explanation rather than failing halfway on a
+constraint error, and it likewise refuses to run if a newer version already
+exists, which would quietly roll the live standard back.
+
+Changing the checklist after go-live is done in the app, under **Admin →
+Checklist**. See [Editing the checklist](#editing-the-checklist).
 
 ### Changing the schema
 
@@ -172,7 +176,7 @@ version the screens were ported from.
 | Role | Reads | Inspects | Receives reports | Edits the checklist |
 |---|---|---|---|---|
 | Super admin | every centre | yes | — | yes |
-| Head office | every centre | yes | — | yes |
+| Head office | every centre | yes | — | no |
 | Regional manager | their centres | yes | yes | no |
 | Franchisee | their centres | no | yes | no |
 | Head of centre | their centres | no | yes | no |
@@ -246,6 +250,13 @@ Comparison is by question text, not question id: the checklist is versioned, and
 a visit run against v13 must still be comparable with one run against v14. Every
 answer snapshots its question text for exactly this reason. A finding that has
 since been put right simply stops appearing — that is the point of tracking it.
+
+The corollary, worth knowing before rewording a question in the editor: text is
+the thread that ties a finding to the same finding at the next visit. Reword a
+question and its history stops following it — the old failure is on the old
+wording and will not be matched. Correcting a typo is fine; rewriting a question
+that centres are being held to is a decision about the record, not only about
+the wording.
 
 ### Working with no signal
 
@@ -371,6 +382,7 @@ forgotten setting cannot quietly mean nobody was told.
 | Route | What it does |
 |---|---|
 | `GET /api/template` | the live checklist, in inspector order |
+| `PUT /api/template` | replace the checklist (super admin); edits in place or publishes the next version |
 | `GET /api/centres` | the centres this viewer may work with |
 | `GET /api/inspections` | list, scoped to the viewer (`?centre=&from=&to=&limit=`) |
 | `POST /api/inspections` | start a visit; returns the open draft if one already exists for that inspector, centre and day |
@@ -469,6 +481,66 @@ The rules in `core/` test themselves with `node --test`, exactly as they ship.
 Everything else runs under Vitest. The core suite also asserts the shipped
 checklist still matches: 15 sections, 101 questions, 23 centres, 8 critical items.
 
+## Editing the checklist
+
+**Admin → Checklist**, super admin only. `canManageTemplate` in
+`src/lib/access.ts` is the single gate: the page redirects, the nav link is
+absent, and `PUT /api/template` answers 403. Head office runs the operation and
+reads all of it, but the checklist is the standard the operation is judged
+against, and setting that is kept with the one role that also holds account
+administration.
+
+The whole checklist is one document, edited and saved in one request. Sections
+and questions can be added, reworded, reordered, moved between sections and
+removed; a question carries its type, its options or bounds, its size targets,
+whether it is critical, and the guidance the inspector reads on the day.
+
+### Why it does not simply overwrite
+
+`Answer.questionId` is a real foreign key. An answer must keep pointing at the
+question it was an answer to, so a question that has been answered cannot be
+edited away. `Template.version` is the way out:
+
+- A version **no inspection has used** is still a draft, and is saved in place.
+- A version **one or more inspections have used** is a historical record. Saving
+  copies the whole checklist to `version + 1`, makes the copy live, and edits
+  that.
+
+Drafts count as use. An inspector standing in a centre halfway through a visit
+finishes on the checklist they started with — questions never appear or vanish
+mid-inspection — and recorded inspections keep rendering exactly as they were,
+because each one holds the version it was carried out under.
+
+Versions therefore climb only when the checklist has actually been *used* since
+the last edit. Three corrections on the morning it is written all stay on the
+same version. The editor says which of the two will happen before you press the
+button, and the button reads "Save changes" or "Publish v14" accordingly.
+
+Two people editing at once is caught rather than silently resolved: a save
+carries the version it was built on, and one built on a version that has since
+moved on is refused with a 409 saying so.
+
+### What it will not let you save
+
+Checked in `src/lib/checklist.ts`, in the browser as you type and again on the
+server:
+
+- a multiple choice with fewer than two options, or two options that read the
+  same — the question would be unanswerable
+- a scale whose top is not above its bottom — `itemScore` divides by the range
+- an empty checklist, an empty section, an unworded question
+- a session counter key the tally bar has no label for
+
+Settings a question's type does not read are stripped rather than stored: a
+rating question cannot keep options, `photoExempt` only survives on a critical
+item, and `scored` only on a multiple choice. A stored field nothing reads is a
+trap — it survives a type change and quietly starts being read again if the type
+is switched back.
+
+Every save is written to the audit log as `template.publish` or
+`template.update`, with the version, the counts, and how many questions were
+added, removed and edited. That group is readable by the super admin alone.
+
 ## Data
 
 `data/gotutors-seed.json` is checklist **v13** in the prototype's own export
@@ -490,11 +562,13 @@ they were run under.
 2. ~~Auth, roles, and the inspection API.~~ Done.
 3. ~~The inspector screens.~~ Done, including the session tally counters.
 4. ~~Photo and signature upload.~~ Done, on local disk or S3.
-5. Report PDF. ~~Generated and logged.~~ Done — **emailing it has not been built**;
-   a report reaches the head of centre through the app, not their inbox.
-6. Cross-centre dashboards, CSV export, signature capture, and a screen for
-   editing the checklist.
-7. ~~Password reset.~~ Done.
+5. ~~Report PDF, generated, logged and emailed.~~ Done — a submitted report is
+   attached to a message to whoever runs the centre, with retries and a delivery
+   record, and is also waiting in their account.
+6. ~~A screen for editing the checklist.~~ Done — see
+   [Editing the checklist](#editing-the-checklist).
+7. Cross-centre dashboards, CSV export and signature capture.
+8. ~~Password reset.~~ Done.
 
 ## Deploying it
 

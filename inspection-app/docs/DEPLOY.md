@@ -313,6 +313,13 @@ say what the answer is:
    captures one during the visit but deliberately does not email it: sending
    photographs from a children's setting to an unverified address someone typed
    on a phone should be a decision, not a default.
+6. **Who signs off a change to the checklist.** It is editable in the app by the
+   super admin, and every edit is versioned and logged, so the mechanism is
+   safe. What it cannot decide is whether a centre scored 82% under v13 and 79%
+   under v14 got worse or was marked harder. Two things follow: rewording a
+   question breaks the thread that tracks a repeat finding (see the README), and
+   changing what counts as critical changes what "Serious finding" means. Worth
+   agreeing who approves a change and when in the year it may happen.
 
 ---
 

@@ -9,7 +9,7 @@ import type { Role } from "@prisma/client";
  * discovered to be incomplete when someone needs it.
  */
 
-export type AuditGroup = "people" | "centres" | "inspections" | "visits";
+export type AuditGroup = "people" | "checklist" | "centres" | "inspections" | "visits";
 
 interface ActionMeta {
   group: AuditGroup;
@@ -38,6 +38,13 @@ export const ACTIONS: Record<string, ActionMeta> = {
   "password.forgot": { group: "people", label: "Password reset requested" },
   "password.reset": { group: "people", label: "Password reset used", notable: true },
 
+  // The checklist is the standard every inspection is measured against, so a
+  // change to it is read alongside account administration rather than with the
+  // inspections it scores: knowing the bar moved is what makes two inspections
+  // months apart comparable at all.
+  "template.update": { group: "checklist", label: "Checklist edited", notable: true },
+  "template.publish": { group: "checklist", label: "New checklist version published", notable: true },
+
   "centre.create": { group: "centres", label: "Centre added" },
   "centre.update": { group: "centres", label: "Centre changed" },
   "centre.close": { group: "centres", label: "Centre closed", notable: true },
@@ -59,6 +66,7 @@ export const ACTIONS: Record<string, ActionMeta> = {
 
 export const GROUP_LABEL: Record<AuditGroup, string> = {
   people: "People",
+  checklist: "Checklist",
   centres: "Centres",
   inspections: "Inspections",
   visits: "Visits",
@@ -80,6 +88,7 @@ export function describe(action: string): ActionMeta {
  */
 function groupOf(action: string): AuditGroup {
   const prefix = action.split(".")[0];
+  if (prefix === "template") return "checklist";
   if (prefix === "centre") return "centres";
   if (prefix === "visit") return "visits";
   if (prefix === "inspection") return "inspections";
@@ -93,10 +102,12 @@ function groupOf(action: string): AuditGroup {
  * visits and centres. Account administration — who was created, deactivated, or
  * had their password changed — stays with the super admin: it is the record of
  * who holds access, and the people who hold access should not be the only ones
- * who can quietly read it.
+ * who can quietly read it. Checklist changes sit with the super admin for the
+ * same reason: only that role can make one, so only that role's own log needs
+ * to show it.
  */
 export function visibleGroups(role: Role): AuditGroup[] {
-  if (role === "SUPER_ADMIN") return ["people", "centres", "inspections", "visits"];
+  if (role === "SUPER_ADMIN") return ["people", "checklist", "centres", "inspections", "visits"];
   if (role === "HEAD_OFFICE") return ["centres", "inspections", "visits"];
   return [];
 }
@@ -145,6 +156,16 @@ const KEY_LABELS: Record<string, string> = {
   name: "name",
   email: "email",
   centre: "centre",
+  version: "version",
+  from: "replaces",
+  sections: "sections",
+  questions: "questions",
+  critical: "critical items",
+  added: "questions added",
+  removed: "questions removed",
+  edited: "questions edited",
+  sectionsAdded: "sections added",
+  sectionsRemoved: "sections removed",
 };
 
 function label(key: string): string {

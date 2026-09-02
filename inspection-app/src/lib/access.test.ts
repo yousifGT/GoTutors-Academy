@@ -25,8 +25,8 @@ describe("what each role may do", () => {
     expect(canConduct("READ_ONLY")).toBe(false);
   });
 
-  it("the checklist is edited by head office and above only", () => {
-    expect(ROLES.filter(canManageTemplate)).toEqual(["SUPER_ADMIN", "HEAD_OFFICE"]);
+  it("the checklist is the super admin's alone; head office manages centres", () => {
+    expect(ROLES.filter(canManageTemplate)).toEqual(["SUPER_ADMIN"]);
     expect(ROLES.filter(canManageCentres)).toEqual(["SUPER_ADMIN", "HEAD_OFFICE"]);
     expect(ROLES.filter(canManageUsers)).toEqual(["SUPER_ADMIN"]);
   });

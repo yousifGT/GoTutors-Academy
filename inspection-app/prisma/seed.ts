@@ -12,6 +12,10 @@
  * against, and each answer stores its own question text, so old reports stay
  * readable after the checklist moves on.
  *
+ * This is the *first* import. Day-to-day changes to the checklist are made in
+ * the app, under Admin → Checklist; re-running this against a version that has
+ * been inspected against is refused rather than allowed to break it.
+ *
  * Centres are matched by name and only created when missing — an existing
  * centre's details are never overwritten, so this is safe to re-run against a
  * live database.
@@ -94,21 +98,60 @@ async function main() {
   //
   // THIS ONLY WORKS ON A CHECKLIST NOTHING HAS BEEN INSPECTED AGAINST YET.
   // `Answer.questionId` is a real foreign key, so once a single inspection has
-  // been recorded against this version, deleting its questions is refused and
-  // this whole import fails. An earlier comment here claimed recorded
-  // inspections were untouched because each answer snapshots its question text
-  // — the text is snapshotted, but the key still points at the row.
+  // been recorded against this version, deleting its questions is refused. An
+  // earlier comment here claimed recorded inspections were untouched because
+  // each answer snapshots its question text — the text is snapshotted, but the
+  // key still points at the row.
   //
-  // So: this is a first-time import, not a way to edit a live checklist.
-  // Changing the questions after go-live means publishing a NEW version — a new
-  // Template row alongside the old one, leaving recorded inspections readable
-  // against the checklist they were actually run under. That path is not built
-  // yet; see docs/DEPLOY.md §6.
+  // So this is a first-time import, not a way to edit a live checklist. Editing
+  // one after go-live is done in the app, under Admin → Checklist: a version
+  // that has been inspected against is copied to the next version and the copy
+  // is edited, leaving recorded inspections readable against the checklist they
+  // were actually run under. See `src/lib/checklist.ts`.
+  //
+  // Rather than let the foreign key stop this halfway through with a constraint
+  // error nobody can read, check first and say what is really going on. Both
+  // checks run BEFORE anything is written: a guard that fires after the upsert
+  // has already flipped `isActive` leaves two live versions behind.
+  const existing = await prisma.template.findUnique({
+    where: { name_version: { name: TEMPLATE_NAME, version: checklistVersion } },
+    select: { id: true, _count: { select: { inspections: true } } },
+  });
+  if (existing && existing._count.inspections > 0) {
+    throw new Error(
+      `Checklist v${checklistVersion} has ${existing._count.inspections} inspection(s) recorded against it, so ` +
+        `re-importing it would destroy the questions those answers point at.\n\n` +
+        `To change a checklist that has been used, edit it in the app under Admin \u2192 Checklist. That publishes a ` +
+        `new version and leaves the recorded inspections on the one they were carried out against.\n\n` +
+        `To import this file as a new version instead, raise "checklistVersion" in data/gotutors-seed.json.`
+    );
+  }
+
+  // This import makes its version the live one. If a later version already
+  // exists, that would quietly roll the checklist back to an older standard,
+  // and every inspection from then on would be scored against it. Going back is
+  // a decision, not a side effect of re-running the seed.
+  const newer = await prisma.template.findFirst({
+    where: { name: TEMPLATE_NAME, version: { gt: checklistVersion } },
+    orderBy: { version: "desc" },
+    select: { version: true },
+  });
+  if (newer) {
+    throw new Error(
+      `The database is on checklist v${newer.version}, which is newer than the v${checklistVersion} in ` +
+        `data/gotutors-seed.json. Importing would make the older one live again, and every inspection from now on ` +
+        `would be scored against it.\n\n` +
+        `The checklist is edited in the app under Admin \u2192 Checklist. If you really do mean to go back to ` +
+        `v${checklistVersion}, deactivate the newer versions first.`
+    );
+  }
+
   const tpl = await prisma.template.upsert({
     where: { name_version: { name: TEMPLATE_NAME, version: checklistVersion } },
     update: { isActive: true },
     create: { name: TEMPLATE_NAME, version: checklistVersion, isActive: true },
   });
+
   await prisma.section.deleteMany({ where: { templateId: tpl.id } });
 
   // Only one version of the checklist is the live one.

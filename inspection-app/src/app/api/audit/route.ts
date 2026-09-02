@@ -4,7 +4,7 @@ import { withRoute } from "@/lib/api";
 import { viewerOr401 } from "@/lib/session";
 import { canReadAudit, readableActions, type AuditGroup } from "@/lib/audit-view";
 
-const GROUPS: AuditGroup[] = ["people", "centres", "inspections", "visits"];
+const GROUPS: AuditGroup[] = ["people", "checklist", "centres", "inspections", "visits"];
 const PAGE = 100;
 
 /**
