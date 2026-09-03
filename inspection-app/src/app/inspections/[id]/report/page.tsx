@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { inspectionScope } from "@/lib/access";
+import { inspectionScope, readsWholeCentre } from "@/lib/access";
 import { fmtDuration } from "@/lib/core";
 import { buildReport, reportInclude } from "@/lib/report";
 import { previouslyFlaggedAt } from "@/lib/previous";
@@ -21,7 +21,7 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
 
   const inspection = await prisma.inspection.findFirst({
     where: { AND: [{ id: params.id }, inspectionScope({ id: user.id, role: user.role })] },
-    include: reportInclude,
+    include: { ...reportInclude, centre: { select: { name: true, managers: { select: { id: true } } } } },
   });
   if (!inspection) notFound();
 
@@ -34,7 +34,10 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
   });
 
   // The same assembly the PDF uses, so the two cannot disagree.
-  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, {
+      exclude: inspection.id,
+      before: { date: inspection.date, createdAt: inspection.createdAt },
+    }));
   const colour = VERDICT_COLOR[report.verdict] ?? "#1C1960";
 
   return (
@@ -44,6 +47,11 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
           ← All inspections
         </Link>
         <div className="flex gap-3 text-sm">
+          {readsWholeCentre({ id: user.id, role: user.role }, inspection.centre.managers.map((m) => m.id)) && (
+            <Link href={`/centres/${inspection.centreId}`} className="text-sky-600">
+              Progress over time
+            </Link>
+          )}
           <a href={`/api/inspections/${params.id}/pdf?inline=1`} target="_blank" rel="noreferrer" className="text-sky-600">
             View PDF
           </a>

@@ -22,7 +22,7 @@ export default async function Home() {
   const viewer = { id: user.id, role: user.role };
 
   const today = todayISO();
-  const [centres, inspections, template, unread, assigned, visits] = await Promise.all([
+  const [centres, inspections, template, unread, assigned, visits, responsible] = await Promise.all([
     prisma.centre.count({ where: { ...centreScope(viewer), status: "OPEN" } }),
     prisma.inspection.findMany({
       where: inspectionScope(viewer),
@@ -75,6 +75,25 @@ export default async function Home() {
         centre: { select: { id: true, name: true, size: true } },
       },
     }),
+    // The centres this viewer answers for. A head of centre lands here with a
+    // list of new reports and no way through to how their own centre is doing
+    // over time, which is the thing they actually want to know.
+    isCentreScoped(viewer.role)
+      ? prisma.centre.findMany({
+          where: { managers: { some: { id: user.id } } },
+          orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            inspections: {
+              where: { status: "SUBMITTED" },
+              orderBy: [{ date: "desc" }, { createdAt: "desc" }],
+              take: 1,
+              select: { date: true, scorePct: true, verdict: true },
+            },
+          },
+        })
+      : Promise.resolve([]),
   ]);
 
   const drafts = inspections.filter((i) => i.status === "DRAFT");
@@ -151,6 +170,46 @@ export default async function Home() {
       )}
 
       <VisitList visits={visits} today={today} />
+
+      {responsible.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+            {responsible.length === 1 ? "Your centre" : "Your centres"}
+          </h2>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {responsible.map((c) => {
+              const last = c.inspections[0];
+              return (
+                <li key={c.id}>
+                  <Link
+                    href={`/centres/${c.id}`}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-white p-4 ring-1 ring-slate-200 hover:bg-slate-50"
+                  >
+                    <span className="min-w-0">
+                      <span className="block font-medium text-slate-800">{c.name}</span>
+                      <span className="block text-xs text-slate-500">
+                        {last ? `Last inspected ${shortDate(last.date)}` : "Never inspected"}
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-sky-600">
+                        See what has improved →
+                      </span>
+                    </span>
+                    {last && (
+                      <span
+                        className="shrink-0 text-right font-semibold"
+                        style={{ color: VERDICT_COLOR[last.verdict ?? ""] ?? "#334155" }}
+                      >
+                        {last.scorePct}%
+                        <span className="block text-xs font-medium">{last.verdict}</span>
+                      </span>
+                    )}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {assigned.length > 0 && (
         <section className="mt-8">

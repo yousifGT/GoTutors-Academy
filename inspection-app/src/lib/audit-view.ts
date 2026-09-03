@@ -54,6 +54,11 @@ export const ACTIONS: Record<string, ActionMeta> = {
   "inspection.submit": { group: "inspections", label: "Inspection submitted", notable: true },
   "inspection.discard": { group: "inspections", label: "Draft discarded", notable: true },
   "inspection.pdf": { group: "inspections", label: "Report downloaded" },
+  // A bulk export is a different kind of event from opening one report: it is
+  // the moment a slice of the record leaves in a form nothing here controls any
+  // more. Recorded with who, what and how much, and marked worth noticing.
+  "export.inspections": { group: "inspections", label: "Inspections exported to CSV", notable: true },
+  "export.answers": { group: "inspections", label: "Answers exported to CSV", notable: true },
 
   "visit.book": { group: "visits", label: "Visit booked" },
   "visit.update": { group: "visits", label: "Visit changed" },
@@ -166,6 +171,9 @@ const KEY_LABELS: Record<string, string> = {
   edited: "questions edited",
   sectionsAdded: "sections added",
   sectionsRemoved: "sections removed",
+  rows: "rows",
+  filters: "covering",
+  inspections: "inspections",
 };
 
 function label(key: string): string {

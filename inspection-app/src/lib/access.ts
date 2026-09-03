@@ -82,6 +82,24 @@ export function inspectionScope(viewer: Viewer): Prisma.InspectionWhereInput {
   return { inspectorId: viewer.id };
 }
 
+/**
+ * Whether this viewer reads *every* inspection at a centre, rather than only
+ * their own work there.
+ *
+ * The gate on the centre dashboard, which is built by comparing consecutive
+ * visits. Someone seeing a subset would get a comparison drawn between two
+ * visits that were not consecutive — "put right since the last visit" measured
+ * against a visit that was not the last one. That is worse than no dashboard,
+ * because it reads as fact.
+ *
+ * It grants nothing new: exactly the people whose `inspectionScope` already
+ * covers all of that centre's inspections.
+ */
+export function readsWholeCentre(viewer: Viewer, centreManagerIds: string[]): boolean {
+  if (canViewAllCentres(viewer.role)) return true;
+  return isCentreScoped(viewer.role) && centreManagerIds.includes(viewer.id);
+}
+
 /** A Prisma `Centre` where-filter for the centres this viewer may see. */
 export function centreScope(viewer: Viewer): Prisma.CentreWhereInput {
   if (canViewAllCentres(viewer.role)) return {};

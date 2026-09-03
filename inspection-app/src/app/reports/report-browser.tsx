@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { VERDICT_COLOR } from "@/components/brand";
 import { SIZE_SHORT, shortDate } from "@/lib/format";
 import { fmtDuration } from "@/lib/core";
+import { ExportMenu } from "@/components/export-menu";
 
 interface Row {
   id: string;
@@ -32,10 +33,13 @@ export function ReportBrowser({
   centres,
   months,
   unread,
+  dashboards,
 }: {
   centres: { id: string; name: string }[];
   months: string[];
   unread: number;
+  /** Centres this viewer reads in full, and so may open the progress page for. */
+  dashboards: string[];
 }) {
   const [centre, setCentre] = useState("");
   const [month, setMonth] = useState("");
@@ -44,16 +48,22 @@ export function ReportBrowser({
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
 
-  const load = useCallback(async () => {
+  // The filters, as the API reads them. The list and the CSV export are handed
+  // the same object, so the file is always the rows on screen.
+  const params = useMemo(() => {
     const p = new URLSearchParams();
     if (centre) p.set("centre", centre);
     if (month) p.set("month", month);
     if (status) p.set("status", status);
     if (unreadOnly) p.set("unread", "1");
     if (q.trim()) p.set("q", q.trim());
-    const res = await fetch(`/api/inspections?${p}`);
-    setRows(res.ok ? await res.json() : []);
+    return p;
   }, [centre, month, status, unreadOnly, q]);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`/api/inspections?${params}`);
+    setRows(res.ok ? await res.json() : []);
+  }, [params]);
 
   // Typing filters as you go, but not on every keystroke — a search that fires
   // per character makes the list flicker and hammers the server.
@@ -144,9 +154,13 @@ export function ReportBrowser({
         </p>
       ) : (
         <>
-          <p className="mt-5 text-xs text-slate-500">
-            {rows.length} inspection{rows.length === 1 ? "" : "s"}
-          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <p className="text-slate-500">
+              {rows.length} inspection{rows.length === 1 ? "" : "s"}
+              {rows.length === 100 && " (showing the most recent 100 — the export covers them all)"}
+            </p>
+            <ExportMenu params={params} label="Download as CSV" />
+          </div>
           <ul className="mt-2 divide-y divide-slate-200 overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
             {rows.map((r) => {
               const delivery = r.deliveries[0];
@@ -170,6 +184,15 @@ export function ReportBrowser({
                       {r.activeMs > 0 && ` · ${fmtDuration(r.activeMs)}`}
                     </p>
                   </Link>
+
+                  {dashboards.includes(r.centre.id) && (
+                    <Link
+                      href={`/centres/${r.centre.id}`}
+                      className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-navy"
+                    >
+                      Progress
+                    </Link>
+                  )}
 
                   {r.status === "DRAFT" ? (
                     <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">

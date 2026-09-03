@@ -2,32 +2,50 @@ import { prisma } from "@/lib/prisma";
 import { previouslyFlaggedSet, type PreviouslyFlagged } from "@/lib/repeat";
 
 /**
- * What the last completed visit to this centre flagged.
+ * What the visit before this one flagged.
  *
- * Matched on the stored question text rather than the question id: the checklist
- * is versioned, and an inspection run against v13 must still be comparable with
- * one run against v14. The text is snapshotted on every answer for exactly this
- * reason.
+ * Matched on the stored question text rather than the question id: the
+ * checklist is versioned, and an inspection run against v13 must still be
+ * comparable with one run against v14. The text is snapshotted on every answer
+ * for exactly this reason.
  */
 export async function previouslyFlaggedAt(
   centreId: string,
-  excludeInspectionId?: string,
-  /**
-   * The date of the inspection being reported on. Without it, "the last visit"
-   * means the most recent one that exists NOW — so opening a March report after
-   * a June visit derives its repeat section from June, and the archived
-   * document accuses the centre of not having fixed something before the visit
-   * that first raised it. Everything else about a submitted inspection is
-   * pinned to what was true at the time; this was the one panel that was not.
-   */
-  before?: Date
+  opts: {
+    /** The inspection being reported on, so it is not compared with itself. */
+    exclude?: string;
+    /**
+     * Where the inspection being reported on sits in the centre's history.
+     * Without it, "the last visit" means the most recent one that exists NOW —
+     * so opening a March report after a June visit derives its repeat section
+     * from June, and the archived document accuses the centre of not having
+     * fixed something before the visit that first raised it.
+     *
+     * `createdAt` breaks the tie when two visits share a date. Ordering on the
+     * date alone, two inspections of one centre on one day are indistinguishable,
+     * and the earlier of the two would be compared against the later — reporting
+     * a finding as unfixed before it had been raised. Rare, and wrong in the
+     * direction that accuses a centre of something.
+     *
+     * Left out while an inspection is still being carried out: the inspector
+     * wants the last completed visit, whenever it was.
+     */
+    before?: { date: Date; createdAt: Date };
+  } = {}
 ): Promise<PreviouslyFlagged> {
   const last = await prisma.inspection.findFirst({
     where: {
       centreId,
       status: "SUBMITTED",
-      ...(excludeInspectionId ? { id: { not: excludeInspectionId } } : {}),
-      ...(before ? { date: { lte: before } } : {}),
+      ...(opts.exclude ? { id: { not: opts.exclude } } : {}),
+      ...(opts.before
+        ? {
+            OR: [
+              { date: { lt: opts.before.date } },
+              { date: opts.before.date, createdAt: { lt: opts.before.createdAt } },
+            ],
+          }
+        : {}),
     },
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     select: {

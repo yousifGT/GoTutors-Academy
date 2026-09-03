@@ -31,7 +31,7 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
 
   // What the last visit flagged, so the inspector knows where to look before
   // they answer rather than finding out when the report is written.
-  const previouslyFlagged = await previouslyFlaggedAt(inspection.centreId, inspection.id);
+  const previouslyFlagged = await previouslyFlaggedAt(inspection.centreId, { exclude: inspection.id });
 
   return (
     <Runner

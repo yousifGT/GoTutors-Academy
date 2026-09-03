@@ -126,7 +126,10 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
     });
     if (!inspection) throw new Error("inspection not found");
 
-    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
+    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, {
+      exclude: inspection.id,
+      before: { date: inspection.date, createdAt: inspection.createdAt },
+    }));
     const photos = await loadPhotos(photoUrls(report));
     const pdf = await renderReportPdf(report, photos.resolve);
     if (photos.missing.length) {

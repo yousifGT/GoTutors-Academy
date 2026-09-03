@@ -37,7 +37,10 @@ export const GET = withRoute(async (req: Request, ctx: Ctx) => {
   // the document that leaves the building says nothing was left unfixed, while
   // head office looking at the same inspection in a browser sees it flagged —
   // two versions of the same record disagreeing on the most consequential line.
-  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, inspection.id, inspection.date));
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, {
+      exclude: inspection.id,
+      before: { date: inspection.date, createdAt: inspection.createdAt },
+    }));
   const photos = await loadPhotos(photoUrls(report));
   const pdf = await renderReportPdf(report, photos.resolve);
 

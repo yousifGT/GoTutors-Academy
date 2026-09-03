@@ -5,7 +5,8 @@ import { withRoute } from "@/lib/api";
 import { parseJson } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { viewerOr401 } from "@/lib/session";
-import { canConduct, centreScope, inspectionScope } from "@/lib/access";
+import { canConduct, centreScope } from "@/lib/access";
+import { inspectionWhere, parseInspectionFilters } from "@/lib/inspection-query";
 
 const StartSchema = z.object({
   centreId: z.string().min(1),
@@ -33,45 +34,11 @@ export const GET = withRoute(async (req: Request) => {
   if ("response" in who) return who.response;
 
   const url = new URL(req.url);
-  const centreId = url.searchParams.get("centre");
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
-  /** YYYY-MM — the way people actually ask: "the March visits". */
-  const month = url.searchParams.get("month");
-  const status = url.searchParams.get("status");
-  const q = url.searchParams.get("q")?.trim();
-  const unreadOnly = url.searchParams.get("unread") === "1";
+  const filters = parseInspectionFilters(url);
   const take = Math.min(Number(url.searchParams.get("limit")) || 100, 500);
 
-  let range: { gte?: Date; lte?: Date } | null = null;
-  if (month && /^\d{4}-\d{2}$/.test(month)) {
-    const [y, m] = month.split("-").map(Number);
-    // Day 0 of the next month is the last day of this one, so this holds for
-    // February and for leap years without special-casing either.
-    range = { gte: new Date(Date.UTC(y, m - 1, 1)), lte: new Date(Date.UTC(y, m, 0)) };
-  } else if (from || to) {
-    range = { ...(from ? { gte: new Date(from) } : {}), ...(to ? { lte: new Date(to) } : {}) };
-  }
-
   const inspections = await prisma.inspection.findMany({
-    where: {
-      AND: [
-        inspectionScope(who.viewer),
-        centreId ? { centreId } : {},
-        range ? { date: range } : {},
-        status === "DRAFT" || status === "SUBMITTED" ? { status } : {},
-        unreadOnly ? { deliveries: { some: { userId: who.viewer.id, readAt: null } } } : {},
-        q
-          ? {
-              OR: [
-                { centre: { name: { contains: q, mode: "insensitive" } } },
-                { inspector: { name: { contains: q, mode: "insensitive" } } },
-                { verdict: { contains: q, mode: "insensitive" } },
-              ],
-            }
-          : {},
-      ],
-    },
+    where: inspectionWhere(who.viewer, filters),
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     take,
     select: {

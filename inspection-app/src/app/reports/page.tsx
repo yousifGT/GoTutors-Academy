@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { canViewAllCentres, centreScope, inspectionScope, isCentreScoped } from "@/lib/access";
+import { canViewAllCentres, centreScope, inspectionScope, isCentreScoped, readsWholeCentre } from "@/lib/access";
 import { Wordmark } from "@/components/brand";
 import { ReportBrowser } from "./report-browser";
 
@@ -15,7 +15,7 @@ export default async function ReportsPage() {
     prisma.centre.findMany({
       where: centreScope(viewer),
       orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true },
+      select: { id: true, name: true, managers: { select: { id: true } } },
     }),
     // Months that actually contain something, so the filter never offers an
     // empty one.
@@ -50,7 +50,14 @@ export default async function ReportsPage() {
             : "The inspections you carried out."}
       </p>
 
-      <ReportBrowser centres={centres} months={monthKeys} unread={unread} />
+      <ReportBrowser
+        centres={centres.map((c) => ({ id: c.id, name: c.name }))}
+        months={monthKeys}
+        unread={unread}
+        dashboards={centres
+          .filter((c) => readsWholeCentre(viewer, c.managers.map((m) => m.id)))
+          .map((c) => c.id)}
+      />
     </main>
   );
 }

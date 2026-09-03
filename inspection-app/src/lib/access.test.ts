@@ -5,6 +5,7 @@ import {
   canEditInspection,
   canManageCentres,
   canManageTemplate,
+  readsWholeCentre,
   canManageUsers,
   canViewAllCentres,
   centreScope,
@@ -87,5 +88,33 @@ describe("canEditInspection", () => {
   it("a role that cannot inspect cannot edit, even its own centre's draft", () => {
     expect(canEditInspection(who("FRANCHISEE"), draft)).toBe(false);
     expect(canEditInspection(who("READ_ONLY"), draft)).toBe(false);
+  });
+});
+
+describe("readsWholeCentre", () => {
+  const mine = ["u-head"];
+
+  it("lets through the roles that already read every centre", () => {
+    for (const role of ["SUPER_ADMIN", "HEAD_OFFICE", "READ_ONLY"] as const)
+      expect(readsWholeCentre({ id: "u-x", role }, mine)).toBe(true);
+  });
+
+  it("lets a centre-scoped viewer into the centre they are responsible for", () => {
+    expect(readsWholeCentre({ id: "u-head", role: "CENTRE_HEAD" }, mine)).toBe(true);
+    expect(readsWholeCentre({ id: "u-head", role: "FRANCHISEE" }, mine)).toBe(true);
+    expect(readsWholeCentre({ id: "u-head", role: "REGIONAL_MANAGER" }, mine)).toBe(true);
+  });
+
+  it("keeps them out of a centre that is not theirs", () => {
+    expect(readsWholeCentre({ id: "u-other", role: "CENTRE_HEAD" }, mine)).toBe(false);
+  });
+
+  it("keeps out an inspector, who reads only their own visits", () => {
+    // They may be sent anywhere, so they see every centre in the picker — but
+    // they read only the inspections they carried out. A comparison drawn
+    // across a subset of a centre's visits would not be the comparison it
+    // claims to be.
+    expect(readsWholeCentre({ id: "u-insp", role: "INSPECTOR" }, mine)).toBe(false);
+    expect(readsWholeCentre({ id: "u-insp", role: "INSPECTOR" }, ["u-insp"])).toBe(false);
   });
 });

@@ -313,7 +313,13 @@ say what the answer is:
    captures one during the visit but deliberately does not email it: sending
    photographs from a children's setting to an unverified address someone typed
    on a phone should be a decision, not a default.
-6. **Who signs off a change to the checklist.** It is editable in the app by the
+6. **Who may take a bulk export, and where those files may go.** Any signed-in
+   person can download the inspections they can already read as a CSV, and every
+   export is logged. What the log cannot decide is what happens next: a
+   spreadsheet of findings across every centre is a different object from one
+   report on one screen once it is on a laptop or in an inbox. Worth a line in
+   the retention policy alongside the photographs.
+7. **Who signs off a change to the checklist.** It is editable in the app by the
    super admin, and every edit is versioned and logged, so the mechanism is
    safe. What it cannot decide is whether a centre scored 82% under v13 and 79%
    under v14 got worse or was marked harder. Two things follow: rewording a

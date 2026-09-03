@@ -382,6 +382,7 @@ forgotten setting cannot quietly mean nobody was told.
 | Route | What it does |
 |---|---|
 | `GET /api/template` | the live checklist, in inspector order |
+| `GET /api/export` | the same inspections as a CSV (`?type=inspections\|answers` plus the list filters) |
 | `PUT /api/template` | replace the checklist (super admin); edits in place or publishes the next version |
 | `GET /api/centres` | the centres this viewer may work with |
 | `GET /api/inspections` | list, scoped to the viewer (`?centre=&from=&to=&limit=`) |
@@ -481,6 +482,89 @@ The rules in `core/` test themselves with `node --test`, exactly as they ship.
 Everything else runs under Vitest. The core suite also asserts the shipped
 checklist still matches: 15 sections, 101 questions, 23 centres, 8 critical items.
 
+## A centre over time
+
+**`/centres/<id>`** — the question the person running a centre actually has, which
+is whether it is getting better. The report answers "how was this visit"; this
+answers "am I getting anywhere", and in particular tells them what they were
+asked to fix and have.
+
+That half was missing. The report has always led with what was flagged *again*,
+and nothing anywhere worked out what had been **put right** — so a centre head
+read every report as a list of failures with no way to see that six of last
+quarter's ten findings were gone.
+
+Four things can have happened to a finding since the last visit, and the page
+keeps them apart:
+
+| | |
+|---|---|
+| **Put right** | flagged last visit, answered acceptably this time |
+| **Still not fixed** | flagged last visit and flagged again |
+| **New this visit** | flagged for the first time |
+| **Not checked again** | flagged last visit and not answered this time — unanswered, marked N/A, or no longer on the checklist |
+
+The fourth is separate from the first on purpose. A question nobody asked again
+is not a problem anybody solved, and folding the two together would report
+progress that never happened.
+
+Alongside them: the latest score and verdict with the change in points, the
+critical items outstanding, a trend of the score at each visit, everything still
+flagged with **how many visits running** it has been (a finding raised three
+visits in a row is a different thing from one raised once), and the full visit
+history.
+
+Comparison is on question wording, the same thread the repeat badges use, since
+the checklist is versioned and question ids do not survive a new version. Reword
+a question in the editor and its history stops following it — the old finding
+reads as dropped and the new wording as new. See `src/lib/progress.ts`.
+
+**Who sees it** is `readsWholeCentre` in `src/lib/access.ts`: the roles that
+already read every inspection at that centre — super admin, head office,
+read-only, and the centre's own head, franchisee or regional manager. An
+inspector is not among them, deliberately: they read only their own visits, so
+"since the last visit" would be measured against a visit that was not the last
+one, which is worse than no dashboard because it reads as fact.
+
+A head of centre reaches it from their home screen, which lists their centres
+with the latest verdict; everyone else from the **Progress** button on the
+inspections list, or from any report.
+
+## Taking the data out
+
+**Download as CSV**, on the inspections list and on each centre page. Two
+shapes, because two different questions get asked of the same rows:
+
+- **Inspections** — one row per visit: score, verdict, the four answer counts,
+  critical failures, how many findings were put right / still not fixed / new,
+  time on site, checklist version, who the debrief was with, and a link back to
+  the report.
+- **Answers** — one row per answer: section, question as worded on the day,
+  type, whether it is critical, the answer in the words the report uses, the
+  result, whether it is a repeat, the notes with the tutor each is about, and a
+  photo count.
+
+Both read through `inspectionWhere` — the same filter the list screen uses — so
+a file can never cover a different set from the page it was taken from, and both
+are scoped to what the viewer may already read one report at a time. A head of
+centre gets their centre; an inspector gets their own visits.
+
+Two things `src/lib/csv.ts` handles that a join-with-commas would not:
+
+- Notes are free text holding commas, quotation marks and line breaks. A note
+  broken across two rows silently misaligns every column after it.
+- A cell beginning `=`, `+`, `-` or `@` is a **formula** to Excel, Sheets and
+  LibreOffice alike, and these notes are typed by people on site into a system
+  holding photographs from a children's setting, then emailed onwards. Such a
+  cell is prefixed with an apostrophe so it arrives as text.
+
+The file opens as UTF-8 in Excel (byte-order mark), uses RFC 4180 line endings,
+and is served `no-store`. Size is capped — 2,000 inspections, or 500 for the
+answers file — and going over is refused with a message saying to narrow the
+range, rather than returning a truncated file that looks complete. **Every
+export is written to the audit log** with who took it, how many rows, and what
+it covered: it adds no visibility, but it changes how much leaves in one go.
+
 ## Editing the checklist
 
 **Admin → Checklist**, super admin only. `canManageTemplate` in
@@ -567,8 +651,11 @@ they were run under.
    record, and is also waiting in their account.
 6. ~~A screen for editing the checklist.~~ Done — see
    [Editing the checklist](#editing-the-checklist).
-7. Cross-centre dashboards, CSV export and signature capture.
-8. ~~Password reset.~~ Done.
+7. ~~A per-centre progress view and CSV export.~~ Done — see
+   [A centre over time](#a-centre-over-time) and
+   [Taking the data out](#taking-the-data-out).
+8. Cross-centre dashboards (every centre at once, ranked) and signature capture.
+9. ~~Password reset.~~ Done.
 
 ## Deploying it
 
