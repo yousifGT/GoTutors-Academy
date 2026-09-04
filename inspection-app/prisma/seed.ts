@@ -85,12 +85,29 @@ function json(v: unknown): Prisma.InputJsonValue | typeof Prisma.DbNull {
   return v == null ? Prisma.DbNull : (v as Prisma.InputJsonValue);
 }
 
+/**
+ * Which checklist file to import. Defaults to the real one; pass a path to
+ * import another — `data/demo-checklist.json` is a two-question version for
+ * walking the app end to end without answering 101 questions.
+ *
+ *   npm run db:seed
+ *   npm run db:seed -- data/demo-checklist.json
+ */
+function seedFile(): string {
+  const given = process.argv[2];
+  if (!given) return path.join(__dirname, "..", "data", "gotutors-seed.json");
+  return path.isAbsolute(given) ? given : path.join(process.cwd(), given);
+}
+
 async function main() {
-  const file = path.join(__dirname, "..", "data", "gotutors-seed.json");
+  const file = seedFile();
   const seed = JSON.parse(readFileSync(file, "utf8")) as SeedFile;
   const { checklistVersion, centres, template } = seed.config;
 
-  console.log(`Importing checklist v${checklistVersion} — ${template.length} sections, ${template.reduce((n, s) => n + s.items.length, 0)} questions`);
+  console.log(
+    `Importing checklist v${checklistVersion} from ${path.basename(file)} — ` +
+      `${template.length} sections, ${template.reduce((n, s) => n + s.items.length, 0)} questions`
+  );
 
   // ── Template ───────────────────────────────────────────────────────────────
   // Replacing the sections wholesale keeps the import idempotent; the cascade
@@ -231,6 +248,19 @@ async function main() {
   });
   console.log(`Template ${tpl.id} — ${questionCount} questions imported.`);
   console.log(`Centres: ${created} created, ${centres.length - created} already present.`);
+  const others = await prisma.template.findMany({
+    where: { name: TEMPLATE_NAME, version: { not: checklistVersion } },
+    orderBy: { version: "desc" },
+    select: { version: true, _count: { select: { inspections: true } } },
+  });
+  if (others.length) {
+    console.log(
+      `Other versions kept, no longer live: ${others
+        .map((o) => `v${o.version} (${o._count.inspections} inspection${o._count.inspections === 1 ? "" : "s"})`)
+        .join(", ")}`
+    );
+    console.log(`Switch between them with: npm run checklist -- <version>`);
+  }
 }
 
 main()

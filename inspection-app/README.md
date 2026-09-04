@@ -565,6 +565,43 @@ range, rather than returning a truncated file that looks complete. **Every
 export is written to the audit log** with who took it, how many rows, and what
 it covered: it adds no visibility, but it changes how much leaves in one go.
 
+## Testing it quickly
+
+Answering 101 questions is a poor way to check that a submit button works.
+`data/demo-checklist.json` is a **two-question** checklist for walking the whole
+app in about a minute:
+
+```bash
+npm run db:seed:demo      # switch to the two-question checklist
+npm run checklist         # which version is live?
+npm run checklist -- 13   # switch back to the real one
+```
+
+It imports as **version 100**, beside the real checklist rather than over it, so
+inspections already recorded keep pointing at the version they were carried out
+under and nothing you have already done is disturbed. `npm run checklist` lists
+every version with its question count and how many inspections were run against
+it; passing a number makes that one live. Nothing already recorded moves — this
+only decides what the *next* inspection is run against. It is also the rollback
+path if a published version turns out to be wrong, since the seed deliberately
+refuses to go backwards on its own.
+
+Two questions, chosen to exercise most of what the app does:
+
+1. **a critical rating** — failing it requires a note *and* a photograph before
+   the inspection can be submitted, and caps the whole thing at "Serious
+   finding" whatever the percentage;
+2. **a number** with a session counter and a per-size target — it puts a
+   tap-to-count button on the top bar, and a count below the target for that
+   centre's size is flagged as an improvement point.
+
+Between them that covers the answer buttons, the note and photo requirements,
+the critical override, the tally counters, size-based flagging, the score, the
+report, the PDF, and the centre page.
+
+`npm run db:seed` takes an optional path, so any file in the same shape works:
+`npm run db:seed -- data/my-checklist.json`.
+
 ## Editing the checklist
 
 **Admin → Checklist**, super admin only. `canManageTemplate` in

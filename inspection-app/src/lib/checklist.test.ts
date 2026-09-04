@@ -274,6 +274,33 @@ describe("two questions worded the same", () => {
   });
 });
 
+describe("the two-question demo checklist", () => {
+  const load = async () =>
+    (await import("../../data/demo-checklist.json")).default as {
+      config: { checklistVersion: number; template: { title: string; items: unknown[] }[] };
+    };
+
+  it("is a checklist the app would accept", async () => {
+    // It is imported by the seed, so it must satisfy the same rules as anything
+    // saved through the editor — otherwise it loads but cannot then be edited.
+    const demo = await load();
+    const parsed = ChecklistInput.safeParse({
+      sections: demo.config.template.map((s) => ({ title: s.title, questions: s.items })),
+    });
+    expect(parsed.error?.issues ?? []).toEqual([]);
+    expect(countOf(normalise(parsed.data!))).toEqual({ sections: 2, questions: 2, critical: 1 });
+  });
+
+  it("publishes above the real checklist rather than over it", async () => {
+    // Importing it must not overwrite the real one or roll the live version
+    // backwards — both of which the seed refuses anyway, which would make the
+    // demo simply not load.
+    const demo = await load();
+    const real = (await import("../../data/gotutors-seed.json")).default as { config: { checklistVersion: number } };
+    expect(demo.config.checklistVersion).toBeGreaterThan(real.config.checklistVersion);
+  });
+});
+
 describe("the checklist GoTutors actually uses", () => {
   it("round-trips through the editor's rules unchanged", async () => {
     // If the shipped checklist cannot be re-saved, the editor is useless: the

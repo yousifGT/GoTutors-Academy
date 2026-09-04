@@ -1,0 +1,66 @@
+{
+  "_comment": [
+    "A two-question checklist, for walking the app end to end in a minute rather",
+    "than answering 101 questions. Not for real use.",
+    "",
+    "  npm run db:seed:demo        switch to it",
+    "  npm run checklist           see which version is live",
+    "  npm run checklist 13        switch back to the real one",
+    "",
+    "It publishes as version 100, beside the real checklist rather than over it.",
+    "Inspections already recorded keep pointing at the version they were carried",
+    "out under, so nothing you have already done is disturbed.",
+    "",
+    "Two questions, chosen to exercise most of what the app does:",
+    "  1. a CRITICAL rating - failing it requires a note AND a photograph, and",
+    "     caps the whole inspection at 'Serious finding' whatever the score.",
+    "  2. a NUMBER with a session counter and a per-size target - it puts a",
+    "     tap-to-count button on the top bar, and a count below the target for",
+    "     the centre's size is flagged as an improvement point.",
+    "",
+    "'centres' is empty on purpose: the seed only ever adds missing centres, so",
+    "this leaves the 23 real ones alone."
+  ],
+  "config": {
+    "checklistVersion": 100,
+    "configVersion": 1,
+    "centres": [],
+    "template": [
+      {
+        "title": "Quick test — safety",
+        "items": [
+          {
+            "text": "Fire exits clear and unobstructed?",
+            "type": "rating",
+            "critical": true,
+            "guide": "Walk the route a child would take. Every exit, not the nearest one.",
+            "dos": [
+              "Open each door and check it swings clear",
+              "Look for anything stored in the corridor"
+            ],
+            "donts": [
+              "Take the centre's word for it",
+              "Check only the main entrance"
+            ],
+            "sizeGuide": {
+              "large": { "text": "A large centre will have more than one route out. Check them all." }
+            }
+          }
+        ]
+      },
+      {
+        "title": "Quick test — the session",
+        "items": [
+          {
+            "text": "How many students are in the session?",
+            "type": "number",
+            "unit": "students",
+            "tally": "standups",
+            "minBySize": { "small": 5, "medium": 20, "large": 50 },
+            "guide": "Count heads at the busiest point, not as they arrive."
+          }
+        ]
+      }
+    ]
+  }
+}
