@@ -5,6 +5,7 @@ import { SIZE_SHORT, niceDate, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { fmtDuration } from "@/lib/core";
 import { ExportMenu } from "@/components/export-menu";
+import { CentreHeads } from "./centre-heads";
 
 /**
  * The four things that can have happened to a finding since the last visit.
@@ -54,11 +55,17 @@ export function CentreDashboard({
   progress,
   points,
   durations,
+  people,
 }: {
   centre: { id: string; name: string; address: string | null; size: CentreSize | null; status: CentreStatus };
   progress: CentreProgress;
   points: { id: string; date: Date; pct: number }[];
   durations: Record<string, number>;
+  people: {
+    managers: { id: string; name: string; email: string; role: string }[];
+    candidates: { id: string; name: string; email: string; role: string }[];
+    mayAssign: boolean;
+  };
 }) {
   const { latest, previous, movement, scoreChange, criticalNow, outstanding, visits } = progress;
 
@@ -87,10 +94,21 @@ export function CentreDashboard({
       </header>
 
       {!latest ? (
-        <p className="mt-8 rounded-xl bg-slate-50 p-6 text-sm text-slate-600 ring-1 ring-slate-200">
-          This centre has not been inspected yet. Once a visit is submitted, this page shows how it went, what was
-          asked to be put right, and — from the second visit onwards — what has been.
-        </p>
+        <>
+          <p className="mt-8 rounded-xl bg-slate-50 p-6 text-sm text-slate-600 ring-1 ring-slate-200">
+            This centre has not been inspected yet. Once a visit is submitted, this page shows how it went, what was
+            asked to be put right, and — from the second visit onwards — what has been.
+          </p>
+          {/* Still shown: a centre with no visits yet is exactly when somebody
+              is setting up who runs it. */}
+          <CentreHeads
+            centreId={centre.id}
+            centreName={centre.name}
+            managers={people.managers}
+            candidates={people.candidates}
+            mayAssign={people.mayAssign}
+          />
+        </>
       ) : (
         <>
           <section className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -212,6 +230,14 @@ export function CentreDashboard({
               </ul>
             </section>
           )}
+
+          <CentreHeads
+            centreId={centre.id}
+            centreName={centre.name}
+            managers={people.managers}
+            candidates={people.candidates}
+            mayAssign={people.mayAssign}
+          />
 
           <section className="mt-8">
             <h2 className="text-lg font-bold text-navy">Every visit</h2>

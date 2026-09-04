@@ -183,8 +183,27 @@ version the screens were ported from.
 | Inspector | their own visits | anywhere | — | no |
 | Read only | every centre | no | — | no |
 
+A **franchisee** and a **head of centre** differ in reach rather than in kind:
+both read only the centres they are assigned to and both receive their reports,
+and one person can hold several centres. The one thing a franchisee can do that
+a head of centre cannot is **say who runs their own centres** — on the centre
+page they pick from people who already hold a head of centre account.
+
+That power is deliberately the narrowest one that does the job, and
+`canAssignCentreHead` plus `PUT /api/centres/:id/heads` are where it is kept
+narrow. A franchisee cannot create an account, set a password, choose a role,
+rename or close a centre, or add a centre to their own portfolio. The route
+takes a list of heads of centre and nothing else, checks each one against the
+database rather than trusting the request, and leaves every manager who is not a
+head of centre untouched — so it can never promote anybody, and a franchisee
+cannot remove themselves or anyone above them from their own centre. Everyone
+left on the list receives the reports, so appointing a head of centre adds to
+who is told rather than replacing it.
+
 A head of centre runs a site: they read its inspections and receive its reports,
-but never carry one out, because a centre cannot inspect itself. A centre-scoped
+but never carry one out, because a centre cannot inspect itself. They can see
+who else runs their centre; they cannot change it, because a head of centre
+appointing the next head of centre is a promotion path nobody asked for. A centre-scoped
 viewer with no centres assigned falls back to their own work, never to
 everything.
 

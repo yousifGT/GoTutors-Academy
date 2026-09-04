@@ -4,6 +4,7 @@ import {
   canConduct,
   canEditInspection,
   canManageCentres,
+  canAssignCentreHead,
   canManageTemplate,
   readsWholeCentre,
   canManageUsers,
@@ -116,5 +117,30 @@ describe("readsWholeCentre", () => {
     // claims to be.
     expect(readsWholeCentre({ id: "u-insp", role: "INSPECTOR" }, mine)).toBe(false);
     expect(readsWholeCentre({ id: "u-insp", role: "INSPECTOR" }, ["u-insp"])).toBe(false);
+  });
+});
+
+describe("canAssignCentreHead", () => {
+  const theirs = ["u-franchisee"];
+
+  it("lets the roles that manage centres do it anywhere", () => {
+    expect(canAssignCentreHead({ id: "u-x", role: "SUPER_ADMIN" }, [])).toBe(true);
+    expect(canAssignCentreHead({ id: "u-x", role: "HEAD_OFFICE" }, [])).toBe(true);
+  });
+
+  it("lets a franchisee do it at a centre they run", () => {
+    expect(canAssignCentreHead({ id: "u-franchisee", role: "FRANCHISEE" }, theirs)).toBe(true);
+  });
+
+  it("and not at one they do not", () => {
+    expect(canAssignCentreHead({ id: "u-other", role: "FRANCHISEE" }, theirs)).toBe(false);
+  });
+
+  it("keeps out everyone else, including at their own centre", () => {
+    // A head of centre appointing the next head of centre is a promotion path
+    // nobody asked for. A regional manager reads their centres; who runs them is
+    // the franchisee's business or head office's.
+    for (const role of ["CENTRE_HEAD", "REGIONAL_MANAGER", "INSPECTOR", "READ_ONLY"] as const)
+      expect(canAssignCentreHead({ id: "u-franchisee", role }, theirs), role).toBe(false);
   });
 });

@@ -83,6 +83,26 @@ export function inspectionScope(viewer: Viewer): Prisma.InspectionWhereInput {
 }
 
 /**
+ * Whether this viewer may say who runs a centre.
+ *
+ * Super admin and head office may, anywhere. A franchisee may, but only at a
+ * centre they already run — they are the person who knows who is managing their
+ * sites, and making them wait on head office to record it is how the list stops
+ * matching reality.
+ *
+ * It is a narrow power, and stays narrow: the route it gates accepts a list of
+ * heads of centre and nothing else. A franchisee cannot create an account, set
+ * a password, choose a role, rename or close a centre, or add a centre to their
+ * own portfolio. They pick from people who already have an account, and the
+ * only role they can pick is head of centre — so this can never be used to hand
+ * somebody more access than the person doing it has.
+ */
+export function canAssignCentreHead(viewer: Viewer, centreManagerIds: string[]): boolean {
+  if (canManageCentres(viewer.role)) return true;
+  return viewer.role === "FRANCHISEE" && centreManagerIds.includes(viewer.id);
+}
+
+/**
  * Whether this viewer reads *every* inspection at a centre, rather than only
  * their own work there.
  *

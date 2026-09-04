@@ -56,6 +56,7 @@ export const ACTIONS: Record<string, ActionMeta> = {
 
   "centre.create": { group: "centres", label: "Centre added" },
   "centre.update": { group: "centres", label: "Centre changed" },
+  "centre.heads": { group: "centres", label: "Who runs a centre changed", notable: true },
   "centre.close": { group: "centres", label: "Centre closed", notable: true },
   "centre.delete": { group: "centres", label: "Centre deleted", notable: true },
 
@@ -178,6 +179,8 @@ const KEY_LABELS: Record<string, string> = {
   name: "name",
   email: "email",
   centre: "centre",
+  was: "was",
+  now: "now",
   version: "version",
   from: "replaces",
   sections: "sections",
