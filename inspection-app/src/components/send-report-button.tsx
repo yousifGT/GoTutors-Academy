@@ -64,7 +64,7 @@ export function SendReportButton({
   }
 
   return (
-    <div className="mt-6 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+    <div className="mt-4 rounded-xl bg-white p-5 ring-1 ring-slate-200">
       <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Sending this report</h2>
 
       {recipients.length === 0 ? (

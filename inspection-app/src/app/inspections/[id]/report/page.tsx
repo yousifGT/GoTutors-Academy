@@ -126,6 +126,29 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
         )}
       </header>
 
+      {/* Only on a record. A draft has nothing to send, and the same guard is
+          repeated in the route so it holds however this is reached. */}
+      {inspection.status === "SUBMITTED" && canConduct(user.role) && (
+        <SendReportButton
+          inspectionId={inspection.id}
+          recipients={inspection.centre.managers
+            .filter((m) => receivesReports(m.role))
+            .map((m) => {
+              const sent = inspection.deliveries.find((d) => d.user.email === m.email);
+              return {
+                name: m.name,
+                // The address it went to as it was at the time, falling back to
+                // the one on the account when it has not been sent yet.
+                email: sent?.emailTo ?? m.email,
+                active: m.active,
+                status: sent?.emailStatus ?? null,
+                emailedAt: sent?.emailedAt?.toISOString() ?? null,
+                error: sent?.emailError ?? null,
+              };
+            })}
+        />
+      )}
+
       {report.repeats.length > 0 && (
         <section className="mt-6 rounded-xl bg-red-50 p-5 ring-1 ring-red-200">
           <h2 className="font-bold text-red-900">
@@ -224,29 +247,6 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
             </>
           )}
         </section>
-      )}
-
-      {/* Only on a record. A draft has nothing to send, and the same guard is
-          repeated in the route so it holds however this is reached. */}
-      {inspection.status === "SUBMITTED" && canConduct(user.role) && (
-        <SendReportButton
-          inspectionId={inspection.id}
-          recipients={inspection.centre.managers
-            .filter((m) => receivesReports(m.role))
-            .map((m) => {
-              const sent = inspection.deliveries.find((d) => d.user.email === m.email);
-              return {
-                name: m.name,
-                // The address it went to as it was at the time, falling back to
-                // the one on the account when it has not been sent yet.
-                email: sent?.emailTo ?? m.email,
-                active: m.active,
-                status: sent?.emailStatus ?? null,
-                emailedAt: sent?.emailedAt?.toISOString() ?? null,
-                error: sent?.emailError ?? null,
-              };
-            })}
-        />
       )}
 
       <p className="mt-8 pb-8 text-xs text-slate-400">Checklist v{report.checklistVersion}.</p>
