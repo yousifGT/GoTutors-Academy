@@ -40,3 +40,43 @@ export function envelopeFrom(env: NodeJS.ProcessEnv = process.env): string {
   const angled = from.match(/<([^>]+)>/);
   return angled ? angled[1] : from;
 }
+
+/**
+ * What the mail configuration is, in a form safe to put on a screen.
+ *
+ * Deliberately never the password. Everything else is worth showing, because
+ * the commonest email problem is not a bug but a setting — the wrong port, a
+ * From address on a domain nobody verified, or a backend still on `console`
+ * with everybody wondering where the reports went.
+ */
+export interface EmailSettings {
+  backend: EmailBackend;
+  from: string;
+  replyTo: string | null;
+  host: string | null;
+  port: number | null;
+  /** Implicit TLS on 465; STARTTLS on everything else. */
+  tls: "implicit" | "starttls" | null;
+  user: string | null;
+  /** Whether a password is set — never what it is. */
+  hasPassword: boolean;
+  region: string | null;
+  missing: string[];
+}
+
+export function emailSettings(env: NodeJS.ProcessEnv = process.env): EmailSettings {
+  const backend = emailBackend(env);
+  const port = backend === "smtp" ? Number(env.SMTP_PORT) || 587 : null;
+  return {
+    backend,
+    from: emailFrom(env),
+    replyTo: env.EMAIL_REPLY_TO || null,
+    host: backend === "smtp" ? (env.SMTP_HOST ?? null) : null,
+    port,
+    tls: port === null ? null : port === 465 ? "implicit" : "starttls",
+    user: backend === "smtp" ? (env.SMTP_USER ?? null) : null,
+    hasPassword: !!env.SMTP_PASSWORD,
+    region: backend === "ses" ? (env.SES_REGION ?? env.AWS_REGION ?? null) : null,
+    missing: emailConfigProblems(env),
+  };
+}

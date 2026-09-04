@@ -36,6 +36,7 @@ suite("who may read what", () => {
       "auth.blocked",
       "password.forgot",
       "password.reset",
+      "email.test",
     ]);
     // Not a prefix rule: who asked for a reset link belongs with account
     // administration even though it is not named "user.something".

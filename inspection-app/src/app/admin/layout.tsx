@@ -40,6 +40,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               Checklist
             </Link>
           )}
+          {canManageUsers(user.role) && (
+            <Link href="/admin/email" className="font-medium text-navy">
+              Email
+            </Link>
+          )}
           {canReadAudit(user.role) && (
             <Link href="/admin/audit" className="font-medium text-navy">
               Activity

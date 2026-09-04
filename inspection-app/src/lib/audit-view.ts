@@ -43,6 +43,9 @@ export const ACTIONS: Record<string, ActionMeta> = {
   "auth.blocked": { group: "people", label: "Sign-in blocked by rate limit", notable: true },
   "password.forgot": { group: "people", label: "Password reset requested" },
   "password.reset": { group: "people", label: "Password reset used", notable: true },
+  // Sends real mail from the real account, so it belongs with the rest of
+  // account administration rather than with the inspections it is testing.
+  "email.test": { group: "people", label: "Test email sent" },
 
   // The checklist is the standard every inspection is measured against, so a
   // change to it is read alongside account administration rather than with the

@@ -389,6 +389,39 @@ mailbox a person reads rather than the sending address. Neither is ever the
 inspector's own address: the report is sent by the system, and a reply belongs
 to whoever handles them.
 
+**Admin → Email** shows what is configured — backend, From, Reply-To, server,
+port, whether TLS is implicit or negotiated, and whether a password is set,
+never what it is — and sends a **test message** to any address. Before it
+existed, finding out whether email worked meant carrying out a whole inspection
+and submitting it, then working out from a delivery row which of a dozen
+settings was wrong. Failures come back in the mail server's own words:
+"Could not send" names nothing, `535 5.7.3 Authentication unsuccessful` names
+the problem.
+
+The settings themselves live in the environment and not in a form, so an SMTP
+password never reaches the database or a backup of it.
+
+### Sending through a mailbox you already have
+
+To try it before SES — or to run it that way — point it at any SMTP server:
+
+```bash
+EMAIL_BACKEND=smtp
+SMTP_HOST=smtp.office365.com     # or smtp.gmail.com
+SMTP_PORT=587                    # 465 means implicit TLS; anything else, STARTTLS
+SMTP_USER=you@gotutors.com
+SMTP_PASSWORD=...                # an app password, not the account password
+EMAIL_FROM="GoTutors Inspections <you@gotutors.com>"
+EMAIL_REPLY_TO=you@gotutors.com
+```
+
+There is no `SMTP_SECURE`: encryption follows the port, because the two being
+set separately is how people end up with a plaintext session they believe is
+encrypted. Microsoft 365 and Google both refuse an ordinary account password
+over SMTP — Google needs an App Password with two-step verification on, and
+many Microsoft tenants have SMTP AUTH disabled until an admin turns it on for
+the mailbox. `.env` is gitignored, which is where the password goes.
+
 **And into their inbox.** Submitting also emails the report, with the PDF
 attached, to each of those people. The message names the centre, the date, the
 verdict and the score in its subject line — that is what shows in a list of
