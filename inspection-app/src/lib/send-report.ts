@@ -6,6 +6,7 @@ import { reportBody, reportSubject } from "@/lib/report-email";
 import { sendEmail } from "@/lib/email";
 import { emailBackend } from "@/lib/email-config";
 import { previouslyFlaggedAt } from "@/lib/previous";
+import { receivesReports } from "@/lib/access";
 
 /**
  * Getting a finished report into somebody's inbox.
@@ -264,6 +265,65 @@ export function sendReportsInBackground(inspectionId: string): void {
   })();
 }
 
+
+/**
+ * Send this inspection's report by email, now, on purpose.
+ *
+ * Submitting already does this by itself. This is the button for afterwards:
+ * the head of centre says it never arrived, or the address was wrong and has
+ * been corrected, or they were appointed after the visit and were never on the
+ * list. Until now the only answer was to wait for a sweep that would not pick
+ * up a delivery it considered finished.
+ *
+ * It goes through `sendOneDelivery` like every other path, so the lease that
+ * stops a report being sent twice still applies, and the same delivery row
+ * records what happened — a re-send is part of that report's history, not a
+ * separate untracked act. The address is whatever is registered on the
+ * recipient's account at the moment of sending, not a free-typed one.
+ *
+ * A recipient added since the visit was submitted gets a delivery row created
+ * here, so a new head of centre can be sent the report their centre already
+ * had.
+ */
+export async function sendReportNow(inspectionId: string): Promise<SendOutcome[]> {
+  const inspection = await prisma.inspection.findUnique({
+    where: { id: inspectionId },
+    select: {
+      status: true,
+      centre: { select: { managers: { select: { id: true, role: true } } } },
+    },
+  });
+  if (!inspection) return [];
+  // A draft has no report to send. The route refuses first; this is the guard
+  // that holds if it is ever called from somewhere else.
+  if (inspection.status !== "SUBMITTED") return [];
+
+  const recipients = inspection.centre.managers.filter((m) => receivesReports(m.role));
+  if (recipients.length === 0) return [];
+
+  await prisma.reportDelivery.createMany({
+    data: recipients.map((m) => ({ inspectionId, userId: m.id })),
+    skipDuplicates: true,
+  });
+
+  const rows = await prisma.reportDelivery.findMany({
+    where: { inspectionId, userId: { in: recipients.map((m) => m.id) } },
+    select: { id: true },
+  });
+
+  // Put each row back in the queue before sending: `sendOneDelivery` returns
+  // immediately for one already marked SENT, which is right for the sweep and
+  // exactly wrong for a deliberate re-send. Attempts start again from zero so a
+  // row that had backed off is not held behind its own timer.
+  await prisma.reportDelivery.updateMany({
+    where: { id: { in: rows.map((r) => r.id) } },
+    data: { emailStatus: "PENDING", emailAttempts: 0, emailNextAt: null, emailError: null },
+  });
+
+  const out: SendOutcome[] = [];
+  for (const row of rows) out.push(await sendOneDelivery(row.id));
+  return out;
+}
 
 /**
  * The sweep: anything a submit did not manage to send, tried again.

@@ -358,6 +358,21 @@ every centre, their own centres, or their own visits. Filter by centre, by month
 (only months that contain something are offered), by status, or "new only";
 search by centre, inspector or verdict. Every completed row has a PDF button.
 
+**And again, on purpose.** Submitting emails it once, automatically. The report
+page also carries a **Send by email** panel: who receives this centre's reports,
+whether it has actually reached each of them and when, and a button to send it
+again. That is for afterwards — it never arrived, the address was wrong and has
+been corrected, or the head of centre was appointed after the visit and was
+never on the list. It goes through the same delivery row and the same lease as
+the automatic send, so a re-send is part of that report's history rather than a
+separate untracked act, and it is written to the audit log with the address it
+went to.
+
+It sends only to addresses registered on accounts, never to one typed into the
+request, and only the people who carry out or oversee inspections may press it —
+not a read-only account, and not the centre head, who would be emailing
+themselves.
+
 **And into their inbox.** Submitting also emails the report, with the PDF
 attached, to each of those people. The message names the centre, the date, the
 verdict and the score in its subject line — that is what shows in a list of

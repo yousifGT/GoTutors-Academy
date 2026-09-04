@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { inspectionScope, readsWholeCentre } from "@/lib/access";
+import { canConduct, inspectionScope, readsWholeCentre, receivesReports } from "@/lib/access";
+import { SendReportButton } from "@/components/send-report-button";
 import { fmtDuration } from "@/lib/core";
 import { buildReport, reportInclude } from "@/lib/report";
 import { previouslyFlaggedAt } from "@/lib/previous";
@@ -21,7 +22,32 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
 
   const inspection = await prisma.inspection.findFirst({
     where: { AND: [{ id: params.id }, inspectionScope({ id: user.id, role: user.role })] },
-    include: { ...reportInclude, centre: { select: { name: true, managers: { select: { id: true } } } } },
+    include: {
+      ...reportInclude,
+      centre: {
+        select: {
+          name: true,
+          // Both the ids, for the dashboard link, and who actually receives
+          // reports — which is not the same as who has been sent one. A head of
+          // centre appointed after the visit has no delivery row yet and must
+          // still be sendable to.
+          managers: { select: { id: true, name: true, email: true, role: true, active: true } },
+        },
+      },
+      // Who this report has been sent to, and whether it actually went. A
+      // "send" button with no sign of what already happened invites pressing it
+      // three more times.
+      deliveries: {
+        orderBy: { deliveredAt: "asc" },
+        select: {
+          emailStatus: true,
+          emailTo: true,
+          emailedAt: true,
+          emailError: true,
+          user: { select: { name: true, email: true } },
+        },
+      },
+    },
   });
   if (!inspection) notFound();
 
@@ -200,9 +226,30 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
         </section>
       )}
 
-      <p className="mt-8 pb-8 text-xs text-slate-400">
-        Checklist v{report.checklistVersion}. Emailing this report to the centre is not built yet.
-      </p>
+      {/* Only on a record. A draft has nothing to send, and the same guard is
+          repeated in the route so it holds however this is reached. */}
+      {inspection.status === "SUBMITTED" && canConduct(user.role) && (
+        <SendReportButton
+          inspectionId={inspection.id}
+          recipients={inspection.centre.managers
+            .filter((m) => receivesReports(m.role))
+            .map((m) => {
+              const sent = inspection.deliveries.find((d) => d.user.email === m.email);
+              return {
+                name: m.name,
+                // The address it went to as it was at the time, falling back to
+                // the one on the account when it has not been sent yet.
+                email: sent?.emailTo ?? m.email,
+                active: m.active,
+                status: sent?.emailStatus ?? null,
+                emailedAt: sent?.emailedAt?.toISOString() ?? null,
+                error: sent?.emailError ?? null,
+              };
+            })}
+        />
+      )}
+
+      <p className="mt-8 pb-8 text-xs text-slate-400">Checklist v{report.checklistVersion}.</p>
     </main>
   );
 }

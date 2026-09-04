@@ -297,22 +297,37 @@ SELECT * FROM "ReportDelivery" WHERE "emailStatus" = 'FAILED';
 ## 6. Decisions for the owner, not the developer
 
 These are deliberately not settled in code. Each needs someone at GoTutors to
-say what the answer is:
+say what the answer is. Answers given so far are marked as such.
 
-1. **How long are inspection photographs kept?** They are taken inside settings
-   where children are present. There is machinery ready for whatever the answer
-   is — `npm run uploads:gc` sweeps images no inspection references, and an S3
-   lifecycle rule can expire the rest — but the number is a policy decision, and
-   a **DPIA** should be reviewed by a data-protection professional before real
-   data goes in.
+**Region: `eu-west-2` (London).** Decided. Everything — RDS, S3, SES, ECS — goes
+in that one region, and nothing is copied out of it. S3 cross-region replication
+stays off.
+
+1. ~~**How long are inspection photographs kept?**~~ **Decided: kept
+   indefinitely.** GoTutors' position is that these are photographs of books and
+   of work done, not of people, so no expiry is set. `npm run uploads:gc` still
+   sweeps images no inspection references, and an S3 lifecycle rule can be added
+   later without touching the app.
+
+   One thing that decision rests on, and is worth putting to inspectors rather
+   than assuming: the photographs are taken inside a centre while a session is
+   running, so a person can end up in one incidentally even when the subject is
+   a workbook. If that is ever true in practice — a wall display with names on
+   it, a child in shot behind the desk — the answer changes, and a **DPIA**
+   should be reviewed by a data-protection professional before real data goes
+   in. Worth a line in the inspector guidance: photograph the work, not the
+   room.
 2. **How long are inspection records kept?** Different question, probably a
    longer answer, since they are the evidence of what was inspected and when.
 3. **How long is the audit log kept?** It holds names and actions.
 4. **Who receives bounce notifications** from SES, and who acts on them.
 5. **Whether reports should also go to a free-typed debrief address.** The app
-   captures one during the visit but deliberately does not email it: sending
-   photographs from a children's setting to an unverified address someone typed
-   on a phone should be a decision, not a default.
+   captures one during the visit and deliberately does not email it. A report
+   can be sent from its own page, by hand, at any time — but only ever to the
+   address registered on a recipient's account, never to one typed into the
+   request. That is the line worth keeping: an endpoint that emails a PDF of a
+   centre's inspection to an address of the caller's choosing is a way to get
+   data out of the system, not a convenience.
 6. **Who may take a bulk export, and where those files may go.** Any signed-in
    person can download the inspections they can already read as a CSV, and every
    export is logged. What the log cannot decide is what happens next: a
