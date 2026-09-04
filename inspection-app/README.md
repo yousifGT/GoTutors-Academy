@@ -368,10 +368,26 @@ the automatic send, so a re-send is part of that report's history rather than a
 separate untracked act, and it is written to the audit log with the address it
 went to.
 
-It sends only to addresses registered on accounts, never to one typed into the
-request, and only the people who carry out or oversee inspections may press it —
-not a read-only account, and not the centre head, who would be emailing
-themselves.
+It can go to the people registered as receiving that centre's reports, to
+addresses typed on the day, or to both — a franchisee, an area manager, a head
+of centre whose account is not set up yet. The two are kept apart on purpose. A
+registered recipient has a delivery row, a read receipt and a retry schedule,
+because the app is responsible for getting the report to them. A typed address
+gets one message, sent once, recorded in the audit log as `report.sent_external`
+with the address; it never gets a delivery row, because an address nobody
+verified must not appear in the list the screen reads as "who this centre's
+reports go to".
+
+Only the people who carry out or oversee inspections may send at all — not a
+read-only account, and not the centre head, who would be emailing themselves.
+Addresses are de-duplicated, so typing the head of centre's own address does not
+send them two copies.
+
+**Who it comes from** is `EMAIL_FROM`, and it must be an address on a domain
+verified in SES. `EMAIL_REPLY_TO` sets where replies go, which should be a
+mailbox a person reads rather than the sending address. Neither is ever the
+inspector's own address: the report is sent by the system, and a reply belongs
+to whoever handles them.
 
 **And into their inbox.** Submitting also emails the report, with the PDF
 attached, to each of those people. The message names the centre, the date, the

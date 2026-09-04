@@ -321,13 +321,17 @@ stays off.
    longer answer, since they are the evidence of what was inspected and when.
 3. **How long is the audit log kept?** It holds names and actions.
 4. **Who receives bounce notifications** from SES, and who acts on them.
-5. **Whether reports should also go to a free-typed debrief address.** The app
-   captures one during the visit and deliberately does not email it. A report
-   can be sent from its own page, by hand, at any time — but only ever to the
-   address registered on a recipient's account, never to one typed into the
-   request. That is the line worth keeping: an endpoint that emails a PDF of a
-   centre's inspection to an address of the caller's choosing is a way to get
-   data out of the system, not a convenience.
+5. ~~**Whether reports should also go to a free-typed address.**~~ **Decided:
+   yes.** A report can be sent from its own page to the registered recipients,
+   to addresses typed on the day, or to both. Typed addresses get no delivery
+   row and are logged separately as `report.sent_external` with the address, so
+   the answer to "where has this report been" is always in the activity log.
+   Only the roles that carry out or oversee inspections can send at all.
+
+   What that leaves for the retention policy: a PDF of an inspection, with its
+   photographs, can now leave to an address nobody verified. The log records
+   every one, which is the control; there is no technical limit on where it
+   goes, which is a policy question rather than a code one.
 6. **Who may take a bulk export, and where those files may go.** Any signed-in
    person can download the inspections they can already read as a CSV, and every
    export is logged. What the log cannot decide is what happens next: a

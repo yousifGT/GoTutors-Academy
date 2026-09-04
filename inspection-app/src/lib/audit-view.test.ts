@@ -1,5 +1,5 @@
 import { describe as suite, it, expect } from "vitest";
-import { canRead, canReadAudit, describe, readableActions, summarise, visibleGroups } from "./audit-view";
+import { ACTIONS, canRead, canReadAudit, describe, readableActions, summarise, visibleGroups } from "./audit-view";
 
 suite("who may read what", () => {
   it("a super admin sees everything", () => {
@@ -102,5 +102,34 @@ suite("summarise", () => {
 
   it("spaces out a camelCase key it has no name for", () => {
     expect(summarise({ someOtherThing: 1 })).toEqual([{ key: "some other thing", value: "1" }]);
+  });
+});
+
+suite("every action the code writes is in the table", () => {
+  it("or it is written to the log and never shown", async () => {
+    // Found the hard way: `report.sent_external` was being recorded correctly
+    // and did not appear in the activity screen, because `readableActions`
+    // builds the query from ACTIONS and an unlisted action is never asked for.
+    // A label is not cosmetic here — it is what makes the row readable at all.
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        if (statSync(full).isDirectory()) walk(full);
+        else if (/\.tsx?$/.test(full) && !full.endsWith(".test.ts")) files.push(full);
+      }
+    };
+    walk(join(__dirname, ".."));
+
+    const emitted = new Set<string>();
+    for (const file of files) {
+      for (const m of readFileSync(file, "utf8").matchAll(/action: "([a-z_]+\.[a-z_]+)"/g)) emitted.add(m[1]);
+    }
+
+    expect(emitted.size).toBeGreaterThan(20);
+    expect(Array.from(emitted).filter((a) => !(a in ACTIONS)).sort()).toEqual([]);
   });
 });

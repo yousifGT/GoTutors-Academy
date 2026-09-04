@@ -35,15 +35,31 @@ export function SendReportButton({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [toCentre, setToCentre] = useState(recipients.length > 0);
+  const [alsoTo, setAlsoTo] = useState("");
+
+  // One per line or comma-separated, whichever the person types.
+  const extras = alsoTo
+    .split(/[\n,;]+/)
+    .map((a) => a.trim())
+    .filter(Boolean);
+  const bad = extras.filter((a) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a));
+  const nothingChosen = (!toCentre || recipients.length === 0) && extras.length === 0;
 
   async function send() {
-    const names = recipients.map((r) => `${r.name} (${r.email})`).join(", ");
-    if (!confirm(recipients.length ? `Email this report to ${names}?` : "Email this report to whoever runs this centre?"))
-      return;
+    const going = [
+      ...(toCentre ? recipients.map((r) => `${r.name} (${r.email})`) : []),
+      ...extras,
+    ];
+    if (!confirm(`Email this report, with its photographs attached, to:\n\n${going.join("\n")}`)) return;
     setBusy(true);
     setNotice("");
     setError("");
-    const res = await fetch(`/api/inspections/${inspectionId}/send`, { method: "POST" });
+    const res = await fetch(`/api/inspections/${inspectionId}/send`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ toCentre, alsoTo: extras }),
+    });
     const body = await res.json().catch(() => ({}));
     setBusy(false);
     if (!res.ok) {
@@ -54,6 +70,7 @@ export function SendReportButton({
     const sent = outcomes.filter((o) => o.status === "SENT");
     if (sent.length) {
       setNotice(`Sent to ${sent.map((o) => o.to).join(", ")}.`);
+      setAlsoTo("");
     } else {
       // Never claim it went. The commonest reason here is that email is not
       // configured at all, which looks identical to success if you only check
@@ -98,12 +115,55 @@ export function SendReportButton({
         </ul>
       )}
 
+      {recipients.length > 0 && (
+        <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={toCentre}
+            onChange={(e) => setToCentre(e.target.checked)}
+            className="accent-sky-600"
+          />
+          Send to {recipients.length === 1 ? "them" : "all of them"}
+        </label>
+      )}
+
+      <div className="mt-3">
+        <label htmlFor="also-to" className="block text-sm font-medium text-slate-700">
+          And to another address
+        </label>
+        <p className="text-xs text-slate-500">
+          One per line. Goes to whoever you type, with the photographs attached, and is recorded in the activity log.
+        </p>
+        <textarea
+          id="also-to"
+          value={alsoTo}
+          onChange={(e) => setAlsoTo(e.target.value)}
+          rows={2}
+          placeholder="area.manager@example.com"
+          className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-sky"
+        />
+        {bad.length > 0 && (
+          <p className="mt-1 text-xs text-red-700">
+            {bad.length === 1 ? "That does not look like an email address" : "Those do not look like email addresses"}:{" "}
+            {bad.join(", ")}
+          </p>
+        )}
+      </div>
+
       <button
         onClick={send}
-        disabled={busy || recipients.length === 0}
+        disabled={busy || nothingChosen || bad.length > 0}
         className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-navy disabled:opacity-50"
       >
-        {busy ? "Sending…" : recipients.some((r) => r.status === "SENT") ? "Send it again" : "Send by email"}
+        {busy
+          ? "Sending…"
+          : extras.length && toCentre && recipients.length
+            ? `Send to ${recipients.length + extras.length} people`
+            : extras.length
+              ? `Send to ${extras.length === 1 ? "that address" : `${extras.length} addresses`}`
+              : recipients.some((r) => r.status === "SENT")
+                ? "Send it again"
+                : "Send by email"}
       </button>
 
       {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}

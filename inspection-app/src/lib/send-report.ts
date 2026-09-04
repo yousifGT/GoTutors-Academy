@@ -121,58 +121,12 @@ export async function sendOneDelivery(deliveryId: string): Promise<SendOutcome> 
 
   const to = delivery.user.email;
   try {
-    const inspection = await prisma.inspection.findUnique({
-      where: { id: delivery.inspectionId },
-      include: reportInclude,
-    });
-    if (!inspection) throw new Error("inspection not found");
+    // The same builder the typed-address path uses, so the two cannot drift
+    // into sending different documents.
+    const message = await buildReportEmail(delivery.inspectionId, { name: delivery.user.name });
+    if (!message) throw new Error("inspection not found");
 
-    const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, {
-      exclude: inspection.id,
-      before: { date: inspection.date, createdAt: inspection.createdAt },
-    }));
-    const photos = await loadPhotos(photoUrls(report));
-    const pdf = await renderReportPdf(report, photos.resolve);
-    if (photos.missing.length) {
-      // Sent anyway — a report with a gap in it beats no report — but recorded,
-      // because the centre head is being sent a document that is not complete.
-      console.error("emailing a report with photographs missing", {
-        deliveryId,
-        inspectionId: delivery.inspectionId,
-        missing: photos.missing.length,
-        of: photos.requested,
-      });
-    }
-    const body = reportBody(report, {
-      name: delivery.user.name,
-      inspectionId: delivery.inspectionId,
-      appUrl: process.env.NEXTAUTH_URL || "",
-    });
-
-    // A report with a lot of photographs can be too big to send. Base64 in a
-    // MIME message adds a third, SES will not carry it, and Gmail and Outlook
-    // refuse it inbound. Attaching it anyway means five failed attempts, five
-    // full re-renders each, and then a permanent FAILED — the centre head is
-    // never told anything. Sending the message without the attachment gets them
-    // the finding and a link to the whole thing, which is the part that matters.
-    const tooBig = pdf.length > maxAttachmentBytes();
-    if (tooBig) {
-      console.warn("report PDF too large to attach; sending a link instead", {
-        deliveryId,
-        bytes: pdf.length,
-        limit: maxAttachmentBytes(),
-      });
-    }
-
-    await sendEmail({
-      to,
-      subject: reportSubject(report),
-      text: tooBig ? withoutAttachmentNote(body.text) : body.text,
-      html: tooBig ? withoutAttachmentNote(body.html) : body.html,
-      attachments: tooBig
-        ? []
-        : [{ filename: reportFilename(report), content: pdf, contentType: "application/pdf" }],
-    });
+    await sendEmail({ to, ...message });
 
     await prisma.reportDelivery.update({
       where: { id: delivery.id },
@@ -265,6 +219,97 @@ export function sendReportsInBackground(inspectionId: string): void {
   })();
 }
 
+
+/**
+ * The message itself: subject, both bodies, and the PDF, built once.
+ *
+ * Pulled out of `sendOneDelivery` so a report sent to an address somebody typed
+ * is the same document as the one sent to a registered account — the same
+ * findings, the same photographs, the same too-large-to-attach rule. Two
+ * builders would eventually disagree, and the disagreement would be invisible:
+ * both messages look fine on their own.
+ */
+export async function buildReportEmail(
+  inspectionId: string,
+  addressee: { name: string }
+): Promise<{ subject: string; text: string; html: string; attachments: { filename: string; content: Buffer; contentType: string }[] } | null> {
+  const inspection = await prisma.inspection.findUnique({
+    where: { id: inspectionId },
+    include: reportInclude,
+  });
+  if (!inspection) return null;
+
+  const report = buildReport(inspection, await previouslyFlaggedAt(inspection.centreId, {
+    exclude: inspection.id,
+    before: { date: inspection.date, createdAt: inspection.createdAt },
+  }));
+  const photos = await loadPhotos(photoUrls(report));
+  const pdf = await renderReportPdf(report, photos.resolve);
+  if (photos.missing.length) {
+    console.error("emailing a report with photographs missing", {
+      inspectionId,
+      missing: photos.missing.length,
+      of: photos.requested,
+    });
+  }
+
+  const body = reportBody(report, {
+    name: addressee.name,
+    inspectionId,
+    appUrl: process.env.NEXTAUTH_URL || "",
+  });
+  const tooBig = pdf.length > maxAttachmentBytes();
+  if (tooBig) {
+    console.warn("report PDF too large to attach; sending a link instead", {
+      inspectionId,
+      bytes: pdf.length,
+      limit: maxAttachmentBytes(),
+    });
+  }
+
+  return {
+    subject: reportSubject(report),
+    text: tooBig ? withoutAttachmentNote(body.text) : body.text,
+    html: tooBig ? withoutAttachmentNote(body.html) : body.html,
+    attachments: tooBig
+      ? []
+      : [{ filename: reportFilename(report), content: pdf, contentType: "application/pdf" }],
+  };
+}
+
+/**
+ * Send the report to an address somebody typed, rather than to an account.
+ *
+ * Deliberately separate from `sendReportNow`. A registered recipient has a
+ * delivery row, a read receipt and a retry schedule, because the app is
+ * responsible for getting the report to the person who runs the centre. A
+ * typed address has none of that: it is one message, sent once, at the request
+ * of a named person, and the record of it is the audit log. Giving it a
+ * delivery row would put an address nobody verified into the same list the
+ * screen reads as "who this centre's reports go to".
+ *
+ * It carries the same document, including the photographs. The caller is
+ * expected to have said so plainly before asking for it.
+ */
+export async function sendReportTo(
+  inspectionId: string,
+  address: string
+): Promise<SendOutcome> {
+  const id = `external:${address}`;
+  if (emailBackend() === "console")
+    return { deliveryId: id, status: "SKIPPED", to: address, error: "email sending is not configured" };
+
+  try {
+    const message = await buildReportEmail(inspectionId, { name: "there" });
+    if (!message) return { deliveryId: id, status: "FAILED", to: address, error: "inspection not found" };
+    await sendEmail({ to: address, ...message });
+    return { deliveryId: id, status: "SENT", to: address };
+  } catch (e) {
+    const error = String(e instanceof Error ? e.message : e).slice(0, 500);
+    console.error("sending a report to a typed address failed", { inspectionId, to: address, err: error });
+    return { deliveryId: id, status: "FAILED", to: address, error };
+  }
+}
 
 /**
  * Send this inspection's report by email, now, on purpose.

@@ -19,9 +19,15 @@ interface ActionMeta {
 }
 
 /**
- * How each recorded action reads. Anything not listed still shows, using its
- * raw name — an unknown action is better surfaced than hidden, since it means
- * the log has outgrown this table.
+ * How each recorded action reads.
+ *
+ * This table is not only labels: `readableActions` builds the database filter
+ * from it, so an action that is written but not listed here is never fetched
+ * and is invisible in the activity screen. Failing closed is the right way
+ * round — a record nobody has decided the audience for should not be shown to
+ * a guessed audience — but it is a quiet way to lose an audit trail, so
+ * `audit-view.test.ts` asserts that every action the code emits appears here.
+ * That test is the guard; this comment is only the explanation.
  */
 export const ACTIONS: Record<string, ActionMeta> = {
   "user.create": { group: "people", label: "Account created", notable: true },
@@ -58,6 +64,10 @@ export const ACTIONS: Record<string, ActionMeta> = {
   // centre on the 4th" — so who sent it, to which address, and whether it
   // actually went are recorded, not just that a button was pressed.
   "report.sent": { group: "inspections", label: "Report emailed to the centre", notable: true },
+  // A separate action from the one above, because it is a different thing: a
+  // report leaving to an address nobody verified, at the request of a named
+  // person. The address is in the metadata every time.
+  "report.sent_external": { group: "inspections", label: "Report emailed to a typed address", notable: true },
   // A bulk export is a different kind of event from opening one report: it is
   // the moment a slice of the record leaves in a form nothing here controls any
   // more. Recorded with who, what and how much, and marked worth noticing.
