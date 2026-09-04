@@ -218,7 +218,3 @@ export function renderReportPdf(report: Report, photo: PhotoResolver): Promise<B
 }
 
 /** `inspection-report-acton-2026-08-26.pdf` */
-export function reportFilename(report: Report): string {
-  const slug = report.centre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return `inspection-report-${slug}-${report.date.toISOString().slice(0, 10)}.pdf`;
-}

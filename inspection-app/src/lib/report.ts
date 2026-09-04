@@ -181,3 +181,15 @@ export const reportInclude = {
   },
   answers: { include: { entries: { orderBy: { order: "asc" as const }, include: { photos: true } } } },
 };
+
+/**
+ * What the report is called as a file.
+ *
+ * Here rather than beside the renderer: naming a document is not rendering one,
+ * and a page that only needs the name should not have to import the PDF
+ * library to get it.
+ */
+export function reportFilename(report: Report): string {
+  const slug = report.centre.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `inspection-report-${slug}-${report.date.toISOString().slice(0, 10)}.pdf`;
+}

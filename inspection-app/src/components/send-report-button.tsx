@@ -27,9 +27,17 @@ interface Recipient {
 export function SendReportButton({
   inspectionId,
   recipients,
+  subject,
+  filename,
+  reportUrl,
 }: {
   inspectionId: string;
   recipients: Recipient[];
+  /** The same subject line the app's own email uses. */
+  subject: string;
+  /** What the PDF downloads as, so the message can say which file to attach. */
+  filename: string;
+  reportUrl: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -78,6 +86,49 @@ export function SendReportButton({
       setError(outcomes[0]?.error ?? "Nothing was sent.");
     }
     router.refresh();
+  }
+
+  /**
+   * Hand the message to whatever mail client the machine uses, with the PDF
+   * downloaded ready to attach.
+   *
+   * A `mailto:` link cannot carry an attachment — RFC 6068 has no field for one
+   * and no client invents it — so this does the only thing that works: starts
+   * the download, then opens a message with the recipients, the subject and the
+   * body already filled in, saying which file to attach. One drag, and it goes
+   * from the sender's own mailbox with their signature on it.
+   *
+   * It is the fallback for before SES is set up, and for anyone who would
+   * rather the report came from them personally. The app sending it directly is
+   * the better path: it records what was sent and to whom, and this cannot,
+   * because nothing here ever learns whether the person actually pressed send.
+   */
+  function openInMailClient() {
+    const to = [...(toCentre ? recipients.map((r) => r.email) : []), ...extras].join(",");
+    const body = [
+      "Hello,",
+      "",
+      `Please find attached the inspection report: ${filename}`,
+      "",
+      "(Attach the PDF that has just downloaded — this window cannot carry it for you.)",
+      "",
+      `It is also readable here: ${reportUrl}`,
+      "",
+    ].join("\n");
+
+    // The download first, so the file is waiting by the time the mail window
+    // opens. Both are inside the same click, which is what browsers require.
+    const open = (href: string, download?: string) => {
+      const a = document.createElement("a");
+      a.href = href;
+      if (download) a.download = download;
+      a.click();
+    };
+
+    open(`/api/inspections/${inspectionId}/pdf`, filename);
+    open(
+      `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    );
   }
 
   return (
@@ -165,6 +216,22 @@ export function SendReportButton({
                 ? "Send it again"
                 : "Send by email"}
       </button>
+
+      <div className="mt-3 border-t border-slate-200 pt-3">
+        <button
+          type="button"
+          onClick={openInMailClient}
+          disabled={nothingChosen || bad.length > 0}
+          className="text-sm font-medium text-sky-600 underline disabled:opacity-50"
+        >
+          Or open it in my own email app
+        </button>
+        <p className="mt-1 text-xs text-slate-500">
+          Downloads the PDF and opens a message to the same people, already written. You attach the file and press
+          send, so it goes from your mailbox — useful before the app has a mail server of its own. It is not recorded
+          here, because nothing tells the app whether you sent it.
+        </p>
+      </div>
 
       {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}

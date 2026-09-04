@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { canConduct, inspectionScope, readsWholeCentre, receivesReports } from "@/lib/access";
 import { SendReportButton } from "@/components/send-report-button";
+import { reportSubject } from "@/lib/report-email";
 import { fmtDuration } from "@/lib/core";
-import { buildReport, reportInclude } from "@/lib/report";
+import { buildReport, reportFilename, reportInclude } from "@/lib/report";
 import { previouslyFlaggedAt } from "@/lib/previous";
 import { SIZE_SHORT, niceDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
@@ -131,6 +132,11 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
       {inspection.status === "SUBMITTED" && canConduct(user.role) && (
         <SendReportButton
           inspectionId={inspection.id}
+          // The same subject the app's own email uses, so a report sent by hand
+          // and one sent by the app do not arrive looking like different things.
+          subject={reportSubject(report)}
+          filename={reportFilename(report)}
+          reportUrl={`${process.env.NEXTAUTH_URL ?? ""}/inspections/${inspection.id}/report`}
           recipients={inspection.centre.managers
             .filter((m) => receivesReports(m.role))
             .map((m) => {

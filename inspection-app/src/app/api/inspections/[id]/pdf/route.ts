@@ -6,7 +6,8 @@ import { inspectionScope } from "@/lib/access";
 import { buildReport, reportInclude } from "@/lib/report";
 import { previouslyFlaggedAt } from "@/lib/previous";
 import { loadPhotos, photoUrls } from "@/lib/report-photos";
-import { renderReportPdf, reportFilename } from "@/lib/report-pdf";
+import { renderReportPdf } from "@/lib/report-pdf";
+import { reportFilename } from "@/lib/report";
 import { audit } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };

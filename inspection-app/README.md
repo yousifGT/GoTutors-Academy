@@ -389,6 +389,19 @@ mailbox a person reads rather than the sending address. Neither is ever the
 inspector's own address: the report is sent by the system, and a reply belongs
 to whoever handles them.
 
+**Or open it in my own email app** is the fallback for before the app has a mail
+server of its own. A `mailto:` link cannot carry an attachment — RFC 6068 has no
+field for one and no client invents it — so the button does the only thing that
+works: downloads the PDF, then opens a message to the same people with the
+subject and body already written, saying which file to attach. One drag and it
+goes from the sender's own mailbox, with their signature on it.
+
+It is deliberately the lesser path, and says so. Nothing tells the app whether
+the person actually pressed send, so it records nothing: there is no delivery
+row, no read receipt, no audit entry. "We emailed the centre on the 4th" is a
+claim somebody may have to stand behind, and this cannot support it. The app
+sending it directly can.
+
 **Admin → Email** shows what is configured — backend, From, Reply-To, server,
 port, whether TLS is implicit or negotiated, and whether a password is set,
 never what it is — and sends a **test message** to any address. Before it
