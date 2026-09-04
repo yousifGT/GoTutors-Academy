@@ -402,6 +402,13 @@ row, no read receipt, no audit entry. "We emailed the centre on the 4th" is a
 claim somebody may have to stand behind, and this cannot support it. The app
 sending it directly can.
 
+**Which of the two leads depends on whether the app can send at all.** With no
+`EMAIL_BACKEND` configured, the direct send is not offered — a button that fails
+every time is worse than no button — and the mail-app route becomes the main
+action, under a line saying why. Configure a backend and they swap back: direct
+send is the button, the mail app a link beside it. This is what makes the first
+release usable before SES exists, without pretending the two are equivalent.
+
 **Admin → Email** shows what is configured — backend, From, Reply-To, server,
 port, whether TLS is implicit or negotiated, and whether a password is set,
 never what it is — and sends a **test message** to any address. Before it

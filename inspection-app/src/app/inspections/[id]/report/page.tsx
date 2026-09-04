@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { canConduct, inspectionScope, readsWholeCentre, receivesReports } from "@/lib/access";
 import { SendReportButton } from "@/components/send-report-button";
 import { reportSubject } from "@/lib/report-email";
+import { emailBackend } from "@/lib/email-config";
 import { fmtDuration } from "@/lib/core";
 import { buildReport, reportFilename, reportInclude } from "@/lib/report";
 import { previouslyFlaggedAt } from "@/lib/previous";
@@ -137,6 +138,7 @@ export default async function ReportPage(props: { params: Promise<{ id: string }
           subject={reportSubject(report)}
           filename={reportFilename(report)}
           reportUrl={`${process.env.NEXTAUTH_URL ?? ""}/inspections/${inspection.id}/report`}
+          canSendDirectly={emailBackend() !== "console"}
           recipients={inspection.centre.managers
             .filter((m) => receivesReports(m.role))
             .map((m) => {

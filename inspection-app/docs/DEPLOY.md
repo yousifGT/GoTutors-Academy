@@ -71,6 +71,19 @@ One private bucket, e.g. `gotutors-inspection-uploads`.
 
 ### 2.3 Sending mail
 
+> **Phase 1 does not need this.** GoTutors' decision is to go live with reports
+> sent by hand: the report page hands the message to the inspector's own email
+> app with the PDF downloaded ready to attach, which needs no mail server and
+> works the moment the app is deployed. Everything below can wait for phase 2 —
+> but start the SES verification early anyway, because the sandbox exit takes
+> AWS review time, and until it is granted mail only reaches verified addresses.
+>
+> What phase 1 gives up, so it is a decision rather than a drift: nothing is
+> recorded. No delivery row, no read receipt, no audit entry, and no retry — the
+> app cannot know whether a person pressed send. "We told the centre on the 4th"
+> stops being answerable from the system.
+
+
 In SES, verify the domain you will send from (DKIM), then:
 
 - **Leave the sandbox.** In the sandbox SES will only deliver to addresses that

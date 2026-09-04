@@ -30,9 +30,17 @@ export function SendReportButton({
   subject,
   filename,
   reportUrl,
+  canSendDirectly,
 }: {
   inspectionId: string;
   recipients: Recipient[];
+  /**
+   * Whether the app has a mail server of its own. When it does not, offering
+   * "Send by email" as the main action means every inspector presses a button
+   * that fails, every time — so the two swap places rather than one of them
+   * lying about what it can do.
+   */
+  canSendDirectly: boolean;
   /** The same subject line the app's own email uses. */
   subject: string;
   /** What the PDF downloads as, so the message can say which file to attach. */
@@ -135,10 +143,18 @@ export function SendReportButton({
     <div className="mt-4 rounded-xl bg-white p-5 ring-1 ring-slate-200">
       <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500">Sending this report</h2>
 
+      {!canSendDirectly && (
+        <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">
+          The app has no mail server of its own yet, so it cannot send this itself. Use{" "}
+          <strong>Open it in my email app</strong> below: it downloads the report and writes the message, and you
+          attach the file and press send.
+        </p>
+      )}
+
       {recipients.length === 0 ? (
         <p className="mt-2 text-sm text-amber-800">
-          Nobody is set to receive this centre&apos;s reports, so it has not been emailed to anyone. Add a head of
-          centre to the centre and it can be sent.
+          Nobody is set to receive this centre&apos;s reports. Add a head of centre under Centres so it goes to them
+          by name, or type an address below.
         </p>
       ) : (
         <ul className="mt-2 space-y-1 text-sm">
@@ -183,7 +199,10 @@ export function SendReportButton({
           And to another address
         </label>
         <p className="text-xs text-slate-500">
-          One per line. Goes to whoever you type, with the photographs attached, and is recorded in the activity log.
+          One per line.{" "}
+          {canSendDirectly
+            ? "Goes to whoever you type, with the photographs attached, and is recorded in the activity log."
+            : "They are added to the message your email app opens, alongside anyone ticked above."}
         </p>
         <textarea
           id="also-to"
@@ -201,37 +220,45 @@ export function SendReportButton({
         )}
       </div>
 
-      <button
-        onClick={send}
-        disabled={busy || nothingChosen || bad.length > 0}
-        className="mt-3 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-navy disabled:opacity-50"
-      >
-        {busy
-          ? "Sending…"
-          : extras.length && toCentre && recipients.length
-            ? `Send to ${recipients.length + extras.length} people`
-            : extras.length
-              ? `Send to ${extras.length === 1 ? "that address" : `${extras.length} addresses`}`
-              : recipients.some((r) => r.status === "SENT")
-                ? "Send it again"
-                : "Send by email"}
-      </button>
-
-      <div className="mt-3 border-t border-slate-200 pt-3">
+      {/* The two swap emphasis on whether the app can actually send. */}
+      <div className="mt-4 flex flex-wrap items-center gap-3">
         <button
           type="button"
           onClick={openInMailClient}
           disabled={nothingChosen || bad.length > 0}
-          className="text-sm font-medium text-sky-600 underline disabled:opacity-50"
+          className={
+            canSendDirectly
+              ? "text-sm font-medium text-sky-600 underline disabled:opacity-50"
+              : "rounded-lg bg-navy px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+          }
         >
-          Or open it in my own email app
+          {canSendDirectly ? "Or open it in my own email app" : "Open it in my email app"}
         </button>
-        <p className="mt-1 text-xs text-slate-500">
-          Downloads the PDF and opens a message to the same people, already written. You attach the file and press
-          send, so it goes from your mailbox — useful before the app has a mail server of its own. It is not recorded
-          here, because nothing tells the app whether you sent it.
-        </p>
+
+        {canSendDirectly && (
+          <button
+            onClick={send}
+            disabled={busy || nothingChosen || bad.length > 0}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-navy disabled:opacity-50"
+          >
+            {busy
+              ? "Sending…"
+              : extras.length && toCentre && recipients.length
+                ? `Send to ${recipients.length + extras.length} people`
+                : extras.length
+                  ? `Send to ${extras.length === 1 ? "that address" : `${extras.length} addresses`}`
+                  : recipients.some((r) => r.status === "SENT")
+                    ? "Send it again"
+                    : "Send by email"}
+          </button>
+        )}
       </div>
+
+      <p className="mt-2 text-xs text-slate-500">
+        Opening it in your email app downloads the PDF and writes the message to the same people. You attach the file
+        and press send, so it goes from your own mailbox. It is not recorded here, because nothing tells the app
+        whether you sent it.
+      </p>
 
       {notice && <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{notice}</p>}
       {error && <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
