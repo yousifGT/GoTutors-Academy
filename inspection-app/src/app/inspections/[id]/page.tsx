@@ -33,6 +33,17 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
   // they answer rather than finding out when the report is written.
   const previouslyFlagged = await previouslyFlaggedAt(inspection.centreId, { exclude: inspection.id });
 
+  // A visit keeps the checklist it started with — questions must not appear or
+  // vanish while someone is halfway round a building. That is right, and it was
+  // invisible: publish a new checklist, press "Start inspection" at a centre
+  // where a draft was already open, and the old questions come back with
+  // nothing on screen to say why.
+  const live = await prisma.template.findFirst({
+    where: { isActive: true },
+    orderBy: { version: "desc" },
+    select: { version: true },
+  });
+
   return (
     <Runner
       id={inspection.id}
@@ -42,6 +53,8 @@ export default async function InspectionPage(props: { params: Promise<{ id: stri
       activeMs={inspection.activeMs}
       updatedAt={inspection.updatedAt.toISOString()}
       previouslyFlagged={Array.from(previouslyFlagged)}
+      checklistVersion={inspection.template.version}
+      liveChecklistVersion={live?.version ?? inspection.template.version}
       sections={inspection.template.sections.map((s) => ({ title: s.title, questions: s.questions }))}
       saved={inspection.answers.map((a) => ({
         questionId: a.questionId,

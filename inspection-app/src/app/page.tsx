@@ -5,6 +5,7 @@ import {
   canConduct,
   canManageCentres,
   canManageUsers,
+  canViewAllCentres,
   centreScope,
   inspectionScope,
   isCentreScoped,
@@ -16,6 +17,7 @@ import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { VisitList } from "@/components/visit-list";
 import { canReadAudit } from "@/lib/audit-view";
 import { SignOut } from "@/components/sign-out";
+import { DraftCard } from "@/components/draft-card";
 
 export default async function Home() {
   const user = await requireUser();
@@ -38,6 +40,10 @@ export default async function Home() {
         activeMs: true,
         centre: { select: { name: true } },
         inspector: { select: { name: true } },
+        // Only used for the drafts among them: a visit keeps the checklist it
+        // started with, and saying which one is what makes an old draft
+        // explicable rather than a bug.
+        template: { select: { version: true } },
       },
     }),
     prisma.template.findFirst({
@@ -109,6 +115,11 @@ export default async function Home() {
           <p className="font-medium text-slate-700">{user.name}</p>
           <p className="text-slate-500">{ROLE_LABEL[user.role] ?? user.role}</p>
           <div className="mt-1 flex justify-end gap-3 text-xs">
+            {canViewAllCentres(user.role) && (
+              <Link href="/centres" className="font-medium text-sky-600">
+                Centres
+              </Link>
+            )}
             {canScheduleVisits(user.role) && (
               <Link href="/planner" className="font-medium text-sky-600">
                 Planner
@@ -149,16 +160,14 @@ export default async function Home() {
       {canConduct(user.role) && (
         <div className="mt-6 space-y-3">
           {drafts.map((d) => (
-            <Link
+            <DraftCard
               key={d.id}
-              href={`/inspections/${d.id}`}
-              className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200"
-            >
-              <span className="text-sm font-medium text-amber-900">
-                Resume {d.centre.name} — started {shortDate(d.date)}
-              </span>
-              <span className="text-sm font-semibold text-amber-900">→</span>
-            </Link>
+              id={d.id}
+              centreName={d.centre.name}
+              date={d.date.toISOString()}
+              checklistVersion={d.template.version}
+              liveChecklistVersion={template?.version}
+            />
           ))}
           <Link
             href="/inspections/new"

@@ -52,6 +52,9 @@ interface Props {
   updatedAt: string;
   /** Questions the previous visit to this centre flagged. */
   previouslyFlagged: string[];
+  /** The checklist this visit was started against, and the one that is live now. */
+  checklistVersion: number;
+  liveChecklistVersion: number;
   debrief: Debrief;
   targets: string;
 }
@@ -352,6 +355,8 @@ export function Runner(props: Props) {
       <TopBar
         centreName={props.centreName}
         size={props.size}
+        checklistVersion={props.checklistVersion}
+        liveChecklistVersion={props.liveChecklistVersion}
         pct={score.pct}
         verdict={score.verdict.word}
         criticalCount={score.criticalFails.length}
@@ -495,6 +500,8 @@ export function Runner(props: Props) {
 function TopBar(props: {
   centreName: string;
   size: CentreSize;
+  checklistVersion: number;
+  liveChecklistVersion: number;
   pct: number;
   verdict: string;
   criticalCount: number;
@@ -515,6 +522,12 @@ function TopBar(props: {
             {props.centreName}
             <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
               {SIZE_SHORT[props.size]}
+            </span>
+            {/* Which questions these are. Cheap to show, and the difference
+                between "the checklist did not update" and "this visit is on the
+                older one" is otherwise invisible. */}
+            <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-500">
+              v{props.checklistVersion}
             </span>
           </p>
         </div>
@@ -546,6 +559,12 @@ function TopBar(props: {
       {props.restored && !props.offline && (
         <p className="bg-sky-600 px-4 py-1.5 text-center text-xs font-semibold text-white">
           Recovered answers that had not been saved. Sending them now.
+        </p>
+      )}
+      {props.liveChecklistVersion !== props.checklistVersion && (
+        <p className="bg-slate-700 px-4 py-1.5 text-center text-xs font-semibold text-white">
+          On checklist v{props.checklistVersion}. The live one is now v{props.liveChecklistVersion} — a visit keeps the
+          questions it started with. To use the new one, discard this on the Debrief tab and start again.
         </p>
       )}
       {props.unfixed > 0 && (

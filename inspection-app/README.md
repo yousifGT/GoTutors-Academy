@@ -519,6 +519,12 @@ the checklist is versioned and question ids do not survive a new version. Reword
 a question in the editor and its history stops following it — the old finding
 reads as dropped and the new wording as new. See `src/lib/progress.ts`.
 
+**Finding one**: `/centres` lists every centre the viewer reads in full, with
+its latest score, the move since the visit before, and who runs it. It can be
+searched by centre, address or head, and ordered by lowest score, longest since
+a visit, or biggest fall — the three questions someone responsible for all of
+them actually asks. A head of centre sees only their own centre there.
+
 **Who sees it** is `readsWholeCentre` in `src/lib/access.ts`: the roles that
 already read every inspection at that centre — super admin, head office,
 read-only, and the centre's own head, franchisee or regional manager. An
@@ -527,8 +533,23 @@ inspector is not among them, deliberately: they read only their own visits, so
 one, which is worse than no dashboard because it reads as fact.
 
 A head of centre reaches it from their home screen, which lists their centres
-with the latest verdict; everyone else from the **Progress** button on the
-inspections list, or from any report.
+with the latest verdict; head office and the super admin from **Centres** in the
+header; anyone from the **Progress** button on the inspections list, or from any
+report.
+
+### A visit keeps the checklist it started with
+
+Questions must not appear or vanish while somebody is halfway round a building,
+so an inspection is always answered against the version it was started on. That
+is right, and it used to be invisible: publish a new checklist, press "Start
+inspection" at a centre where a draft was already open — which resumes it rather
+than starting a second one — and the old questions came back with nothing on
+screen to say why.
+
+Now the top bar carries the version, a draft on anything but the live checklist
+says so and says what to do about it, and a draft can be discarded from the home
+screen where you actually meet it rather than only from the far end of the
+inspection you want to be rid of.
 
 ## Taking the data out
 

@@ -37,9 +37,16 @@ export default async function ReportsPage() {
         <Link href="/">
           <Wordmark className="text-lg" />
         </Link>
-        <Link href="/" className="text-sm text-sky-600">
-          ← Home
-        </Link>
+        <div className="flex gap-4 text-sm">
+          {canViewAllCentres(user.role) && (
+            <Link href="/centres" className="text-sky-600">
+              Centres
+            </Link>
+          )}
+          <Link href="/" className="text-sky-600">
+            ← Home
+          </Link>
+        </div>
       </div>
       <h1 className="mt-4 text-2xl font-bold text-navy">Inspections</h1>
       <p className="mt-1 text-sm text-slate-500">
