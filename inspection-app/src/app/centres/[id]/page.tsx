@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
-import { canAssignCentreHead, readsWholeCentre } from "@/lib/access";
+import { canAssignCentreHead, canDecideHeadRequest, canRequestCentreHead, readsWholeCentre } from "@/lib/access";
 import { progressFor, trend, type Visit } from "@/lib/progress";
 import { CentreDashboard } from "./dashboard";
 
@@ -32,16 +32,54 @@ export default async function CentrePage(props: { params: Promise<{ id: string }
   if (!centre) notFound();
   if (!readsWholeCentre(viewer, centre.managers.map((m) => m.id))) redirect("/reports");
 
+  const managerIds = centre.managers.map((m) => m.id);
+  const mayAssign = canAssignCentreHead(viewer);
+  const mayDecide = canDecideHeadRequest(viewer.role);
+  const mayRequest = canRequestCentreHead(viewer, managerIds);
+
   // Everyone who could be made a head of this centre: an existing, active head
-  // of centre account. Nothing here creates one.
-  const mayAssign = canAssignCentreHead(viewer, centre.managers.map((m) => m.id));
-  const candidates = mayAssign
-    ? await prisma.user.findMany({
-        where: { role: "CENTRE_HEAD", active: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, email: true, role: true },
-      })
-    : [];
+  // of centre account. Nothing here creates one. Loaded for whoever can name
+  // somebody — the admin who assigns, or the franchisee who asks.
+  const candidates =
+    mayAssign || mayRequest
+      ? await prisma.user.findMany({
+          where: { role: "CENTRE_HEAD", active: true },
+          orderBy: { name: "asc" },
+          select: { id: true, name: true, email: true, role: true },
+        })
+      : [];
+
+  // Requests are shown to the people they concern: whoever can answer one, and
+  // whoever raised it. Answered requests stay visible to the asker so a
+  // rejection is not silent.
+  const requestRows =
+    mayDecide || mayAssign || mayRequest
+      ? await prisma.centreHeadRequest.findMany({
+          where: { centreId: centre.id },
+          orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+          take: 50,
+          select: {
+            id: true,
+            status: true,
+            note: true,
+            decisionNote: true,
+            createdAt: true,
+            askedById: true,
+            head: { select: { id: true, name: true, email: true } },
+            askedBy: { select: { name: true } },
+          },
+        })
+      : [];
+  const requests = requestRows.map((r) => ({
+    id: r.id,
+    status: r.status,
+    note: r.note,
+    decisionNote: r.decisionNote,
+    createdAt: r.createdAt.toISOString(),
+    head: r.head,
+    askedBy: r.askedBy,
+    mine: r.askedById === viewer.id,
+  }));
 
   const rows = await prisma.inspection.findMany({
     where: { centreId: centre.id, status: "SUBMITTED" },
@@ -76,7 +114,7 @@ export default async function CentrePage(props: { params: Promise<{ id: string }
       progress={progressFor(visits)}
       points={trend(visits)}
       durations={Object.fromEntries(rows.map((r) => [r.id, r.activeMs]))}
-      people={{ managers: centre.managers, candidates, mayAssign }}
+      people={{ managers: centre.managers, candidates, mayAssign, mayDecide, mayRequest, requests }}
     />
   );
 }

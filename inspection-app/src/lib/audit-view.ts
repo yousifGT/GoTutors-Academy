@@ -59,6 +59,12 @@ export const ACTIONS: Record<string, ActionMeta> = {
   "centre.heads": { group: "centres", label: "Who runs a centre changed", notable: true },
   "centre.close": { group: "centres", label: "Centre closed", notable: true },
   "centre.delete": { group: "centres", label: "Centre deleted", notable: true },
+  // A franchisee cannot appoint anybody; they ask, and a super admin answers.
+  // Both halves are recorded, and separately from the assignment itself, so the
+  // log shows who wanted the access as well as who granted it.
+  "centre.head_requested": { group: "centres", label: "Head of centre requested" },
+  "centre.head_request_decided": { group: "centres", label: "Head of centre request answered", notable: true },
+  "centre.head_request_withdrawn": { group: "centres", label: "Head of centre request withdrawn" },
 
   "inspection.start": { group: "inspections", label: "Inspection started" },
   "inspection.submit": { group: "inspections", label: "Inspection submitted", notable: true },

@@ -85,21 +85,33 @@ export function inspectionScope(viewer: Viewer): Prisma.InspectionWhereInput {
 /**
  * Whether this viewer may say who runs a centre.
  *
- * Super admin and head office may, anywhere. A franchisee may, but only at a
- * centre they already run — they are the person who knows who is managing their
- * sites, and making them wait on head office to record it is how the list stops
- * matching reality.
- *
- * It is a narrow power, and stays narrow: the route it gates accepts a list of
- * heads of centre and nothing else. A franchisee cannot create an account, set
- * a password, choose a role, rename or close a centre, or add a centre to their
- * own portfolio. They pick from people who already have an account, and the
- * only role they can pick is head of centre — so this can never be used to hand
- * somebody more access than the person doing it has.
+ * The people who administer centres, and nobody else. A franchisee knows who is
+ * running their sites, but granting somebody access to a system holding
+ * inspection records is a decision, and it is made by the person who is
+ * accountable for who holds access — so a franchisee asks, and a super admin
+ * answers. See `canRequestCentreHead`.
  */
-export function canAssignCentreHead(viewer: Viewer, centreManagerIds: string[]): boolean {
-  if (canManageCentres(viewer.role)) return true;
+export function canAssignCentreHead(viewer: Viewer): boolean {
+  return canManageCentres(viewer.role);
+}
+
+/**
+ * Whether this viewer may ask for somebody to be made head of a centre.
+ *
+ * A franchisee, at a centre they already run. It is a request and not a change:
+ * nothing happens until a super admin approves it, and both the asking and the
+ * answering are on the record. That is the whole of a franchisee's authority
+ * over access — they cannot create an account, set a password, choose a role,
+ * remove a head of centre, rename or close a centre, or add a centre to their
+ * own portfolio.
+ */
+export function canRequestCentreHead(viewer: Viewer, centreManagerIds: string[]): boolean {
   return viewer.role === "FRANCHISEE" && centreManagerIds.includes(viewer.id);
+}
+
+/** Who answers those requests. */
+export function canDecideHeadRequest(role: Role): boolean {
+  return role === "SUPER_ADMIN";
 }
 
 /**

@@ -5,7 +5,7 @@ import { SIZE_SHORT, niceDate, shortDate } from "@/lib/format";
 import { VERDICT_COLOR, Wordmark } from "@/components/brand";
 import { fmtDuration } from "@/lib/core";
 import { ExportMenu } from "@/components/export-menu";
-import { CentreHeads } from "./centre-heads";
+import { CentreHeads, type CentrePeople } from "./centre-heads";
 
 /**
  * The four things that can have happened to a finding since the last visit.
@@ -61,11 +61,7 @@ export function CentreDashboard({
   progress: CentreProgress;
   points: { id: string; date: Date; pct: number }[];
   durations: Record<string, number>;
-  people: {
-    managers: { id: string; name: string; email: string; role: string }[];
-    candidates: { id: string; name: string; email: string; role: string }[];
-    mayAssign: boolean;
-  };
+  people: CentrePeople;
 }) {
   const { latest, previous, movement, scoreChange, criticalNow, outstanding, visits } = progress;
 
@@ -101,13 +97,7 @@ export function CentreDashboard({
           </p>
           {/* Still shown: a centre with no visits yet is exactly when somebody
               is setting up who runs it. */}
-          <CentreHeads
-            centreId={centre.id}
-            centreName={centre.name}
-            managers={people.managers}
-            candidates={people.candidates}
-            mayAssign={people.mayAssign}
-          />
+          <CentreHeads centreId={centre.id} centreName={centre.name} people={people} />
         </>
       ) : (
         <>
@@ -231,13 +221,7 @@ export function CentreDashboard({
             </section>
           )}
 
-          <CentreHeads
-            centreId={centre.id}
-            centreName={centre.name}
-            managers={people.managers}
-            candidates={people.candidates}
-            mayAssign={people.mayAssign}
-          />
+          <CentreHeads centreId={centre.id} centreName={centre.name} people={people} />
 
           <section className="mt-8">
             <h2 className="text-lg font-bold text-navy">Every visit</h2>

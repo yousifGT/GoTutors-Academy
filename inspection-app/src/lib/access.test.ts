@@ -5,6 +5,8 @@ import {
   canEditInspection,
   canManageCentres,
   canAssignCentreHead,
+  canRequestCentreHead,
+  canDecideHeadRequest,
   canManageTemplate,
   readsWholeCentre,
   canManageUsers,
@@ -121,26 +123,54 @@ describe("readsWholeCentre", () => {
 });
 
 describe("canAssignCentreHead", () => {
+  it("is the roles that administer centres, and nobody else", () => {
+    // Appointing a head of centre grants somebody access to inspection records.
+    // That decision sits with the people accountable for who holds access. A
+    // franchisee asks for it; see canRequestCentreHead.
+    expect(canAssignCentreHead({ id: "u-x", role: "SUPER_ADMIN" })).toBe(true);
+    expect(canAssignCentreHead({ id: "u-x", role: "HEAD_OFFICE" })).toBe(true);
+    for (const role of ["FRANCHISEE", "CENTRE_HEAD", "REGIONAL_MANAGER", "INSPECTOR", "READ_ONLY"] as const)
+      expect(canAssignCentreHead({ id: "u-x", role }), role).toBe(false);
+  });
+});
+
+describe("canRequestCentreHead", () => {
   const theirs = ["u-franchisee"];
 
-  it("lets the roles that manage centres do it anywhere", () => {
-    expect(canAssignCentreHead({ id: "u-x", role: "SUPER_ADMIN" }, [])).toBe(true);
-    expect(canAssignCentreHead({ id: "u-x", role: "HEAD_OFFICE" }, [])).toBe(true);
-  });
-
-  it("lets a franchisee do it at a centre they run", () => {
-    expect(canAssignCentreHead({ id: "u-franchisee", role: "FRANCHISEE" }, theirs)).toBe(true);
+  it("lets a franchisee ask, at a centre they run", () => {
+    expect(canRequestCentreHead({ id: "u-franchisee", role: "FRANCHISEE" }, theirs)).toBe(true);
   });
 
   it("and not at one they do not", () => {
-    expect(canAssignCentreHead({ id: "u-other", role: "FRANCHISEE" }, theirs)).toBe(false);
+    expect(canRequestCentreHead({ id: "u-other", role: "FRANCHISEE" }, theirs)).toBe(false);
   });
 
   it("keeps out everyone else, including at their own centre", () => {
-    // A head of centre appointing the next head of centre is a promotion path
+    // A head of centre nominating the next head of centre is a promotion path
     // nobody asked for. A regional manager reads their centres; who runs them is
     // the franchisee's business or head office's.
     for (const role of ["CENTRE_HEAD", "REGIONAL_MANAGER", "INSPECTOR", "READ_ONLY"] as const)
-      expect(canAssignCentreHead({ id: "u-franchisee", role }, theirs), role).toBe(false);
+      expect(canRequestCentreHead({ id: "u-franchisee", role }, theirs), role).toBe(false);
+  });
+
+  it("does not overlap with the people who decide", () => {
+    // The asker and the answerer are never the same person. A super admin who
+    // wants a head of centre assigns one; they have no reason to raise a request
+    // with themselves, and the routes are separate so neither can stand in for
+    // the other.
+    for (const role of ["SUPER_ADMIN", "HEAD_OFFICE"] as const)
+      expect(canRequestCentreHead({ id: "u-franchisee", role }, theirs), role).toBe(false);
+  });
+});
+
+describe("canDecideHeadRequest", () => {
+  it("is the super admin alone", () => {
+    // Narrower than canAssignCentreHead on purpose. Head office can appoint a
+    // head at a centre it administers; answering a franchisee's request is the
+    // approval step the franchisee's own limits exist to create, so it stays
+    // with the one role that holds account administration.
+    expect(canDecideHeadRequest("SUPER_ADMIN")).toBe(true);
+    for (const role of ["HEAD_OFFICE", "FRANCHISEE", "CENTRE_HEAD", "REGIONAL_MANAGER", "INSPECTOR", "READ_ONLY"] as const)
+      expect(canDecideHeadRequest(role), role).toBe(false);
   });
 });

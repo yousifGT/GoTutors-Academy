@@ -92,6 +92,9 @@ model User {
   visitsMarked  ScheduledVisit[] @relation("VisitStatusSetter")
   uploads       Upload[]
   passwordResets PasswordReset[]
+  headRequests        CentreHeadRequest[] @relation("RequestedHead")
+  headRequestsAsked   CentreHeadRequest[] @relation("AskedForHead")
+  headRequestsDecided CentreHeadRequest[] @relation("DecidedHeadRequest")
 
   @@index([role])
 }
@@ -112,6 +115,7 @@ model Centre {
   inspectors  User[]       @relation("CentreInspectors")
   inspections Inspection[]
   visits      ScheduledVisit[]
+  headRequests CentreHeadRequest[]
 
   @@index([status, sortOrder])
 }
@@ -443,4 +447,47 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([action])
+}
+
+/// A franchisee asking for somebody to be made head of one of their centres.
+///
+/// A franchisee knows who is running their sites; a super admin decides who
+/// gets access to a system holding inspection records. The request is how both
+/// stay true at once — the person with the knowledge raises it, the person with
+/// the authority grants it, and the exchange is on the record either way.
+///
+/// Only ever about adding a head of centre. Removing one, and everything else
+/// about a centre, stays with the super admin.
+model CentreHeadRequest {
+  id       String        @id @default(cuid())
+  centreId String
+  /// The existing head-of-centre account being proposed. Nobody is created here.
+  headId   String
+  askedById String
+  note     String?
+
+  status       HeadRequestStatus @default(PENDING)
+  decidedById  String?
+  decidedAt    DateTime?
+  /// Why it was refused, so a rejection is an answer rather than a silence.
+  decisionNote String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  centre    Centre @relation(fields: [centreId], references: [id], onDelete: Cascade)
+  head      User   @relation("RequestedHead", fields: [headId], references: [id], onDelete: Cascade)
+  askedBy   User   @relation("AskedForHead", fields: [askedById], references: [id], onDelete: Cascade)
+  decidedBy User?  @relation("DecidedHeadRequest", fields: [decidedById], references: [id])
+
+  /// One open request per person per centre; asking twice is not two requests.
+  @@index([status, createdAt])
+  @@index([centreId])
+}
+
+enum HeadRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
 }
