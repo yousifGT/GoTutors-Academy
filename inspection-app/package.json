@@ -2,7 +2,7 @@
   "name": "gotutors-inspection",
   "version": "0.1.0",
   "private": true,
-  "description": "GoTutors centre inspection app \u2014 runs standalone, with its own database.",
+  "description": "GoTutors centre inspection app — runs standalone, with its own database.",
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "prisma generate && next build",
