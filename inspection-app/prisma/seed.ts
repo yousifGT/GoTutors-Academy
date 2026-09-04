@@ -135,12 +135,25 @@ async function main() {
     select: { id: true, _count: { select: { inspections: true } } },
   });
   if (existing && existing._count.inspections > 0) {
+    // The commonest reason to be here is not wanting to re-import at all: the
+    // version is already in the database and the person simply wants it live.
+    // Saying so first, because "re-importing would destroy the questions" is
+    // true and unhelpful when the answer is one command away.
+    const live = await prisma.template.findFirst({
+      where: { name: TEMPLATE_NAME, isActive: true },
+      select: { version: true },
+    });
     throw new Error(
-      `Checklist v${checklistVersion} has ${existing._count.inspections} inspection(s) recorded against it, so ` +
-        `re-importing it would destroy the questions those answers point at.\n\n` +
-        `To change a checklist that has been used, edit it in the app under Admin \u2192 Checklist. That publishes a ` +
-        `new version and leaves the recorded inspections on the one they were carried out against.\n\n` +
-        `To import this file as a new version instead, raise "checklistVersion" in data/gotutors-seed.json.`
+      `Checklist v${checklistVersion} is already in the database, with ${existing._count.inspections} ` +
+        `inspection(s) recorded against it, so it cannot be re-imported \u2014 that would destroy the questions ` +
+        `those answers point at.\n\n` +
+        (live?.version === checklistVersion
+          ? `It is already the live checklist, so there is nothing to do.\n`
+          : `To make it the live one, which is probably what you want:\n\n` +
+            `    npm run checklist -- ${checklistVersion}\n\n` +
+            `(live at the moment: v${live?.version ?? "none"})\n`) +
+        `\nTo CHANGE its questions, edit it in the app under Admin \u2192 Checklist. That publishes a new version ` +
+        `and leaves the recorded inspections on the one they were carried out against.`
     );
   }
 
