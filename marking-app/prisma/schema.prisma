@@ -1,0 +1,253 @@
+// Marker — AI marking for tutoring centres.
+//
+// Everything is owned by an Organisation (one tutoring centre). Every query in
+// the app filters on it, so a second centre on the same deployment can never
+// see the first one's children.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  /// Runs the centre: manages people, students, mark schemes, and marks anything.
+  ADMIN
+  /// A tutor: their own students and their own uploads.
+  MARKER
+}
+
+enum MarkingStatus {
+  PENDING     // uploaded, not marked yet
+  MARKING     // a marking run is in flight
+  MARKED      // marked automatically, with enough confidence to show
+  NEEDS_HUMAN // unreadable or low confidence — a person must mark it
+  REVIEWED    // a person has checked (and possibly corrected) the marks
+  FAILED      // the run errored; safe to retry
+}
+
+enum MarkSource {
+  AI
+  HUMAN
+}
+
+/// Why an example was kept. A correction teaches more than a confirmation, so
+/// the two are stored apart and corrections are preferred when building prompts.
+enum ExampleSource {
+  AI_CONFIRMED
+  HUMAN_CORRECTED
+}
+
+model Organisation {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  students    Student[]
+  markSchemes MarkScheme[]
+  submissions Submission[]
+  auditEvents AuditEvent[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  /// bcrypt hash. Never anything else, and never returned to a client.
+  password       String
+  name           String
+  role           Role     @default(MARKER)
+  organisationId String   @map("organisation_id")
+  active         Boolean  @default(true)
+  /// Set when an admin resets someone's password, cleared when they choose
+  /// their own — so a temporary password known to two people cannot quietly
+  /// become permanent.
+  mustChangePassword Boolean @default(false) @map("must_change_password")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation        Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  students            Student[]    @relation("TutorStudents")
+  markSchemes         MarkScheme[] @relation("OwnedMarkSchemes")
+  submissionsUploaded Submission[] @relation("UploadedSubmissions")
+  submissionsReviewed Submission[] @relation("ReviewedSubmissions")
+  auditEvents         AuditEvent[]
+
+  @@index([organisationId])
+}
+
+/// A child being tutored. They never sign in; this is a record, not an account.
+model Student {
+  id             String   @id @default(cuid())
+  organisationId String   @map("organisation_id")
+  name           String
+  yearGroup      String?  @map("year_group")
+  /// The tutor who normally teaches them. Admins see every student regardless.
+  tutorId        String   @map("tutor_id")
+  notes          String?
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  tutor        User         @relation("TutorStudents", fields: [tutorId], references: [id], onDelete: Cascade)
+  submissions  Submission[]
+
+  @@index([organisationId, active])
+  @@index([tutorId])
+}
+
+model MarkScheme {
+  id             String   @id @default(cuid())
+  organisationId String   @map("organisation_id")
+  title          String
+  subject        String
+  level          String?
+  ownerId        String   @map("owner_id")
+  /// Visible to everyone in the centre, not just the author.
+  shared         Boolean  @default(true)
+  archived       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organisation Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  owner        User                 @relation("OwnedMarkSchemes", fields: [ownerId], references: [id], onDelete: Cascade)
+  questions    MarkSchemeQuestion[]
+  submissions  Submission[]
+  examples     MarkingExample[]
+
+  @@index([organisationId, archived])
+  @@index([ownerId])
+}
+
+model MarkSchemeQuestion {
+  id             String @id @default(cuid())
+  markSchemeId   String @map("mark_scheme_id")
+  order          Int
+  /// As printed on the paper — "1", "2b", "Section A Q3".
+  label          String
+  prompt         String
+  expectedAnswer String @map("expected_answer")
+  /// The denominator. Never taken from the model — see marking/scoring.ts.
+  marks          Int    @default(1)
+  /// How to award part marks, in the examiner's own words.
+  guidance       String?
+
+  markScheme      MarkScheme       @relation(fields: [markSchemeId], references: [id], onDelete: Cascade)
+  submissionMarks SubmissionMark[]
+  examples        MarkingExample[]
+
+  @@unique([markSchemeId, label])
+  @@index([markSchemeId])
+}
+
+model Submission {
+  id             String        @id @default(cuid())
+  organisationId String        @map("organisation_id")
+  studentId      String        @map("student_id")
+  markSchemeId   String        @map("mark_scheme_id")
+  uploadedById   String        @map("uploaded_by_id")
+  status         MarkingStatus @default(PENDING)
+  /// One entry per photographed page, in page order.
+  pageUrls       String[]      @default([]) @map("page_urls")
+  awarded        Int?
+  available      Int?
+  overallComment String?       @map("overall_comment")
+  strengths      String[]      @default([])
+  improvements   String[]      @default([])
+  /// Lowest per-question confidence in the run, 0–1.
+  confidence     Float?
+  model          String?
+  failureReason  String?       @map("failure_reason")
+  markedAt       DateTime?     @map("marked_at")
+  reviewedById   String?       @map("reviewed_by_id")
+  reviewedAt     DateTime?     @map("reviewed_at")
+  reviewNote     String?       @map("review_note")
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organisation Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markScheme   MarkScheme       @relation(fields: [markSchemeId], references: [id])
+  uploadedBy   User             @relation("UploadedSubmissions", fields: [uploadedById], references: [id], onDelete: Cascade)
+  reviewedBy   User?            @relation("ReviewedSubmissions", fields: [reviewedById], references: [id])
+  marks        SubmissionMark[]
+  examples     MarkingExample[]
+
+  @@index([organisationId, status])
+  @@index([studentId, createdAt])
+  @@index([uploadedById])
+}
+
+model SubmissionMark {
+  id           String     @id @default(cuid())
+  submissionId String     @map("submission_id")
+  /// Null when the reader reported a question that isn't in the scheme.
+  questionId   String?    @map("question_id")
+  label        String
+  order        Int        @default(0)
+  awarded      Int
+  available    Int
+  /// What the reader made of the student's handwriting, so a human can check
+  /// the mark without going back to the photo for every question.
+  transcript   String
+  comment      String
+  confidence   Float      @default(0)
+  legible      Boolean    @default(true)
+  source       MarkSource @default(AI)
+  /// True once a human changed the mark or the comment.
+  edited       Boolean    @default(false)
+
+  submission Submission          @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  question   MarkSchemeQuestion? @relation(fields: [questionId], references: [id], onDelete: SetNull)
+
+  @@unique([submissionId, label])
+  @@index([submissionId])
+}
+
+/// A worked example kept from a marked paper, fed back into later prompts for
+/// the same question. This is the whole of "it learns": no training run, no
+/// weights — the marker sees how this centre's people actually marked this
+/// question and copies them.
+model MarkingExample {
+  id              String        @id @default(cuid())
+  markSchemeId    String        @map("mark_scheme_id")
+  questionId      String?       @map("question_id")
+  submissionId    String?       @map("submission_id")
+  studentAnswer   String        @map("student_answer")
+  awarded         Int
+  available       Int
+  examinerComment String        @map("examiner_comment")
+  source          ExampleSource
+  createdAt       DateTime      @default(now())
+
+  markScheme MarkScheme          @relation(fields: [markSchemeId], references: [id], onDelete: Cascade)
+  question   MarkSchemeQuestion? @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  submission Submission?         @relation(fields: [submissionId], references: [id], onDelete: SetNull)
+
+  @@index([questionId, createdAt])
+  @@index([markSchemeId, createdAt])
+}
+
+/// Who did what. Marks on a child's work are contestable, so every change to
+/// one leaves a row here.
+model AuditEvent {
+  id             String   @id @default(cuid())
+  organisationId String   @map("organisation_id")
+  actorId        String?  @map("actor_id")
+  action         String
+  target         String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, createdAt])
+  @@index([action])
+}

@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: marker
+      POSTGRES_PASSWORD: marker
+      POSTGRES_DB: marker
+    ports:
+      # 5434 rather than 5432, so this can run alongside another local Postgres.
+      - "5434:5432"
+    volumes:
+      - marker-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U marker"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  marker-db:

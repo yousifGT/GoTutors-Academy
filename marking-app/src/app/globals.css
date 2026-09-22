@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * One visual language for the whole app. Colours are declared as CSS variables
+ * so dark mode is a variable swap rather than a second set of classes on every
+ * element — the pattern that keeps a two-theme app from drifting apart.
+ */
+:root {
+  --bg: #f6f7fb;
+  --surface: #ffffff;
+  --fg: #141433;
+  --muted: #6b6b8a;
+  --border: #e3e5ef;
+  --soft: #f1f2f8;
+  --accent: #3aa7e0;
+}
+
+.dark {
+  --bg: #0e0e21;
+  --surface: #171735;
+  --fg: #eef0fa;
+  --muted: #9a9ab8;
+  --border: #2a2a4d;
+  --soft: #1e1e40;
+  --accent: #4fb6ec;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+@layer components {
+  .card {
+    @apply rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-5 shadow-sm;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60;
+  }
+  .btn-primary {
+    @apply btn bg-sky text-white hover:bg-sky/90;
+  }
+  .btn-accent {
+    @apply btn bg-teal text-white hover:bg-teal/90;
+  }
+  .btn-ghost {
+    @apply btn border border-[var(--border)] hover:border-sky/50 hover:bg-[var(--soft)];
+  }
+  .btn-danger {
+    @apply btn border border-coral/40 text-coral hover:bg-coral/10;
+  }
+
+  .input {
+    @apply w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-sm outline-none transition focus:border-sky focus:ring-2 focus:ring-sky/20;
+  }
+  .input::placeholder {
+    @apply text-[var(--muted)];
+  }
+
+  .badge {
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
+
+  .table {
+    @apply w-full text-left text-sm;
+  }
+  .table th {
+    @apply border-b border-[var(--border)] px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[var(--muted)];
+  }
+  .table td {
+    @apply border-b border-[var(--border)] px-5 py-3 align-top;
+  }
+  .table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  .table tbody tr:hover {
+    @apply bg-[var(--soft)];
+  }
+}
+
+/* The marked report is meant to be printed and handed to a parent. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .card {
+    border-color: #ddd;
+    box-shadow: none;
+  }
+}
