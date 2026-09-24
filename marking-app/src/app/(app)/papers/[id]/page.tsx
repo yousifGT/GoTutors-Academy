@@ -3,13 +3,15 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireViewer } from "@/lib/session";
 import { canReviewSubmission, submissionScope } from "@/lib/marking/access";
-import { statusView, hasScore, confidenceLabel } from "@/lib/marking/view";
+import { statusView, hasScore, canExport, confidenceLabel } from "@/lib/marking/view";
 import { percentageOf, CONFIDENCE_FLOOR } from "@/lib/marking/scoring";
 import { bandFor } from "@/lib/marking/feedback";
 import { PageHeader, Callout, StatCard } from "@/components/ui";
 import { MarkReviewForm, type ReviewRow } from "@/components/mark-review-form";
 import { RemarkButton } from "@/components/remark-button";
 import { PrintButton } from "@/components/print-button";
+import { StorePaper } from "@/components/store-paper";
+import { paperOwnerLabel } from "@/lib/marking/paper-label";
 import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +30,7 @@ export default async function PaperPage({ params }: { params: { id: string } }) 
   const submission = await prisma.submission.findFirst({
     where: { id: params.id, ...submissionScope(viewer) },
     include: {
-      student: { select: { id: true, name: true, yearGroup: true } },
+      student: { select: { id: true, name: true, yearGroup: true, admissionNumber: true } },
       markScheme: { include: { questions: { orderBy: { order: "asc" } } } },
       marks: { orderBy: { order: "asc" } },
       reviewedBy: { select: { name: true } },
@@ -65,19 +67,42 @@ export default async function PaperPage({ params }: { params: { id: string } }) 
   return (
     <div className="space-y-6">
       <PageHeader
-        title={`${submission.student.name} — ${submission.markScheme.title}`}
-        subtitle={`${submission.markScheme.subject}${
-          submission.markScheme.level ? ` · ${submission.markScheme.level}` : ""
-        } · uploaded ${formatDate(submission.createdAt)} by ${submission.uploadedBy.name}`}
-        backHref={`/students/${submission.student.id}`}
-        backLabel={`${submission.student.name}'s papers`}
+        title={`${paperOwnerLabel(submission)} — ${submission.markScheme.title}`}
+        subtitle={[
+          submission.student?.admissionNumber ? `Admission no. ${submission.student.admissionNumber}` : null,
+          submission.markScheme.subject,
+          submission.markScheme.level,
+          `uploaded ${formatDate(submission.createdAt)} by ${submission.uploadedBy.name}`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
+        backHref={submission.student ? `/students/${submission.student.id}` : "/unfiled"}
+        backLabel={submission.student ? `${submission.student.name}'s papers` : "Papers not stored yet"}
         actions={
           <>
             <span className={`badge ${view.tone}`}>{view.label}</span>
+            {canExport(submission.status) && (
+              <a href={`/api/papers/${submission.id}/report`} className="btn-ghost text-sm">
+                Export PDF
+              </a>
+            )}
             <PrintButton />
           </>
         }
       />
+
+      {!submission.studentId && (
+        <div className="card border-plum/40 no-print">
+          <h3 className="font-bold">Store this result?</h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            This paper was quick-marked, so it is not on any student&apos;s record yet. Store it against a child to keep
+            it, or discard it.
+          </p>
+          <div className="mt-3">
+            <StorePaper submissionId={submission.id} compact />
+          </div>
+        </div>
+      )}
 
       {submission.failureReason && (
         <Callout>
@@ -222,10 +247,15 @@ export default async function PaperPage({ params }: { params: { id: string } }) 
         </div>
       )}
 
-      <div className="text-sm no-print">
+      <div className="flex flex-wrap gap-4 text-sm no-print">
         <Link href="/queue" className="text-sky hover:underline">
           ← Back to what needs marking
         </Link>
+        {submission.studentId && (
+          <Link href={`/students/${submission.studentId}`} className="text-sky hover:underline">
+            {submission.student?.name}&apos;s other papers →
+          </Link>
+        )}
       </div>
     </div>
   );

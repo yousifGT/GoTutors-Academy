@@ -63,13 +63,22 @@ export default async function StudentPage({ params }: { params: { id: string } }
     <div className="space-y-6">
       <PageHeader
         title={student.name}
-        subtitle={`${student.yearGroup ? `${student.yearGroup} · ` : ""}tutored by ${student.tutor.name}`}
+        subtitle={`Admission no. ${student.admissionNumber}${
+          student.yearGroup ? ` · ${student.yearGroup}` : ""
+        } · tutored by ${student.tutor.name}`}
         backHref="/students"
         backLabel="Students"
         actions={
-          <Link href="/upload" className="btn-primary text-sm">
-            Mark a paper
-          </Link>
+          <>
+            {scored.length > 0 && (
+              <a href={`/api/students/${student.id}/export`} className="btn-ghost text-sm">
+                Export results
+              </a>
+            )}
+            <Link href="/upload" className="btn-primary text-sm">
+              Mark a paper
+            </Link>
+          </>
         }
       />
 

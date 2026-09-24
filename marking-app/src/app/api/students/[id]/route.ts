@@ -9,6 +9,7 @@ import { viewerOrNull } from "@/lib/session";
 import { studentScope } from "@/lib/marking/access";
 
 const PatchSchema = z.object({
+  admissionNumber: z.string().trim().min(1).max(40).optional(),
   name: zName.optional(),
   yearGroup: z.string().trim().max(40).optional().nullable(),
   notes: z.string().trim().max(2000).optional().nullable(),
@@ -37,7 +38,19 @@ export const PATCH = withRoute(async (req: Request, { params }: { params: { id: 
   });
   if (!student) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const { name, yearGroup, notes, active, tutorId } = parsed.data;
+  const { admissionNumber, name, yearGroup, notes, active, tutorId } = parsed.data;
+  if (admissionNumber) {
+    const clash = await prisma.student.findFirst({
+      where: { organisationId: viewer.organisationId, admissionNumber, id: { not: student.id } },
+      select: { name: true },
+    });
+    if (clash) {
+      return NextResponse.json(
+        { error: `${clash.name} already has admission number ${admissionNumber}.` },
+        { status: 409 }
+      );
+    }
+  }
   if (tutorId && viewer.role !== "ADMIN") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   if (tutorId) {
     const tutor = await prisma.user.findFirst({
@@ -50,6 +63,7 @@ export const PATCH = withRoute(async (req: Request, { params }: { params: { id: 
   await prisma.student.update({
     where: { id: student.id },
     data: {
+      ...(admissionNumber !== undefined ? { admissionNumber } : {}),
       ...(name !== undefined ? { name } : {}),
       ...(yearGroup !== undefined ? { yearGroup: yearGroup || null } : {}),
       ...(notes !== undefined ? { notes: notes || null } : {}),

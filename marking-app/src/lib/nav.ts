@@ -7,19 +7,22 @@ import type { Viewer } from "@/lib/session";
 /**
  * One builder for the sidebar, so the app looks the same from every page.
  *
- * The only badge is the number of papers waiting on a person — the one thing in
- * here that is genuinely time-sensitive, and the number an admin opens the app
- * to see.
+ * Two badges, both counts of unfinished work: papers waiting on a person to
+ * mark them, and papers nobody has filed against a student yet. Quick marking
+ * defers that filing decision on purpose, so something has to keep asking.
  */
 export async function navFor(viewer: Viewer): Promise<NavItem[]> {
-  const waiting = await prisma.submission.count({
-    where: { ...submissionScope(viewer), status: { in: WAITING_ON_HUMAN } },
-  });
+  const [waiting, unstored] = await Promise.all([
+    prisma.submission.count({ where: { ...submissionScope(viewer), status: { in: WAITING_ON_HUMAN } } }),
+    prisma.submission.count({ where: { ...submissionScope(viewer), studentId: null } }),
+  ]);
 
   return [
     { href: "/", label: "Dashboard", icon: "🏠" },
-    { href: "/upload", label: "Mark a paper", icon: "📷" },
+    { href: "/quick", label: "Quick marking", icon: "⚡" },
+    { href: "/upload", label: "Mark for a student", icon: "📷" },
     { href: "/queue", label: "Needs marking", icon: "🖊️", badge: waiting },
+    { href: "/unfiled", label: "Not stored yet", icon: "📥", badge: unstored },
     { href: "/students", label: "Students", icon: "🧒" },
     { href: "/schemes", label: "Mark schemes", icon: "📋" },
     ...(viewer.role === "ADMIN" ? [{ href: "/team", label: "Team", icon: "👥" }] : []),

@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 /** Ask for a paper to be marked (again). Safe to press twice — the route refuses a second run. */
 export function RemarkButton({ submissionId, label = "Try marking again" }: { submissionId: string; label?: string }) {
@@ -11,11 +12,10 @@ export function RemarkButton({ submissionId, label = "Try marking again" }: { su
   async function run() {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/submissions/${submissionId}/mark`, { method: "POST" });
-    const body = await res.json().catch(() => ({}));
+    const result = await sendJson(`/api/submissions/${submissionId}/mark`);
     setBusy(false);
-    if (!res.ok) {
-      setError(body.error ?? "Marking failed.");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
     router.refresh();

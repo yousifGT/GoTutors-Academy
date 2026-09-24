@@ -15,7 +15,7 @@ export default async function UploadPage() {
     prisma.student.findMany({
       where: { ...studentScope(viewer), active: true },
       orderBy: { name: "asc" },
-      select: { id: true, name: true, yearGroup: true },
+      select: { id: true, name: true, yearGroup: true, admissionNumber: true },
     }),
     prisma.markScheme.findMany({
       where: { ...schemeScope(viewer), archived: false },
@@ -32,8 +32,8 @@ export default async function UploadPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Mark a paper"
-        subtitle="Photograph the pages and pick the scheme to mark against."
+        title="Mark for a student"
+        subtitle="Photograph the pages. The result is stored on that child's record straight away."
         backHref="/"
         backLabel="Dashboard"
       />
@@ -59,7 +59,11 @@ export default async function UploadPage() {
 
       <PaperUploadForm
         aiEnabled={markingIsConfigured()}
-        students={students.map((s) => ({ id: s.id, label: s.name, hint: s.yearGroup ?? undefined }))}
+        students={students.map((s) => ({
+          id: s.id,
+          label: s.name,
+          hint: [s.admissionNumber, s.yearGroup].filter(Boolean).join(" · "),
+        }))}
         schemes={usable.map((s) => ({
           id: s.id,
           label: s.title,

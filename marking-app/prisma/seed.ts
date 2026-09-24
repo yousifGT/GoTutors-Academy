@@ -46,14 +46,14 @@ async function main() {
   });
 
   const students = [
-    { id: "demo-student-1", name: "Priya Raman", yearGroup: "Year 6", tutorId: marker.id },
-    { id: "demo-student-2", name: "Jacob Mensah", yearGroup: "Year 6", tutorId: marker.id },
-    { id: "demo-student-3", name: "Elif Demir", yearGroup: "Year 5", tutorId: admin.id },
+    { id: "demo-student-1", admissionNumber: "GT-0001", name: "Priya Raman", yearGroup: "Year 6", tutorId: marker.id },
+    { id: "demo-student-2", admissionNumber: "GT-0002", name: "Jacob Mensah", yearGroup: "Year 6", tutorId: marker.id },
+    { id: "demo-student-3", admissionNumber: "GT-0003", name: "Elif Demir", yearGroup: "Year 5", tutorId: admin.id },
   ];
   for (const s of students) {
     await prisma.student.upsert({
       where: { id: s.id },
-      update: { name: s.name, yearGroup: s.yearGroup },
+      update: { admissionNumber: s.admissionNumber, name: s.name, yearGroup: s.yearGroup },
       create: { ...s, organisationId: organisation.id },
     });
   }
@@ -114,7 +114,7 @@ async function main() {
   console.log("Seeded:");
   console.log("  admin@demo.test / MarkerDemo123   (admin)");
   console.log("  tutor@demo.test / MarkerDemo123   (marker)");
-  console.log("  3 students, 1 mark scheme with 4 questions");
+  console.log("  3 students (GT-0001 to GT-0003), 1 mark scheme with 4 questions");
 }
 
 main()

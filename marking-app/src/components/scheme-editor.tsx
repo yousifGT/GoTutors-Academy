@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 import { nextLabel } from "@/lib/marking/labels";
 
 export type QuestionDraft = {
@@ -57,10 +58,7 @@ export function SchemeEditor({ schemeId, initial }: { schemeId?: string; initial
     setSaving(true);
     setError(null);
     setSaved(false);
-    const res = await fetch(schemeId ? `/api/schemes/${schemeId}` : "/api/schemes", {
-      method: schemeId ? "PATCH" : "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    const result = await sendJson<{ id: string }>(schemeId ? `/api/schemes/${schemeId}` : "/api/schemes", schemeId ? "PATCH" : "POST", {
         title: draft.title,
         subject: draft.subject,
         level: draft.level || null,
@@ -72,16 +70,14 @@ export function SchemeEditor({ schemeId, initial }: { schemeId?: string; initial
           marks: Number(q.marks) || 1,
           guidance: q.guidance || null,
         })),
-      }),
     });
-    const body = await res.json().catch(() => ({}));
     setSaving(false);
-    if (!res.ok) return setError(body.error ?? "That could not be saved.");
+    if (!result.ok) return setError(result.error);
     if (schemeId) {
       setSaved(true);
       router.refresh();
     } else {
-      router.push(`/schemes/${body.id}`);
+      router.push(`/schemes/${result.data.id}`);
       router.refresh();
     }
   }

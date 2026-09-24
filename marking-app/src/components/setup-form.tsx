@@ -1,6 +1,7 @@
 "use client";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 /** First run: name the centre, create the first admin, and sign them straight in. */
 export function SetupForm() {
@@ -15,15 +16,10 @@ export function SetupForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/setup", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ organisationName, name, email, password }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
+    const result = await sendJson("/api/setup", "POST", { organisationName, name, email, password });
+    if (!result.ok) {
       setBusy(false);
-      return setError(body.error ?? "Setup failed.");
+      return setError(result.error);
     }
     const signedIn = await signIn("credentials", { email, password, redirect: false });
     setBusy(false);

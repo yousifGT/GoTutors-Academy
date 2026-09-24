@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 export type Member = {
   id: string;
@@ -31,15 +32,10 @@ export function TeamManager({ members, currentUserId }: { members: Member[]; cur
   async function add() {
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/team", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, email, role }),
-    });
-    const body = await res.json().catch(() => ({}));
+    const result = await sendJson<{ temporaryPassword: string }>("/api/team", "POST", { name, email, role });
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? "That could not be saved.");
-    setIssued({ email, password: body.temporaryPassword });
+    if (!result.ok) return setError(result.error);
+    setIssued({ email, password: result.data.temporaryPassword });
     setName("");
     setEmail("");
     router.refresh();
@@ -48,15 +44,10 @@ export function TeamManager({ members, currentUserId }: { members: Member[]; cur
   async function patch(id: string, payload: Record<string, unknown>, theirEmail: string) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/team/${id}`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json().catch(() => ({}));
+    const result = await sendJson<{ temporaryPassword?: string }>(`/api/team/${id}`, "PATCH", payload);
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? "That did not work.");
-    if (body.temporaryPassword) setIssued({ email: theirEmail, password: body.temporaryPassword });
+    if (!result.ok) return setError(result.error);
+    if (result.data.temporaryPassword) setIssued({ email: theirEmail, password: result.data.temporaryPassword });
     router.refresh();
   }
 

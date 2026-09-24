@@ -51,3 +51,14 @@ export const zPassword = z
   .string()
   .min(10, "Use at least 10 characters")
   .max(200, "Password is too long (max 200 characters)");
+
+/**
+ * A centre's own reference for a child. Required, because it is how staff look
+ * them up — a student without one is findable only by typing their name exactly
+ * right, and two children called Mohammed Ali is routine.
+ */
+export const zAdmissionNumber = z
+  .string()
+  .trim()
+  .min(1, "An admission number is required")
+  .max(40, "That admission number is too long (max 40 characters)");

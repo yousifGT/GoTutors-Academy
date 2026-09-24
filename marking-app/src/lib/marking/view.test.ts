@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { confidenceLabel, hasScore, statusView, trend, WAITING_ON_HUMAN } from "./view";
+import { canExport, confidenceLabel, hasScore, statusView, trend, WAITING_ON_HUMAN } from "./view";
 import { CONFIDENCE_FLOOR } from "./scoring";
 
 describe("statusView", () => {
@@ -58,5 +58,23 @@ describe("trend", () => {
 
   it("treats small movement as flat rather than as progress", () => {
     expect(trend([70, 71])?.direction).toBe("flat");
+  });
+});
+
+describe("canExport", () => {
+  it("allows a finished paper", () => {
+    expect(canExport("MARKED")).toBe(true);
+    expect(canExport("REVIEWED")).toBe(true);
+  });
+
+  it("refuses a paper that still needs a person, even though it has a score", () => {
+    expect(hasScore("NEEDS_HUMAN")).toBe(true);
+    expect(canExport("NEEDS_HUMAN")).toBe(false);
+  });
+
+  it("refuses papers with nothing to report", () => {
+    expect(canExport("PENDING")).toBe(false);
+    expect(canExport("MARKING")).toBe(false);
+    expect(canExport("FAILED")).toBe(false);
   });
 });

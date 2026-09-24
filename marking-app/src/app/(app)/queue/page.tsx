@@ -4,6 +4,7 @@ import { requireViewer } from "@/lib/session";
 import { submissionScope } from "@/lib/marking/access";
 import { statusView, WAITING_ON_HUMAN } from "@/lib/marking/view";
 import { PageHeader, Empty } from "@/components/ui";
+import { paperOwnerLabel } from "@/lib/marking/paper-label";
 import { timeAgo } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -63,10 +64,11 @@ export default async function QueuePage() {
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="font-bold">
-                      {s.student.name}
-                      {s.student.yearGroup && (
+                      {paperOwnerLabel(s)}
+                      {s.student?.yearGroup && (
                         <span className="ml-2 text-xs font-normal text-[var(--muted)]">{s.student.yearGroup}</span>
                       )}
+                      {!s.studentId && <span className="badge ml-2 bg-plum/15 text-plum">Not stored</span>}
                     </div>
                     <div className="text-sm text-[var(--muted)]">
                       {s.markScheme.title} · {s.markScheme.subject} · uploaded {timeAgo(s.createdAt)} by{" "}
@@ -98,7 +100,7 @@ export default async function QueuePage() {
             {recentlyChecked.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
                 <Link href={`/papers/${s.id}`} className="text-sky hover:underline">
-                  {s.student.name} — {s.markScheme.title}
+                  {paperOwnerLabel(s)} — {s.markScheme.title}
                 </Link>
                 <span className="text-xs text-[var(--muted)]">
                   {s.reviewedBy?.name} · {s.reviewedAt ? timeAgo(s.reviewedAt) : ""}

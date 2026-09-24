@@ -33,6 +33,20 @@ export function hasScore(status: MarkingStatus): boolean {
 }
 
 /**
+ * Statuses a report may be exported from.
+ *
+ * Narrower than `hasScore` on purpose: a NEEDS_HUMAN paper has a score, but
+ * part of it is a mark nobody trusts. Emailing that to a parent as a finished
+ * report is the exact failure this system is built to avoid, so the export is
+ * refused until someone has been through it.
+ */
+export const EXPORTABLE: MarkingStatus[] = ["MARKED", "REVIEWED"];
+
+export function canExport(status: MarkingStatus): boolean {
+  return EXPORTABLE.includes(status);
+}
+
+/**
  * Confidence as words.
  *
  * A raw "0.71" means nothing to a tutor between lessons. The thresholds match

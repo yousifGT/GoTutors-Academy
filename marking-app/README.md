@@ -6,11 +6,30 @@ against your own mark scheme, and hand back feedback in the same lesson.
 This is a standalone application — its own database, its own accounts, its own
 deployment. It shares nothing with any other system.
 
+## Two ways to mark
+
+**Quick marking** — a pile of papers, one mark scheme, no filing. Photograph
+them one after another, each labelled with whatever is written on the top of the
+page, and mark the lot in one pass. At the end you are asked, per paper, whether
+to store the result against a child, create that child there and then, or not
+keep it at all. Anything you leave undecided waits under **Not stored yet**
+rather than being auto-filed against a guess or quietly deleted.
+
+**Mark for a student** — pick the child first and the result goes straight onto
+their record.
+
+Either way you can export: one paper as a PDF for a parent, a whole quick-marking
+session as a single PDF, or a child's full history as a spreadsheet.
+
 ## What it does
 
 - **Photograph and mark.** A tutor photographs a paper on a phone. The marking
   engine reads the handwriting, marks each question against the mark scheme, and
   returns a mark, a comment, and how confident it is.
+- **Every child has an admission number.** It is the centre's own reference,
+  unique within the centre, and it is how staff find a student again — search by
+  it or by name. An exact number match is ranked above a partial one, so
+  searching "GT-1" finds the child numbered GT-1, not GT-100.
 - **A human marks what it can't.** Anything illegible, low-confidence, skipped,
   or out of range goes to a review queue instead of being guessed. That is the
   central design decision: a confidently wrong mark on a child's work is worse
@@ -62,8 +81,9 @@ things that are merely off rather than broken.
 ```bash
 npm run dev          # http://localhost:3100
 npm run build        # production build
-npm test             # 89 unit tests
+npm test             # 121 unit tests
 npm run typecheck    # tsc --noEmit
+npm run e2e          # drives a real browser through quick marking (needs playwright)
 npm run db:push      # apply prisma/schema.prisma
 npm run db:seed      # demo centre, people, students and a mark scheme
 npm run db:studio    # browse the database
@@ -110,6 +130,9 @@ Two rules, in this order:
    a paper can always mark it by hand — the human fallback must never depend on
    a permission the person standing next to the child might not have.
 
+The same rules cover papers that are not filed against anyone yet: a
+quick-marked paper belongs to whoever photographed it until it is stored.
+
 ## Deploying
 
 `Dockerfile` builds a standalone image with a health check:
@@ -135,5 +158,9 @@ product, because the test went home in a school bag.
 - **HEIC photos are rejected.** iPhones can be set to "Most Compatible" to shoot
   JPEG; otherwise the photo needs converting first.
 - **Marking is synchronous.** The request holds open for the length of the
-  marking call (up to 300s). A queue would be the next thing to build if a
-  centre marks class sets at once.
+  marking call (up to 300s), and quick marking runs its papers one after
+  another. A background queue is the next thing to build if a centre routinely
+  marks class sets in one go.
+- **Reports are only exported from finished papers.** A paper that still needs a
+  person to check it has a score, but part of that score is a mark nobody
+  trusts — the export is refused until someone has been through it.

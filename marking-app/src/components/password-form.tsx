@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 /**
  * Changing your own password.
@@ -22,14 +23,9 @@ export function PasswordForm({ afterChange }: { afterChange?: string }) {
     setError(null);
     if (newPassword !== confirm) return setError("The two new passwords do not match.");
     setBusy(true);
-    const res = await fetch("/api/me/password", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ currentPassword, newPassword }),
-    });
-    const body = await res.json().catch(() => ({}));
+    const result = await sendJson("/api/me/password", "POST", { currentPassword, newPassword });
     setBusy(false);
-    if (!res.ok) return setError(body.error ?? "That could not be saved.");
+    if (!result.ok) return setError(result.error);
 
     if (afterChange) {
       window.location.assign(afterChange);

@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 /**
  * Delete, or archive.
@@ -17,12 +18,11 @@ export function SchemeDangerZone({ schemeId, paperCount }: { schemeId: string; p
 
   async function remove() {
     setBusy(true);
-    const res = await fetch(`/api/schemes/${schemeId}`, { method: "DELETE", headers: { "content-type": "application/json" } });
-    const body = await res.json().catch(() => ({}));
+    const result = await sendJson<{ archived?: boolean; message?: string }>(`/api/schemes/${schemeId}`, "DELETE");
     setBusy(false);
-    if (!res.ok) return setMessage(body.error ?? "That did not work.");
-    if (body.archived) {
-      setMessage(body.message);
+    if (!result.ok) return setMessage(result.error);
+    if (result.data.archived) {
+      setMessage(result.data.message ?? null);
       router.refresh();
       return;
     }

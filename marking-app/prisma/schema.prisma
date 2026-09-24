@@ -21,12 +21,12 @@ enum Role {
 }
 
 enum MarkingStatus {
-  PENDING     // uploaded, not marked yet
-  MARKING     // a marking run is in flight
-  MARKED      // marked automatically, with enough confidence to show
+  PENDING // uploaded, not marked yet
+  MARKING // a marking run is in flight
+  MARKED // marked automatically, with enough confidence to show
   NEEDS_HUMAN // unreadable or low confidence — a person must mark it
-  REVIEWED    // a person has checked (and possibly corrected) the marks
-  FAILED      // the run errored; safe to retry
+  REVIEWED // a person has checked (and possibly corrected) the marks
+  FAILED // the run errored; safe to retry
 }
 
 enum MarkSource {
@@ -55,21 +55,21 @@ model Organisation {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
+  id                 String    @id @default(cuid())
+  email              String    @unique
   /// bcrypt hash. Never anything else, and never returned to a client.
-  password       String
-  name           String
-  role           Role     @default(MARKER)
-  organisationId String   @map("organisation_id")
-  active         Boolean  @default(true)
+  password           String
+  name               String
+  role               Role      @default(MARKER)
+  organisationId     String    @map("organisation_id")
+  active             Boolean   @default(true)
   /// Set when an admin resets someone's password, cleared when they choose
   /// their own — so a temporary password known to two people cannot quietly
   /// become permanent.
-  mustChangePassword Boolean @default(false) @map("must_change_password")
-  lastLoginAt    DateTime? @map("last_login_at")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  mustChangePassword Boolean   @default(false) @map("must_change_password")
+  lastLoginAt        DateTime? @map("last_login_at")
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   organisation        Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   students            Student[]    @relation("TutorStudents")
@@ -83,21 +83,25 @@ model User {
 
 /// A child being tutored. They never sign in; this is a record, not an account.
 model Student {
-  id             String   @id @default(cuid())
-  organisationId String   @map("organisation_id")
-  name           String
-  yearGroup      String?  @map("year_group")
+  id              String   @id @default(cuid())
+  organisationId  String   @map("organisation_id")
+  /// The centre's own reference for this child, and how staff look them up.
+  /// Unique within the centre, not globally — two centres can both have "0042".
+  admissionNumber String   @map("admission_number")
+  name            String
+  yearGroup       String?  @map("year_group")
   /// The tutor who normally teaches them. Admins see every student regardless.
-  tutorId        String   @map("tutor_id")
-  notes          String?
-  active         Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  tutorId         String   @map("tutor_id")
+  notes           String?
+  active          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   tutor        User         @relation("TutorStudents", fields: [tutorId], references: [id], onDelete: Cascade)
   submissions  Submission[]
 
+  @@unique([organisationId, admissionNumber])
   @@index([organisationId, active])
   @@index([tutorId])
 }
@@ -126,15 +130,15 @@ model MarkScheme {
 }
 
 model MarkSchemeQuestion {
-  id             String @id @default(cuid())
-  markSchemeId   String @map("mark_scheme_id")
+  id             String  @id @default(cuid())
+  markSchemeId   String  @map("mark_scheme_id")
   order          Int
   /// As printed on the paper — "1", "2b", "Section A Q3".
   label          String
   prompt         String
-  expectedAnswer String @map("expected_answer")
+  expectedAnswer String  @map("expected_answer")
   /// The denominator. Never taken from the model — see marking/scoring.ts.
-  marks          Int    @default(1)
+  marks          Int     @default(1)
   /// How to award part marks, in the examiner's own words.
   guidance       String?
 
@@ -149,7 +153,16 @@ model MarkSchemeQuestion {
 model Submission {
   id             String        @id @default(cuid())
   organisationId String        @map("organisation_id")
-  studentId      String        @map("student_id")
+  /// Null while a paper is quick-marked. Quick marking exists so a tutor can
+  /// mark a pile of papers without stopping to file each one; the paper is
+  /// attached to a child afterwards, or never.
+  studentId      String?       @map("student_id")
+  /// What the tutor typed to tell one quick-marked paper from another before
+  /// it has a student — a name on the top of the page, a desk number.
+  reference      String?
+  /// Papers marked together in one quick-marking session, so they can be
+  /// reviewed and exported as one report.
+  batchId        String?       @map("batch_id")
   markSchemeId   String        @map("mark_scheme_id")
   uploadedById   String        @map("uploaded_by_id")
   status         MarkingStatus @default(PENDING)
@@ -172,7 +185,7 @@ model Submission {
   updatedAt      DateTime      @updatedAt
 
   organisation Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  student      Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student      Student?         @relation(fields: [studentId], references: [id], onDelete: Cascade)
   markScheme   MarkScheme       @relation(fields: [markSchemeId], references: [id])
   uploadedBy   User             @relation("UploadedSubmissions", fields: [uploadedById], references: [id], onDelete: Cascade)
   reviewedBy   User?            @relation("ReviewedSubmissions", fields: [reviewedById], references: [id])
@@ -182,6 +195,7 @@ model Submission {
   @@index([organisationId, status])
   @@index([studentId, createdAt])
   @@index([uploadedById])
+  @@index([batchId])
 }
 
 model SubmissionMark {

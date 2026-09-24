@@ -6,6 +6,7 @@ import { markingIsConfigured } from "@/lib/marking/marker";
 import { statusView, hasScore, WAITING_ON_HUMAN } from "@/lib/marking/view";
 import { percentageOf } from "@/lib/marking/scoring";
 import { bandFor } from "@/lib/marking/feedback";
+import { paperOwnerLabel } from "@/lib/marking/paper-label";
 import { PageHeader, StatCard, Callout, Empty } from "@/components/ui";
 import { timeAgo } from "@/lib/utils";
 
@@ -16,8 +17,9 @@ export default async function Dashboard() {
   const scope = submissionScope(viewer);
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-  const [waiting, markedThisWeek, students, schemes, examples, recent] = await Promise.all([
+  const [waiting, unstored, markedThisWeek, students, schemes, examples, recent] = await Promise.all([
     prisma.submission.count({ where: { ...scope, status: { in: WAITING_ON_HUMAN } } }),
+    prisma.submission.count({ where: { ...scope, studentId: null } }),
     prisma.submission.count({ where: { ...scope, markedAt: { gte: weekAgo } } }),
     prisma.student.count({ where: { ...studentScope(viewer), active: true } }),
     prisma.markScheme.count({ where: { ...schemeScope(viewer), archived: false } }),
@@ -39,9 +41,14 @@ export default async function Dashboard() {
         title={`Good to see you, ${viewer.name.split(" ")[0]}`}
         subtitle="Photograph a paper, get it marked, hand back feedback in the same lesson."
         actions={
-          <Link href="/upload" className="btn-primary">
-            Mark a paper
-          </Link>
+          <>
+            <Link href="/upload" className="btn-ghost">
+              Mark for a student
+            </Link>
+            <Link href="/quick" className="btn-primary">
+              Quick marking
+            </Link>
+          </>
         }
       />
 
@@ -60,13 +67,19 @@ export default async function Dashboard() {
           tone={waiting > 0 ? "bg-amber/15 text-amber" : "bg-teal/15 text-teal"}
           hint={waiting > 0 ? "Papers that need marking by hand" : "Nothing outstanding"}
         />
+        <StatCard
+          label="Not stored yet"
+          value={unstored}
+          icon="📥"
+          tone={unstored > 0 ? "bg-plum/15 text-plum" : "bg-teal/15 text-teal"}
+          hint={unstored > 0 ? "Quick-marked papers with no student" : "Everything is filed"}
+        />
         <StatCard label="Marked this week" value={markedThisWeek} icon="✅" tone="bg-teal/15 text-teal" />
-        <StatCard label="Students" value={students} icon="🧒" />
         <StatCard
           label="Examples learned"
           value={examples}
           icon="🧠"
-          tone="bg-plum/15 text-plum"
+          tone="bg-sky/15 text-sky"
           hint="Marks a person checked, fed back into future marking"
         />
       </div>
@@ -118,11 +131,12 @@ export default async function Dashboard() {
                     <tr key={s.id}>
                       <td>
                         <Link href={`/papers/${s.id}`} className="font-medium text-sky hover:underline">
-                          {s.student.name}
+                          {paperOwnerLabel(s)}
                         </Link>
-                        {s.student.yearGroup && (
+                        {s.student?.yearGroup && (
                           <span className="ml-2 text-xs text-[var(--muted)]">{s.student.yearGroup}</span>
                         )}
+                        {!s.studentId && <span className="badge ml-2 bg-plum/15 text-plum">Not stored</span>}
                       </td>
                       <td>
                         <div>{s.markScheme.title}</div>

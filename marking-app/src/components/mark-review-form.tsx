@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 export type ReviewRow = {
   label: string;
@@ -57,10 +58,7 @@ export function MarkReviewForm({
   async function save() {
     setSaving(true);
     setError(null);
-    const res = await fetch(`/api/submissions/${submissionId}/review`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
+    const result = await sendJson(`/api/submissions/${submissionId}/review`, "POST", {
         marks: marks.map((m) => ({
           label: m.label,
           awarded: Math.min(Math.max(Math.round(m.awarded) || 0, 0), m.available),
@@ -69,14 +67,12 @@ export function MarkReviewForm({
         })),
         overallComment: comment,
         strengths: wentWell.split("\n").map((s) => s.trim()).filter(Boolean),
-        improvements: toImprove.split("\n").map((s) => s.trim()).filter(Boolean),
-        note,
-      }),
+      improvements: toImprove.split("\n").map((s) => s.trim()).filter(Boolean),
+      note,
     });
-    const body = await res.json().catch(() => ({}));
     setSaving(false);
-    if (!res.ok) {
-      setError(body.error ?? "That could not be saved.");
+    if (!result.ok) {
+      setError(result.error);
       return;
     }
     router.refresh();

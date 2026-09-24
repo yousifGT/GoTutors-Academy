@@ -1,11 +1,16 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { sendJson } from "@/lib/client";
 
 export type TutorOption = { id: string; name: string };
 
 /**
  * Add a student, and edit the ones already here.
+ *
+ * The admission number comes first because it is the field that matters: it is
+ * the centre's own reference, it is what gets typed on a paper, and it is how
+ * anybody finds this child again.
  *
  * Deactivate is offered before delete, and delete says out loud what it takes
  * with it — a student's marked papers are the record of a child's work, and
@@ -21,6 +26,7 @@ export function StudentsManager({
   currentUserId: string;
 }) {
   const router = useRouter();
+  const [admissionNumber, setAdmissionNumber] = useState("");
   const [name, setName] = useState("");
   const [yearGroup, setYearGroup] = useState("");
   const [tutorId, setTutorId] = useState(currentUserId);
@@ -28,21 +34,19 @@ export function StudentsManager({
   const [error, setError] = useState<string | null>(null);
 
   async function add() {
+    if (!admissionNumber.trim()) return setError("An admission number is required.");
     if (!name.trim()) return setError("A name is required.");
     setSaving(true);
     setError(null);
-    const res = await fetch("/api/students", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        name,
-        yearGroup: yearGroup || null,
-        ...(canAssignTutor ? { tutorId } : {}),
-      }),
+    const result = await sendJson("/api/students", "POST", {
+      admissionNumber,
+      name,
+      yearGroup: yearGroup || null,
+      ...(canAssignTutor ? { tutorId } : {}),
     });
-    const body = await res.json().catch(() => ({}));
     setSaving(false);
-    if (!res.ok) return setError(body.error ?? "That could not be saved.");
+    if (!result.ok) return setError(result.error);
+    setAdmissionNumber("");
     setName("");
     setYearGroup("");
     router.refresh();
@@ -51,7 +55,13 @@ export function StudentsManager({
   return (
     <div className="card space-y-3">
       <h3 className="font-bold">Add a student</h3>
-      <div className="grid gap-3 sm:grid-cols-[2fr_1fr_auto]">
+      <div className="grid gap-3 sm:grid-cols-[1fr_2fr_1fr_auto]">
+        <input
+          className="input"
+          placeholder="Admission number"
+          value={admissionNumber}
+          onChange={(e) => setAdmissionNumber(e.target.value)}
+        />
         <input className="input" placeholder="Full name" value={name} onChange={(e) => setName(e.target.value)} />
         <input
           className="input"
@@ -97,14 +107,9 @@ export function StudentActions({
   async function send(method: "PATCH" | "DELETE", body?: unknown) {
     setBusy(true);
     setError(null);
-    const res = await fetch(`/api/students/${studentId}`, {
-      method,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body ?? {}),
-    });
-    const parsed = await res.json().catch(() => ({}));
+    const result = await sendJson(`/api/students/${studentId}`, method, body);
     setBusy(false);
-    if (!res.ok) return setError(parsed.error ?? "That did not work.");
+    if (!result.ok) return setError(result.error);
     setConfirming(false);
     router.refresh();
   }

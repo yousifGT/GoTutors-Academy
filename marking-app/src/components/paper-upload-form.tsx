@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
+import { sendFile, sendJson } from "@/lib/client";
 
 type Option = { id: string; label: string; hint?: string };
 
@@ -45,29 +46,25 @@ export function PaperUploadForm({
       const pageUrls: string[] = [];
       for (const [i, file] of files.entries()) {
         setStep(`Uploading page ${i + 1} of ${files.length}…`);
-        const form = new FormData();
-        form.append("file", file);
-        const res = await fetch("/api/uploads/paper", { method: "POST", body: form });
-        const body = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(body.error ?? `Page ${i + 1} failed to upload.`);
-        pageUrls.push(body.url);
+        const uploaded = await sendFile("/api/uploads/paper", file);
+        if (!uploaded.ok) throw new Error(uploaded.error);
+        pageUrls.push(uploaded.data.url);
       }
 
       setStep("Saving the paper…");
-      const created = await fetch("/api/submissions", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ studentId, markSchemeId: schemeId, pageUrls }),
+      const created = await sendJson<{ id: string }>("/api/submissions", "POST", {
+        studentId,
+        markSchemeId: schemeId,
+        pageUrls,
       });
-      const createdBody = await created.json().catch(() => ({}));
-      if (!created.ok) throw new Error(createdBody.error ?? "The paper could not be saved.");
-      const submissionId: string = createdBody.id;
+      if (!created.ok) throw new Error(created.error);
+      const submissionId = created.data.id;
 
       setStep(aiEnabled ? "Marking — this takes up to a minute…" : "Adding to the marking queue…");
       // A failure here is not fatal: the paper is saved, and the report page
       // offers the retry. So the response is not checked for an error — it is
       // shown on the page the tutor is about to land on.
-      await fetch(`/api/submissions/${submissionId}/mark`, { method: "POST" }).catch(() => null);
+      await sendJson(`/api/submissions/${submissionId}/mark`).catch(() => null);
 
       router.push(`/papers/${submissionId}`);
       router.refresh();
