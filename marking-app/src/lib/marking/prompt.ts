@@ -76,19 +76,21 @@ export function renderExamples(questions: SchemeQuestion[], pool: WorkedExample[
 }
 
 /**
- * The full text block that accompanies the photographs.
+ * The part of the prompt that is identical for every paper marked against this
+ * scheme: the scheme itself and its worked examples.
  *
- * Order matters for caching as well as for reading: the scheme and its examples
- * are stable across every paper marked against it, so they go first and the
- * per-paper instruction goes last.
+ * This is kept separate from the per-paper instruction because it goes in the
+ * `system` field, where it forms a stable cache prefix. It used to sit in the
+ * user message *after* the page images — which meant the prefix broke at the
+ * first image on every single paper, and nothing ever cached. Caching is a
+ * prefix match: anything that varies per request has to come last.
  */
-export function buildUserText(opts: {
+export function buildSchemeContext(opts: {
   schemeTitle: string;
   subject: string;
   level?: string | null;
   questions: SchemeQuestion[];
   examples: WorkedExample[];
-  pageCount: number;
   examplesPerQuestion?: number;
 }): string {
   const parts = [
@@ -102,13 +104,12 @@ export function buildUserText(opts: {
   if (examples) {
     parts.push("", "Worked examples from previously marked papers:", "", examples);
   }
-
-  parts.push(
-    "",
-    `The ${opts.pageCount} image${opts.pageCount === 1 ? "" : "s"} above ${
-      opts.pageCount === 1 ? "is" : "are"
-    } the student's paper, in page order. Mark every question in the mark scheme.`
-  );
-
   return parts.join("\n");
+}
+
+/** The one line that changes per paper, sent after the photographs. */
+export function buildPaperInstruction(pageCount: number): string {
+  return `The ${pageCount} image${pageCount === 1 ? "" : "s"} above ${
+    pageCount === 1 ? "is" : "are"
+  } the student's paper, in page order. Mark every question in the mark scheme.`;
 }

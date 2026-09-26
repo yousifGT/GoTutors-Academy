@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { SYSTEM_PROMPT, buildUserText, renderExamples, renderScheme } from "./prompt";
+import { SYSTEM_PROMPT, buildPaperInstruction, buildSchemeContext, renderExamples, renderScheme } from "./prompt";
 import type { SchemeQuestion, WorkedExample } from "./types";
 
 const questions: SchemeQuestion[] = [
@@ -50,24 +50,37 @@ describe("renderExamples", () => {
   });
 });
 
-describe("buildUserText", () => {
-  it("puts the stable scheme before the per-paper instruction, for caching and for reading", () => {
-    const text = buildUserText({
+describe("buildSchemeContext", () => {
+  it("holds the scheme and its examples — everything that repeats across papers", () => {
+    const text = buildSchemeContext({
       schemeTitle: "Paper 1",
       subject: "Maths",
       level: "Year 6",
       questions,
       examples: [],
-      pageCount: 2,
     });
-    expect(text.indexOf("Mark scheme: Paper 1")).toBeLessThan(text.indexOf("2 images above"));
+    expect(text).toContain("Mark scheme: Paper 1");
     expect(text).toContain("Subject: Maths (Year 6)");
-    expect(text).toContain("2 images above are the student's paper");
+    expect(text).toContain("Question 2a");
   });
 
-  it("reads correctly for a single page", () => {
-    const text = buildUserText({ schemeTitle: "P", subject: "Maths", questions, examples: [], pageCount: 1 });
-    expect(text).toContain("1 image above is the student's paper");
+  it("is byte-identical for two different papers on the same scheme", () => {
+    // This is the whole point: the cache is a prefix match, so anything that
+    // varies per paper must not be in here.
+    const args = { schemeTitle: "Paper 1", subject: "Maths", questions, examples: [] };
+    expect(buildSchemeContext(args)).toBe(buildSchemeContext(args));
+  });
+
+  it("carries nothing about the paper being marked", () => {
+    const text = buildSchemeContext({ schemeTitle: "P", subject: "Maths", questions, examples: [] });
+    expect(text).not.toMatch(/image|page order|student's paper/i);
+  });
+});
+
+describe("buildPaperInstruction", () => {
+  it("reads correctly for one page and for several", () => {
+    expect(buildPaperInstruction(1)).toContain("1 image above is the student's paper");
+    expect(buildPaperInstruction(3)).toContain("3 images above are the student's paper");
   });
 });
 

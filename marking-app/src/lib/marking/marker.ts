@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { PaperPage, RawMarking, SchemeQuestion, WorkedExample } from "./types";
-import { SYSTEM_PROMPT, buildUserText } from "./prompt";
+import { SYSTEM_PROMPT, buildPaperInstruction, buildSchemeContext } from "./prompt";
 
 /**
  * The one place that talks to a model.
@@ -95,24 +95,28 @@ export async function markPaper(input: MarkerInput): Promise<MarkerOutcome> {
 
   const client = new Anthropic({ maxRetries: 2, timeout: 240_000 });
 
-  const text = buildUserText({
+  // Split so the cache prefix is stable: everything identical across papers
+  // marked against this scheme goes in `system`, and only the photographs and
+  // one instruction line vary per request.
+  const schemeContext = buildSchemeContext({
     schemeTitle: input.schemeTitle,
     subject: input.subject,
     level: input.level,
     questions: input.questions,
     examples: input.examples,
-    pageCount: input.pages.length,
   });
 
   try {
     const response = await client.messages.create({
       model: MODEL,
       max_tokens: 16000,
-      system: SYSTEM_PROMPT,
-      // The scheme and its worked examples are identical for every paper marked
-      // against this scheme, and they sit before the per-paper instruction, so
-      // a class set of papers reuses the cached prefix.
-      cache_control: { type: "ephemeral" },
+      system: [
+        { type: "text", text: SYSTEM_PROMPT },
+        // Render order is tools -> system -> messages, so a breakpoint here
+        // caches the persona, the scheme and every worked example. A class set
+        // marked against one scheme then pays for that prefix once.
+        { type: "text", text: schemeContext, cache_control: { type: "ephemeral" } },
+      ],
       output_config: {
         effort: "high",
         format: { type: "json_schema", schema: RESPONSE_SCHEMA as unknown as Record<string, unknown> },
@@ -125,7 +129,7 @@ export async function markPaper(input: MarkerInput): Promise<MarkerOutcome> {
               type: "image" as const,
               source: { type: "base64" as const, media_type: page.mediaType, data: page.data },
             })),
-            { type: "text" as const, text },
+            { type: "text" as const, text: buildPaperInstruction(input.pages.length) },
           ],
         },
       ],

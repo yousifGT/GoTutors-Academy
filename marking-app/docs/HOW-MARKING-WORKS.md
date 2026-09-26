@@ -146,3 +146,38 @@ exercising a request the browser never actually makes.
 `src/lib/client.ts` now sets the header in one place, and the browser test
 presses the button. Both matter: the helper stops it recurring, the test proves
 it.
+
+## Cost, and why caching is arranged the way it is
+
+Run `npm run estimate-cost` (needs `ANTHROPIC_API_KEY` and a database with a
+mark scheme in it). It builds the real prompt, counts its tokens with the API's
+own counter, and prices it. Counting tokens is free — the script never runs a
+marking request.
+
+The prompt is deliberately split in two:
+
+- **`system`** holds the examiner persona, the mark scheme, and every worked
+  example. All of it is byte-identical for every paper marked against that
+  scheme, and it carries the cache breakpoint.
+- **the user message** holds the page images and one instruction line. Only
+  this varies per paper.
+
+That order matters more than it looks. Caching is a prefix match over
+`tools -> system -> messages`, so anything that varies per request has to come
+last. An earlier version put the scheme and examples in the user message
+*after* the images: the prefix broke at the first image on every paper, and
+nothing ever cached. `buildSchemeContext` is tested for byte-stability across
+papers for exactly this reason.
+
+Two numbers no static analysis can give you, both of which need a real run:
+
+- **Thinking tokens.** Adaptive thinking is billed as output and is not in the
+  response body. Read `usage.output_tokens` from a real marking run and put
+  that in place of the script's assumption.
+- **Whether the caching works.** `usage.cache_read_input_tokens` should
+  dominate `input_tokens` from the second paper of a class set onwards. If it
+  is zero, something is varying inside the prefix.
+
+Worth knowing before optimising anything: at any current model, a paper costs
+single-digit pence. Marking accuracy is the thing worth spending on, not
+tokens.
