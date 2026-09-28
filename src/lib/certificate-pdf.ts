@@ -1,11 +1,12 @@
-import { Document, Page, Text, View, StyleSheet, Font, renderToBuffer } from "@react-pdf/renderer";
+import { Document, Page, Text, View, StyleSheet, Font, Svg, Path, renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { WORDMARK_PATHS, WORDMARK_VIEWBOX } from "@/lib/brand-mark";
 
 const styles = StyleSheet.create({
   page: { padding: 0, backgroundColor: "#ffffff" },
   outer: { margin: 24, borderWidth: 4, borderColor: "#1C1960", height: "92%", padding: 32 },
   inner: { borderWidth: 1, borderColor: "#56B9E9", height: "100%", padding: 40, alignItems: "center", justifyContent: "space-between" },
-  brand: { color: "#56B9E9", letterSpacing: 4, fontSize: 12, marginBottom: 8 },
+  brand: { color: "#56B9E9", letterSpacing: 4, fontSize: 9, marginTop: 4, marginBottom: 10 },
   title: { color: "#1C1960", fontSize: 36, fontWeight: 700, marginBottom: 10 },
   sub: { fontSize: 14, color: "#373637", marginBottom: 20 },
   name: { fontSize: 30, color: "#1C1960", fontWeight: 700, marginVertical: 12 },
@@ -15,6 +16,32 @@ const styles = StyleSheet.create({
   block: { alignItems: "center" },
   line: { borderTopWidth: 1, borderColor: "#373637", width: 160, marginBottom: 4 },
 });
+
+/** The wordmark's own proportions, so scaling it can never distort it. */
+const WORDMARK_WIDTH = 170;
+const [, , vbWidth, vbHeight] = WORDMARK_VIEWBOX.split(" ").map(Number);
+
+/**
+ * The real logo at the head of the certificate, in place of the line of
+ * letter-spaced capitals that stood in for it.
+ *
+ * Drawn from path data rather than loaded from `public/go-wordmark-navy.svg`:
+ * `@react-pdf/renderer`'s `<Image>` takes PNG and JPEG only, so an SVG file is
+ * not something it can open. `<Svg>`/`<Path>` take the geometry directly.
+ */
+function brandMark() {
+  return React.createElement(
+    Svg,
+    {
+      viewBox: WORDMARK_VIEWBOX,
+      width: WORDMARK_WIDTH,
+      height: (WORDMARK_WIDTH * vbHeight) / vbWidth,
+    },
+    ...WORDMARK_PATHS.map((d, i) =>
+      React.createElement(Path, { key: i, d, fill: "#1C1960" })
+    )
+  );
+}
 
 /**
  * One layout, two documents. A course certificate records work completed; a
@@ -45,7 +72,8 @@ async function render(opts: {
           React.createElement(
             View,
             { style: { alignItems: "center" } },
-            React.createElement(Text, { style: styles.brand }, "GOTUTORS ACADEMY"),
+            brandMark(),
+            React.createElement(Text, { style: styles.brand }, "ACADEMY"),
             React.createElement(Text, { style: styles.title }, opts.heading),
             React.createElement(Text, { style: styles.sub }, "This is to certify that")
           ),

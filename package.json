@@ -14,7 +14,8 @@
     "db:create-admin": "tsx prisma/create-admin.ts",
     "smoke": "node scripts/smoke.mjs",
     "db:studio": "prisma studio",
-    "image": "node scripts/docker-build.mjs"
+    "image": "node scripts/docker-build.mjs",
+    "brand:mark": "node scripts/brand-mark.mjs"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",

@@ -81,7 +81,22 @@ npm run build
 npm run image                 # build the image with the commit SHA baked in
 npm run smoke -- <base-url>   # health, login, CSRF, redirect host, deployed commit
 npm run db:create-admin       # bootstrap a super admin
+npm run brand:mark            # regenerate the logo path data + favicons
 ```
+
+## Branding
+
+`public/go-wordmark-navy.svg` is the logo's source of truth. It is **not** loaded
+as an image by the app: the sidebar and login hero are navy, so the mark has to
+invert, and an external SVG's `fill` is out of CSS's reach — while
+`@react-pdf/renderer` cannot open an SVG file at all. So `npm run brand:mark`
+copies the path data into `src/lib/brand-mark.ts` and writes `src/app/icon.svg`
+and `src/app/apple-icon.png` from it. Replace the .svg, re-run that, and every
+surface follows. Never hand-edit the generated files.
+
+`Logo` needs `items-start`: an inline SVG has no intrinsic width, so inside a
+`flex-col` parent `align-items: stretch` blows it out to the full panel width
+and the mark drifts off-centre from "Academy".
 
 ## Known gaps
 

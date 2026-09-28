@@ -1,3 +1,14 @@
+import { Wordmark } from "@/components/wordmark";
+
+/**
+ * The lockup: the GoTutors wordmark with "Academy" under it.
+ *
+ * The wordmark alone is the company; this app is one product of it, so the
+ * product name stays in the mark rather than living only in the page title.
+ *
+ * The colour is set here as text colour and inherited by the inline SVG, which
+ * is why `onDark` needs no second asset — see `src/components/wordmark.tsx`.
+ */
 export function Logo({
   className = "",
   variant = "default",
@@ -8,17 +19,22 @@ export function Logo({
 }) {
   const onDark = variant === "onDark";
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <div
-        className={`grid h-9 w-9 place-items-center rounded-xl font-bold ${
-          onDark ? "bg-white text-navy" : "bg-navy text-white"
-        }`}
-      >
-        G
-      </div>
-      <div className="leading-tight">
-        <div className={`font-bold ${onDark ? "text-white" : "text-navy dark:text-ice"}`}>GoTutors</div>
-        <div className="text-[10px] uppercase tracking-widest text-picton">Academy</div>
+    /**
+     * `items-start` is load-bearing. An inline SVG has no intrinsic pixel width,
+     * so `h-8 w-auto` only sizes it from the viewBox while nothing else is
+     * setting its width — and inside a `flex-col` parent (the login hero, which
+     * is exactly where this first broke) the default `align-items: stretch`
+     * does set it, to the full panel width. The mark then centres itself in
+     * that box under `preserveAspectRatio`, drifting away from "Academy".
+     */
+    <div className={`inline-flex flex-col items-start gap-1 ${className}`}>
+      <Wordmark
+        title="GoTutors Academy"
+        className={`h-8 w-auto ${onDark ? "text-white" : "text-navy dark:text-ice"}`}
+      />
+      {/* Picton reads on navy and on white alike, so it needs no variant. */}
+      <div className="text-[10px] font-medium uppercase leading-none tracking-[0.42em] text-picton">
+        Academy
       </div>
     </div>
   );
