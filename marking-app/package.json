@@ -12,6 +12,8 @@
     "test:watch": "vitest",
     "e2e": "node scripts/e2e-quick-marking.mjs",
     "estimate-cost": "tsx scripts/estimate-cost.mjs",
+    "brain:export": "tsx scripts/export-brain.mjs",
+    "brain:import": "tsx scripts/import-brain.mjs",
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",

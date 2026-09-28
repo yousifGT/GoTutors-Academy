@@ -5,3 +5,6 @@ node_modules
 next-env.d.ts
 public/uploads
 *.tsbuildinfo
+
+# The exported marking brain holds children's answers. Never commit it.
+brain-vault/

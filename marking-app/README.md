@@ -40,6 +40,10 @@ session as a single PDF, or a child's full history as a spreadsheet.
   *your* centre marks, question by question.
 - **It says how the student did.** Every paper gets a score, a band, what went
   well, and what to work on — written to the student, not about them.
+- **Its learning is yours, and portable.** The worked examples live in the
+  app's own database, not inside any AI provider, so switching provider loses
+  nothing. `npm run brain:export` also writes them out as an Obsidian vault you
+  can read, keep and restore from — see `docs/BRAIN.md`.
 - **It tracks a child over time.** Per-student history, average, trend, and the
   questions that keep costing them marks.
 
@@ -81,9 +85,11 @@ things that are merely off rather than broken.
 ```bash
 npm run dev          # http://localhost:3100
 npm run build        # production build
-npm test             # 121 unit tests
+npm test             # 138 unit tests
 npm run typecheck    # tsc --noEmit
 npm run e2e          # drives a real browser through quick marking (needs playwright)
+npm run brain:export # write everything learned into an Obsidian vault
+npm run brain:import # load a vault back in — see docs/BRAIN.md
 npm run db:push      # apply prisma/schema.prisma
 npm run db:seed      # demo centre, people, students and a mark scheme
 npm run db:studio    # browse the database
