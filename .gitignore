@@ -45,3 +45,6 @@ next-env.d.ts
 
 # uploaded media (local-disk storage; swap for S3 in prod)
 /public/uploads
+
+# Unrelated projects kept inside this working folder.
+inspection-app/

@@ -1,10 +1,18 @@
-node_modules
-.next
+# Depth-aware patterns (`**/`) are deliberate. A bare `node_modules` or `.env`
+# matches only at the repo root, so a second project sitting inside this folder
+# — which has happened — had its dependencies AND its own .env copied into the
+# production image by the Dockerfile's `COPY . .`.
+**/node_modules
+**/.next
 .git
-.env
-.env.*
+**/.env
+**/.env.*
 !.env.example
 public/uploads
 *.md
 Dockerfile
 .dockerignore
+
+# Unrelated projects kept inside this working folder. Nothing outside this
+# repository belongs in this repository's image.
+inspection-app
