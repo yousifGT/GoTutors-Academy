@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "node scripts/e2e-quick-marking.mjs",
+    "bench": "tsx scripts/bench.mjs",
     "estimate-cost": "tsx scripts/estimate-cost.mjs",
     "brain:export": "tsx scripts/export-brain.mjs",
     "brain:import": "tsx scripts/import-brain.mjs",

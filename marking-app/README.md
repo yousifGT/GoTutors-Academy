@@ -44,6 +44,11 @@ session as a single PDF, or a child's full history as a spreadsheet.
   app's own database, not inside any AI provider, so switching provider loses
   nothing. `npm run brain:export` also writes them out as an Obsidian vault you
   can read, keep and restore from — see `docs/BRAIN.md`.
+- **You can measure which model to trust.** `npm run bench` runs papers your
+  tutors have already marked through any mix of Claude, OpenAI, Gemini and
+  local models, and reports how often each agrees with the tutor, how often it
+  is wrong without flagging it, and what it costs per paper in pounds — see
+  `docs/BENCH.md`.
 - **It tracks a child over time.** Per-student history, average, trend, and the
   questions that keep costing them marks.
 
@@ -85,11 +90,12 @@ things that are merely off rather than broken.
 ```bash
 npm run dev          # http://localhost:3100
 npm run build        # production build
-npm test             # 138 unit tests
+npm test             # 184 unit tests
 npm run typecheck    # tsc --noEmit
 npm run e2e          # drives a real browser through quick marking (needs playwright)
 npm run brain:export # write everything learned into an Obsidian vault
 npm run brain:import # load a vault back in — see docs/BRAIN.md
+npm run bench        # compare models against tutor-marked papers — see docs/BENCH.md
 npm run db:push      # apply prisma/schema.prisma
 npm run db:seed      # demo centre, people, students and a mark scheme
 npm run db:studio    # browse the database

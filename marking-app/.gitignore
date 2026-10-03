@@ -8,3 +8,6 @@ public/uploads
 
 # The exported marking brain holds children's answers. Never commit it.
 brain-vault/
+
+# Bench reports and cached replies hold children's answers. Never commit them.
+bench-results/

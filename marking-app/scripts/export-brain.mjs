@@ -18,7 +18,7 @@ import { PrismaClient } from "@prisma/client";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { renderVault, isManagedNote, VAULT_ROOT } from "../src/lib/brain/vault.ts";
-import { parseArgs, resolveOrganisation } from "./brain-args.mjs";
+import { parseArgs, resolveOrganisation } from "./cli.mjs";
 
 const args = parseArgs(process.argv.slice(2), { out: "value", org: "value" });
 const outDir = path.resolve(args.out ?? "brain-vault");

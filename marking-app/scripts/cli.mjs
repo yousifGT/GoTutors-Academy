@@ -1,4 +1,9 @@
-/** `--out dir --org id --dry-run` into an object. Unknown flags are an error, not silently ignored. */
+/**
+ * Shared by the command-line scripts: the brain export and import, and the bench.
+ *
+ * `--out dir --org id --dry-run` into an object. Unknown flags are an error,
+ * not silently ignored — a mistyped `--yse` must not quietly mean "no".
+ */
 export function parseArgs(argv, allowed) {
   const out = {};
   for (let i = 0; i < argv.length; i++) {
