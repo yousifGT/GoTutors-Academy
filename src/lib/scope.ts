@@ -19,6 +19,21 @@ export function centreUserScope(user: { roleType: RoleType; centreId: string | n
 }
 
 /**
+ * The people a centre view reports on: the trainees in the viewer's centre.
+ *
+ * Centre pages used to filter the people list to trainees but count
+ * enrolments, quiz attempts and certificates across everyone in the centre —
+ * so a head of centre's own course showed up in their report as "1 enrolled"
+ * beside "0 trainees". Their own learning belongs under My courses, and their
+ * peers are not people they manage (canManageUser: trainees only). Every
+ * learning query on a centre page goes through this, so the headline numbers
+ * and the lists underneath can never describe different groups.
+ */
+export function centreTraineeScope(user: { roleType: RoleType; centreId: string | null }): Prisma.UserWhereInput {
+  return { ...centreUserScope(user), role: { type: "TRAINEE" } };
+}
+
+/**
  * Whether a viewer may see a target's certificates: themselves, a super admin,
  * a centre admin over that person's (non-null) centre, or their supervisor.
  *

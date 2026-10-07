@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireCourseAccess } from "@/lib/course-access";
-import { assignmentRows } from "@/lib/course-assignments";
+import { buildAssignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
@@ -99,7 +99,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     await prisma.courseRoleAssignment.deleteMany({ where: { courseId: params.id } });
     const subPositions = body.subPositions ?? [];
     await prisma.courseRoleAssignment.createMany({
-      data: assignmentRows(body.roleIds, subPositions).map((r) => ({ ...r, courseId: params.id })),
+      data: (await buildAssignmentRows(body.roleIds, subPositions)).map((r) => ({ ...r, courseId: params.id })),
     });
   }
   const updated = await prisma.course.update({ where: { id: params.id }, data });

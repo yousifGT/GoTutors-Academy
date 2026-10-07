@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { LEARNER_ROLES, requireRole } from "@/lib/session";
 import { getCourseProgressForUser, nextUnlockedLesson } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
 import { EnrolButton } from "@/components/enrol-button";
@@ -9,7 +9,7 @@ import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { EmptyState, PageHeader } from "@/components/page-ui";
 
 export default async function CoursePage({ params }: { params: { courseId: string } }) {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
+  const session = await requireRole(...LEARNER_ROLES);
   const course = await prisma.course.findUnique({
     where: { id: params.courseId },
     include: {
@@ -49,7 +49,7 @@ export default async function CoursePage({ params }: { params: { courseId: strin
               </li>
             ))}
           </ul>
-          <Link href="/trainee" className="gt-btn-ghost mt-4 inline-flex text-xs">← Back to dashboard</Link>
+          <Link href="/trainee/courses" className="gt-btn-ghost mt-4 inline-flex text-xs">← Back to My courses</Link>
         </div>
         </div>
       );

@@ -62,9 +62,11 @@ export function CourseWizardDetails({
     return out;
   }, [allSubPositions, traineeRoleIds]);
 
-  // Live audience preview — debounced count of trainees matching the selection.
+  // Live audience preview — debounced count of everyone the selection will
+  // enrol on publish. Every selected role counts, not just trainee roles: an
+  // admin role is enrolled whole (see auto-enrol.ts).
   useEffect(() => {
-    if (!traineeRoleSelected) {
+    if (roleIds.length === 0) {
       setReach(null);
       return;
     }
@@ -73,7 +75,7 @@ export function CourseWizardDetails({
         const res = await fetch("/api/courses/reach", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ roleIds: traineeRoleIds, subPositions }),
+          body: JSON.stringify({ roleIds, subPositions: traineeRoleSelected ? subPositions : [] }),
         });
         if (res.ok) setReach((await res.json()).count ?? null);
       } catch {
@@ -81,7 +83,7 @@ export function CourseWizardDetails({
       }
     }, 300);
     return () => clearTimeout(handle);
-  }, [traineeRoleSelected, JSON.stringify(traineeRoleIds), JSON.stringify(subPositions)]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [traineeRoleSelected, JSON.stringify(roleIds), JSON.stringify(subPositions)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function toggleRole(id: string) {
     setRoleIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
@@ -176,9 +178,9 @@ export function CourseWizardDetails({
             <p className="text-xs text-[var(--muted)] mt-2">Leave all unticked to include every trainee regardless of sub-position.</p>
           </div>
         )}
-        {traineeRoleSelected && reach !== null && (
+        {reach !== null && (
           <div className="rounded-xl bg-picton/10 border border-picton/30 px-4 py-2.5 text-sm">
-            <b>{reach}</b> trainee{reach === 1 ? "" : "s"} currently match{reach === 1 ? "es" : ""} this audience — they&apos;ll be enrolled automatically when you publish.
+            <b>{reach}</b> {reach === 1 ? "person" : "people"} currently match{reach === 1 ? "es" : ""} this audience — they&apos;ll be enrolled automatically when you publish, and it appears under their My courses.
           </div>
         )}
       </div>

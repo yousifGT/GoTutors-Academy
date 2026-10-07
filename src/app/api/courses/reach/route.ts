@@ -12,8 +12,12 @@ const ReachSchema = z.object({
 });
 
 /**
- * Live audience preview for the course wizard: how many active trainees match
- * a role + sub-position selection (i.e. would be auto-enrolled on publish).
+ * Live audience preview for the course wizard: how many active people match a
+ * role + sub-position selection (i.e. would be auto-enrolled on publish).
+ *
+ * Mirrors assignmentRows + auto-enrol: fields narrow trainee roles only, and
+ * every other selected role counts whole. A preview that disagrees with what
+ * publish actually does is worse than none.
  */
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -28,19 +32,18 @@ export async function POST(req: Request) {
   if (!parsed.ok) return parsed.response;
   const { roleIds, subPositions } = parsed.data;
 
-  // Only trainee-type roles are auto-enrolled; other roles just get visibility.
-  const traineeRoles = await prisma.role.findMany({
-    where: { id: { in: roleIds }, type: "TRAINEE" },
-    select: { id: true },
+  const roles = await prisma.role.findMany({
+    where: { id: { in: roleIds } },
+    select: { id: true, type: true },
   });
-  if (traineeRoles.length === 0) return NextResponse.json({ count: 0 });
+  if (roles.length === 0) return NextResponse.json({ count: 0 });
 
   const count = await prisma.user.count({
     where: {
       active: true,
-      OR: traineeRoles.map((r) => ({
+      OR: roles.map((r) => ({
         roleId: r.id,
-        ...(subPositions.length
+        ...(r.type === "TRAINEE" && subPositions.length
           ? { OR: [{ subPositions: { hasSome: subPositions } }, { subPosition: { in: subPositions } }] }
           : {}),
       })),

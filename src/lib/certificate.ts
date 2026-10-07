@@ -79,6 +79,7 @@ export async function maybeAwardCertificate(userId: string, courseId: string): P
       link: `/centre/trainees/${userId}`,
       centreId: user.centreId,
       courseId,
+      learnerId: userId,
     });
   }
 }

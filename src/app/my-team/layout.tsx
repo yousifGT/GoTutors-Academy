@@ -12,7 +12,7 @@ export default async function MyTeamLayout({ children }: { children: React.React
 
   if (session.user.roleType === "SUPER_ADMIN") {
     return (
-      <DashboardShell user={session.user} nav={await superAdminNav()} title={SUPER_ADMIN_TITLE}>
+      <DashboardShell user={session.user} nav={await superAdminNav(session.user.id)} title={SUPER_ADMIN_TITLE}>
         {children}
       </DashboardShell>
     );

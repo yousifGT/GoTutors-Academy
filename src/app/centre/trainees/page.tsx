@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { PageHeader, EmptyState } from "@/components/page-ui";
@@ -11,7 +11,7 @@ export default async function CentreTraineesPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
 
   const trainees = await prisma.user.findMany({
-    where: { ...centreUserScope(session.user), role: { type: "TRAINEE" } },
+    where: centreTraineeScope(session.user),
     include: {
       enrollments: { select: { courseId: true, completed: true } },
       quizAttempts: { where: { locked: true }, select: { id: true }, take: 1 },

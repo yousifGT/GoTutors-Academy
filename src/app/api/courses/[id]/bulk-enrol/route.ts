@@ -68,6 +68,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
           link: `/centre/trainees/${t.id}`,
           centreId: t.centreId as string,
           courseId: course.id,
+          learnerId: t.id,
         })
       )
   );

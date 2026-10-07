@@ -1,5 +1,6 @@
 import type { NavItem } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
+import { reviewQueueWhere } from "@/lib/review-queue";
 
 /**
  * Navigation belongs to who you are, not to which part of the app you happen to
@@ -31,10 +32,41 @@ export const ADMIN_NAV: NavItem[] = [
 export const SUPER_ADMIN_TITLE = "Super admin";
 
 /**
+ * Courses this person is taking themselves. Every role has it: anyone can be
+ * assigned a course (a super admin's course for the heads of centre, say), and
+ * their own learning lives here — never in Reports, which is about the people
+ * they are responsible for.
+ */
+export const MY_COURSES: NavItem = { href: "/trainee/courses", label: "My courses", icon: "🎒" };
+
+/**
  * The admin sidebar plus the review queue — the one working page a super admin
  * needs regularly that has no equivalent under /admin.
  */
-export async function superAdminNav(): Promise<NavItem[]> {
-  const reviewQueue = await prisma.quizAttempt.count({ where: { needsReview: true, reviewedAt: null } });
-  return [...ADMIN_NAV, { href: "/instructor/review", label: "Review queue", icon: "📝", badge: reviewQueue }];
+export async function superAdminNav(viewerId: string): Promise<NavItem[]> {
+  const reviewQueue = await prisma.quizAttempt.count({ where: reviewQueueWhere({ id: viewerId, roleType: "SUPER_ADMIN" }) });
+  return [...ADMIN_NAV, { href: "/instructor/review", label: "Review queue", icon: "📝", badge: reviewQueue }, MY_COURSES];
+}
+
+export const CENTRE_ADMIN_TITLE = "Centre admin";
+
+/**
+ * A centre admin's sidebar. Shared by /centre and by the learner pages they
+ * visit through My courses, so taking a course never swaps their navigation
+ * for a trainee's.
+ */
+export async function centreAdminNav(userId: string): Promise<NavItem[]> {
+  const [unread, reports] = await Promise.all([
+    prisma.notification.count({ where: { userId, read: false } }),
+    prisma.user.count({ where: { supervisorId: userId } }),
+  ]);
+  return [
+    { href: "/centre", label: "Dashboard", icon: "🏠" },
+    { href: "/centre/trainees", label: "Trainees", icon: "👥" },
+    { href: "/centre/review", label: "Review", icon: "🛎️" },
+    { href: "/centre/reports", label: "Reports", icon: "📊" },
+    MY_COURSES,
+    { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔" },
+    ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
+  ];
 }

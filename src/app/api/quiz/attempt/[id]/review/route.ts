@@ -36,6 +36,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (session.user.roleType !== "SUPER_ADMIN" && attempt.quiz.lesson.module.course.authorId !== session.user.id) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
+  // Never your own: anyone can take a course now, including the author who
+  // grades it and the super admins who grade everything.
+  if (attempt.userId === session.user.id) {
+    return NextResponse.json({ error: "You can't review your own quiz attempt." }, { status: 403 });
+  }
 
   const parsedBody = await parseJson(req, ReviewSchema);
   if (!parsedBody.ok) return parsedBody.response;
@@ -95,6 +100,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       body: `Final score ${score}%.`,
       link: `/centre/trainees/${attempt.userId}`,
       centreId: attempt.user.centreId,
+      learnerId: attempt.userId,
       courseId: attempt.quiz.lesson.module.courseId,
     });
     await notifyCentreAndInstructor({
@@ -103,6 +109,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       body: `Quiz in lesson "${attempt.quiz.lesson.title}".`,
       link: `/centre/trainees/${attempt.userId}`,
       centreId: attempt.user.centreId,
+      learnerId: attempt.userId,
       courseId: attempt.quiz.lesson.module.courseId,
     });
   }

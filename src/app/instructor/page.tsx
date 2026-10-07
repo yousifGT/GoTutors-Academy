@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { reviewQueueWhere } from "@/lib/review-queue";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, type AttentionItem, type FeedItem } from "@/components/page-ui";
 import { timeAgo } from "@/lib/utils";
 
@@ -26,7 +27,7 @@ export default async function InstructorDashboard() {
       },
       orderBy: { updatedAt: "desc" },
     }),
-    prisma.quizAttempt.count({ where: { needsReview: true, reviewedAt: null, ...attemptScope } }),
+    prisma.quizAttempt.count({ where: reviewQueueWhere(session.user) }),
     prisma.quizAttempt.findMany({
       where: { locked: true, ...attemptScope },
       select: { userId: true },

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { centreUserScope, canManageUser, canViewCertificate } from "./scope";
+import { centreUserScope, centreTraineeScope, canManageUser, canViewCertificate } from "./scope";
 
 const superAdmin = { roleType: "SUPER_ADMIN" as const, centreId: null };
 const londonAdmin = { roleType: "CENTRE_ADMIN" as const, centreId: "london" };
@@ -68,5 +68,18 @@ describe("canViewCertificate", () => {
   it("lets a supervisor see their report's, but not a stranger's", () => {
     expect(canViewCertificate({ id: "sup1", roleType: "INSTRUCTOR", centreId: null }, target)).toBe(true);
     expect(canViewCertificate({ id: "other", roleType: "INSTRUCTOR", centreId: "london" }, target)).toBe(false);
+  });
+});
+
+// Centre reports: a head's own course showed as "1 enrolled" beside "0 trainees".
+describe("centreTraineeScope", () => {
+  it("covers only the trainees of the viewer's centre", () => {
+    expect(centreTraineeScope(londonAdmin)).toEqual({ centreId: "london", role: { type: "TRAINEE" } });
+  });
+  it("covers every trainee for a super admin", () => {
+    expect(centreTraineeScope(superAdmin)).toEqual({ role: { type: "TRAINEE" } });
+  });
+  it("still matches nobody for a centre admin with no centre", () => {
+    expect(centreTraineeScope(noCentreAdmin)).toEqual({ id: { in: [] }, role: { type: "TRAINEE" } });
   });
 });

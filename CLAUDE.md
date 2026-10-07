@@ -59,6 +59,29 @@ roles whose `type` is `TRAINEE`.
   drops the field's course requirements — which can leave part-trained people
   reading as fully trained.
 
+## Learning vs reporting — who sees what
+
+**Anyone can take a course.** The learner pages (`/trainee/courses/**`) admit
+`LEARNER_ROLES` — every role — and each person keeps their own sidebar there,
+with **My courses** in it (`MY_COURSES` in `nav.ts`). Whether they can open a
+particular course is decided by enrolment, never by role.
+
+- A course assignment on a **non-trainee role means the whole role**: assign a
+  course to Centre Admin and every centre admin is auto-enrolled. Sub-positions
+  are training fields and only narrow **trainee** roles (`assignmentRows`,
+  `isWholeRole` in `auto-enrol.ts`). The course form's audience preview
+  (`/api/courses/reach`) must count exactly what auto-enrol will enrol.
+- **Reports are about the people you're responsible for, never you.** Every
+  learning query on a centre page goes through `centreTraineeScope` — trainees
+  only, so a head's own course and their peers never appear. The super admin
+  reports cover everyone, heads included.
+- Alerts about a non-trainee's learning (a head locked out of a quiz) go to the
+  **super admins** — centre admins may only manage trainees, so they could not
+  act on it — and nobody is ever alerted about, or may review, their own attempt
+  (`notify.ts`, `reviewQueueWhere`).
+- Promotion only ever touches trainee/instructor roles; a head finishing a
+  course gets a certificate and nothing else.
+
 ## Config
 
 `.env` is **local only** — it is gitignored and excluded by `.dockerignore`, so it
@@ -75,7 +98,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 301 tests
+npx vitest run                # 313 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

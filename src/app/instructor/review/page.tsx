@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { reviewQueueWhere } from "@/lib/review-queue";
 import { ReviewQueueItem } from "@/components/review-queue-item";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 
@@ -7,13 +8,7 @@ export default async function ReviewQueuePage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
 
   const attempts = await prisma.quizAttempt.findMany({
-    where: {
-      needsReview: true,
-      reviewedAt: null,
-      ...(session.user.roleType === "SUPER_ADMIN"
-        ? {}
-        : { quiz: { lesson: { module: { course: { authorId: session.user.id } } } } }),
-    },
+    where: reviewQueueWhere(session.user),
     include: {
       user: { include: { centre: true } },
       quiz: {

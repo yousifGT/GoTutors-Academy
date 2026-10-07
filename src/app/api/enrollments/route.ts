@@ -40,6 +40,7 @@ export const POST = withRoute(async (req: Request) => {
       link: `/centre/trainees/${userId}`,
       centreId: user.centreId,
       courseId: course.id,
+      learnerId: userId,
     });
   }
 

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
-import { assignmentRows } from "@/lib/course-assignments";
+import { buildAssignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       passThreshold: passThreshold ?? 70,
       published: !!published,
       authorId: session.user.id,
-      roleAssignments: { create: assignmentRows(roleIds, subPositions) },
+      roleAssignments: { create: await buildAssignmentRows(roleIds, subPositions) },
       prerequisites: { create: prerequisiteIds.map((prerequisiteId) => ({ prerequisiteId })) },
     },
   });

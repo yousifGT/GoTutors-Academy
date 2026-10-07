@@ -1,31 +1,18 @@
 import { requireRole } from "@/lib/session";
 import { DashboardShell } from "@/components/dashboard-shell";
-import { prisma } from "@/lib/prisma";
-import { SUPER_ADMIN_TITLE, superAdminNav } from "@/lib/nav";
+import { CENTRE_ADMIN_TITLE, SUPER_ADMIN_TITLE, centreAdminNav, superAdminNav } from "@/lib/nav";
 
 export default async function CentreLayout({ children }: { children: React.ReactNode }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
   if (session.user.roleType === "SUPER_ADMIN") {
     return (
-      <DashboardShell user={session.user} nav={await superAdminNav()} title={SUPER_ADMIN_TITLE}>
+      <DashboardShell user={session.user} nav={await superAdminNav(session.user.id)} title={SUPER_ADMIN_TITLE}>
         {children}
       </DashboardShell>
     );
   }
-  const [unread, reports] = await Promise.all([
-    prisma.notification.count({ where: { userId: session.user.id, read: false } }),
-    prisma.user.count({ where: { supervisorId: session.user.id } }),
-  ]);
-  const nav = [
-    { href: "/centre", label: "Dashboard", icon: "🏠" },
-    { href: "/centre/trainees", label: "Trainees", icon: "👥" },
-    { href: "/centre/review", label: "Review", icon: "🛎️" },
-    { href: "/centre/reports", label: "Reports", icon: "📊" },
-    { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔" },
-    ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
-  ];
   return (
-    <DashboardShell user={session.user} nav={nav} title="Centre admin">
+    <DashboardShell user={session.user} nav={await centreAdminNav(session.user.id)} title={CENTRE_ADMIN_TITLE}>
       {children}
     </DashboardShell>
   );

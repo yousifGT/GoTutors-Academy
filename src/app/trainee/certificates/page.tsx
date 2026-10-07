@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { LEARNER_ROLES, requireRole } from "@/lib/session";
 import { formatDate } from "@/lib/utils";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 import { getFieldStatus } from "@/lib/field-training";
 import { subjectCertificateLabel, subjectCertificates } from "@/lib/subject-certificate";
 
 export default async function CertificatesPage() {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
+  const session = await requireRole(...LEARNER_ROLES);
   const [me, certs] = await Promise.all([
     prisma.user.findUnique({
       where: { id: session.user.id },

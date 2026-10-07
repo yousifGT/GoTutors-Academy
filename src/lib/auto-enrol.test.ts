@@ -29,14 +29,39 @@ describe("syncCourseEnrollments", () => {
     expect(db.enrollment.createMany).not.toHaveBeenCalled();
   });
 
-  it("ignores assignments to non-trainee roles", async () => {
+  // The heads-of-centre course: assigned to an admin role, it used to reach
+  // nobody because only trainee roles were ever enrolled.
+  it("enrols everyone on a non-trainee role the course is assigned to", async () => {
     db.course.findUnique.mockResolvedValue({
       id: "c1",
       published: true,
       roleAssignments: [{ roleId: "admin-role", subPosition: null, role: { type: "CENTRE_ADMIN" } }],
     });
-    expect(await syncCourseEnrollments("c1")).toBe(0);
-    expect(db.user.findMany).not.toHaveBeenCalled();
+    db.user.findMany.mockResolvedValue([{ id: "head1" }, { id: "head2" }]);
+
+    expect(await syncCourseEnrollments("c1")).toBe(2);
+    expect(db.user.findMany.mock.calls[0][0].where.OR).toEqual([{ roleId: "admin-role" }]);
+  });
+
+  // Older data: the course form used to attach the trainee sub-positions to
+  // every selected role, admin roles included. A field means nothing on an
+  // admin role, so the row is read as the whole role it names.
+  it("treats a field attached to a non-trainee role as the whole role", async () => {
+    db.course.findUnique.mockResolvedValue({
+      id: "c1",
+      published: true,
+      roleAssignments: [
+        { roleId: "trainee-role", subPosition: "Maths Tutor", role: { type: "TRAINEE" } },
+        { roleId: "admin-role", subPosition: "Maths Tutor", role: { type: "CENTRE_ADMIN" } },
+      ],
+    });
+    db.user.findMany.mockResolvedValue([]);
+
+    await syncCourseEnrollments("c1");
+    const or = db.user.findMany.mock.calls[0][0].where.OR;
+    expect(or).toContainEqual({ roleId: "admin-role" });
+    // The trainee row keeps its field — only the admin row widens.
+    expect(or).not.toContainEqual({ roleId: "trainee-role" });
   });
 
   it("enrols matching trainees by sub-position (array or legacy single)", async () => {
@@ -92,17 +117,37 @@ describe("syncCourseEnrollments", () => {
 });
 
 describe("syncUserEnrollments", () => {
-  it("does nothing for admins, inactive users, or instructors without trainee fields", async () => {
-    db.user.findUnique.mockResolvedValue({ id: "u1", active: true, subPosition: null, subPositions: [], role: { type: "CENTRE_ADMIN" } });
-    expect(await syncUserEnrollments("u1")).toBe(0);
-
+  it("does nothing for an inactive user", async () => {
     db.user.findUnique.mockResolvedValue({ id: "u1", active: false, subPosition: null, subPositions: [], role: { type: "TRAINEE" } });
     expect(await syncUserEnrollments("u1")).toBe(0);
-
-    // A pure instructor (no remaining trainee sub-positions) gets nothing.
-    db.user.findUnique.mockResolvedValue({ id: "u1", active: true, subPosition: null, subPositions: [], role: { type: "INSTRUCTOR" } });
-    expect(await syncUserEnrollments("u1")).toBe(0);
     expect(db.course.findMany).not.toHaveBeenCalled();
+  });
+
+  it("enrols a head of centre into every course assigned to their role", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "u1", active: true, roleId: "admin-role", subPosition: null, subPositions: [], role: { type: "CENTRE_ADMIN" },
+    });
+    db.course.findMany.mockResolvedValue([{ id: "c1" }]);
+
+    expect(await syncUserEnrollments("u1")).toBe(1);
+    // Every row on their role counts — a field on an admin role means nothing —
+    // and training fields are never consulted for an admin.
+    expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some).toEqual({
+      OR: [{ roleId: "admin-role" }],
+    });
+    expect(db.subPosition.findMany).not.toHaveBeenCalled();
+  });
+
+  it("enrols a pure instructor into courses assigned to their role", async () => {
+    db.user.findUnique.mockResolvedValue({
+      id: "u1", active: true, roleId: "instructor-role", subPosition: null, subPositions: [], role: { type: "INSTRUCTOR" },
+    });
+    db.course.findMany.mockResolvedValue([]);
+
+    await syncUserEnrollments("u1");
+    expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some).toEqual({
+      OR: [{ roleId: "instructor-role" }],
+    });
   });
 
   it("a promoted tutor/instructor still receives courses for their remaining trainee fields", async () => {
@@ -118,9 +163,10 @@ describe("syncUserEnrollments", () => {
 
     expect(await syncUserEnrollments("u1")).toBe(1);
 
-    // Matched through any trainee role's assignments, never whole-role.
+    // Their own role's courses, plus their field matched through any trainee
+    // role's assignments — never the trainee role's whole-role courses.
     expect(db.course.findMany.mock.calls[0][0].where.roleAssignments.some).toEqual({
-      OR: [{ role: { type: "TRAINEE" }, subPosition: { in: ["English Tutor"] } }],
+      OR: [{ roleId: "instructor-role" }, { role: { type: "TRAINEE" }, subPosition: { in: ["English Tutor"] } }],
     });
   });
 

@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getCourseProgressForUser } from "@/lib/course-progress";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -13,7 +13,7 @@ export async function GET() {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const enrolments = await prisma.enrollment.findMany({
-    where: { user: centreUserScope(session.user) },
+    where: { user: centreTraineeScope(session.user) },
     include: { user: { include: { centre: true } }, course: true },
     orderBy: { enrolledAt: "desc" },
   });

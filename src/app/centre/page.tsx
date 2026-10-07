@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { timeAgo } from "@/lib/utils";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, Avatar, type AttentionItem, type FeedItem } from "@/components/page-ui";
@@ -9,11 +9,11 @@ import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, Avatar
 /** Action-first centre dashboard: who is stuck, who is idle, what just happened. */
 export default async function CentreDashboard() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const scope = centreUserScope(session.user);
+  const scope = centreTraineeScope(session.user);
 
   const [trainees, completedCount, certCount, lockedUsers, enrolments, attempts, completions] = await Promise.all([
     prisma.user.findMany({
-      where: { ...scope, role: { type: "TRAINEE" } },
+      where: scope,
       select: {
         id: true,
         name: true,

@@ -161,6 +161,7 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
         body: `Final score ${score}%. Course: ${quiz.lesson.module.course.title}.`,
         link: `/centre/trainees/${userId}`,
         centreId: user.centreId,
+        learnerId: userId,
         courseId: quiz.lesson.module.courseId,
       });
       await notifyCentreAndInstructor({
@@ -169,6 +170,7 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
         body: `Quiz in lesson "${quiz.lesson.title}" of course "${quiz.lesson.module.course.title}".`,
         link: `/centre/trainees/${userId}`,
         centreId: user.centreId,
+        learnerId: userId,
         courseId: quiz.lesson.module.courseId,
       });
     }
@@ -183,6 +185,7 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
         body: `Quiz in lesson "${quiz.lesson.title}" of course "${quiz.lesson.module.course.title}".`,
         link: `/instructor/review`,
         centreId: user.centreId,
+        learnerId: userId,
         courseId: quiz.lesson.module.courseId,
       });
     }

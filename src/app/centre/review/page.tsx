@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getFieldStatusForUsers } from "@/lib/field-training";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
@@ -17,14 +17,14 @@ import {
 /** Everything at the centre that needs a human decision, in one place. */
 export default async function CentreReviewPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const scope = centreUserScope(session.user);
+  const scope = centreTraineeScope(session.user);
   const now = Date.now();
   const threeDays = 3 * 24 * 60 * 60 * 1000;
   const fourteenDays = 14 * 24 * 60 * 60 * 1000;
 
   const [trainees, lockedAttempts] = await Promise.all([
     prisma.user.findMany({
-      where: { ...scope, active: true, role: { type: "TRAINEE" } },
+      where: { ...scope, active: true },
       include: {
         role: { select: { type: true } },
         enrollments: { where: { completed: false }, select: { courseId: true } },

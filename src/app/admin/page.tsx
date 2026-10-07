@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { reviewQueueWhere } from "@/lib/review-queue";
 import { timeAgo } from "@/lib/utils";
 import { actionLabel, auditDetail, describeTarget, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, type AttentionItem, type FeedItem } from "@/components/page-ui";
@@ -21,7 +22,7 @@ export default async function AdminDashboard() {
         },
       }),
       prisma.certificate.count(),
-      prisma.quizAttempt.count({ where: { needsReview: true, reviewedAt: null } }),
+      prisma.quizAttempt.count({ where: reviewQueueWhere(session.user) }),
       prisma.quizAttempt.findMany({ where: { locked: true }, select: { userId: true }, distinct: ["userId"] }),
       prisma.centre.findMany({ where: { users: { none: {} } }, select: { name: true } }),
       prisma.enrollment.findMany({

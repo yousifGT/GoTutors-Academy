@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { LEARNER_ROLES, requireRole } from "@/lib/session";
 import { isLessonUnlocked } from "@/lib/course-progress";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { EmptyState } from "@/components/page-ui";
@@ -9,7 +9,7 @@ import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
 
 export default async function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
-  const session = await requireRole("TRAINEE", "SUPER_ADMIN", "INSTRUCTOR");
+  const session = await requireRole(...LEARNER_ROLES);
   const userId = session.user.id;
 
   const lesson = await prisma.lesson.findUnique({

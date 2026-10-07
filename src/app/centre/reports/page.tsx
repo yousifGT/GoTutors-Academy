@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { PageHeader, StatCard } from "@/components/page-ui";
@@ -8,11 +8,11 @@ import { CentreReportBoard, CourseReport, TraineeReport } from "@/components/cen
 
 export default async function CentreReportsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const userWhere = centreUserScope(session.user);
+  const userWhere = centreTraineeScope(session.user);
 
   const [trainees, enrollments, attempts] = await Promise.all([
     prisma.user.findMany({
-      where: { ...userWhere, role: { type: "TRAINEE" } },
+      where: userWhere,
       select: { id: true, name: true, email: true, isTrained: true },
       orderBy: { name: "asc" },
     }),
