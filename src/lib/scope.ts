@@ -35,20 +35,24 @@ export function centreTraineeScope(user: { roleType: RoleType; centreId: string 
 
 /**
  * Whether a viewer may see a target's certificates: themselves, a super admin,
- * a centre admin over that person's (non-null) centre, or their supervisor.
+ * a centre admin over one of their own centre's TRAINEES, or their supervisor.
  *
  * Wider than canManageUser on purpose — a supervisor can read certificates
  * without being able to edit the person. Shared by the course-certificate and
  * subject-certificate downloads so the two cannot drift apart.
+ *
+ * A centre admin used to see every certificate in their centre, a fellow head
+ * of centre's included. Heads are peers, not people they manage, so a centre
+ * admin's reach is the same trainees canManageUser gives them.
  */
 export function canViewCertificate(
   viewer: { id: string; roleType: RoleType; centreId: string | null },
-  target: { id: string; centreId: string | null; supervisorId: string | null }
+  target: { id: string; centreId: string | null; supervisorId: string | null; role: { type: RoleType } }
 ): boolean {
   if (viewer.id === target.id) return true;
   if (viewer.roleType === "SUPER_ADMIN") return true;
-  if (viewer.roleType === "CENTRE_ADMIN") {
-    return viewer.centreId != null && viewer.centreId === target.centreId;
+  if (viewer.roleType === "CENTRE_ADMIN" && canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId })) {
+    return true;
   }
   return viewer.id === target.supervisorId;
 }

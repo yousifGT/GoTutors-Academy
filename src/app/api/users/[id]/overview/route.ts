@@ -31,14 +31,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const viewer = session.user;
+  // The admin view of a person. Not of yourself unless you are a super admin —
+  // your own progress lives under My courses — and, for a centre admin, only
+  // their own centre's trainees (canManageUser), never a fellow head.
+  const canManage = canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId });
   let allowed =
     viewer.roleType === "SUPER_ADMIN" ||
-    viewer.id === target.id ||
-    target.supervisorId === viewer.id;
-  if (!allowed && viewer.roleType === "CENTRE_ADMIN") {
-    allowed = viewer.centreId != null && target.centreId === viewer.centreId;
-  }
-  if (!allowed && viewer.roleType === "INSTRUCTOR") {
+    (viewer.id !== target.id && target.supervisorId === viewer.id) ||
+    (viewer.roleType === "CENTRE_ADMIN" && canManage);
+  if (!allowed && viewer.roleType === "INSTRUCTOR" && viewer.id !== target.id) {
     const shared = await prisma.enrollment.count({
       where: { userId: target.id, course: { authorId: viewer.id } },
     });
@@ -46,14 +47,12 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   }
   if (!allowed) return NextResponse.json({ error: "You don't have access to this profile" }, { status: 403 });
 
+  // Mirrors POST /api/users/[id]/promote: a super admin may promote a trainee or
+  // an instructor still training; a centre admin only their own trainees.
   const canPromote =
-    (viewer.roleType === "SUPER_ADMIN" ||
-      (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && target.centreId === viewer.centreId)) &&
-    (target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR");
-
-  // Who may reset this person's password / edit them — same rule the PATCH
-  // endpoint enforces: super admins anyone, centre admins their own trainees.
-  const canManage = canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId });
+    viewer.roleType === "SUPER_ADMIN"
+      ? target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR"
+      : viewer.roleType === "CENTRE_ADMIN" && canManage;
 
   const [enrollments, certificates, authoredCourses, fieldStatus] = await Promise.all([
     prisma.enrollment.findMany({

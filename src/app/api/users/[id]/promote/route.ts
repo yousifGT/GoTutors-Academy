@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { canManageUser } from "@/lib/scope";
 import { getServerSession } from "next-auth";
 import { z } from "zod";
 import { authOptions } from "@/lib/auth";
@@ -21,14 +22,16 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   const target = await prisma.user.findUnique({
     where: { id: params.id },
-    select: { centreId: true },
+    select: { centreId: true, role: { select: { type: true } } },
   });
   if (!target) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   const viewer = session.user;
+  // A centre admin promotes only the trainees they manage (canManageUser) — the
+  // centre alone also let them promote an instructor or a fellow head.
   const allowed =
     viewer.roleType === "SUPER_ADMIN" ||
-    (viewer.roleType === "CENTRE_ADMIN" && viewer.centreId != null && target.centreId === viewer.centreId);
+    (viewer.roleType === "CENTRE_ADMIN" && canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId }));
   if (!allowed) return NextResponse.json({ error: "You can't promote this user" }, { status: 403 });
 
   const parsed = await parseJson(req, PromoteSchema);

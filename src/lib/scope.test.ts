@@ -45,7 +45,7 @@ describe("canManageUser", () => {
 });
 
 describe("canViewCertificate", () => {
-  const target = { id: "t1", centreId: "london", supervisorId: "sup1" };
+  const target = { id: "t1", centreId: "london", supervisorId: "sup1", role: { type: "TRAINEE" as const } };
 
   it("lets people see their own", () => {
     expect(canViewCertificate({ id: "t1", roleType: "TRAINEE", centreId: null }, target)).toBe(true);
@@ -62,7 +62,14 @@ describe("canViewCertificate", () => {
 
   // A null centre is a data anomaly; it must never match another null.
   it("refuses a centre admin with no centre", () => {
-    expect(canViewCertificate({ id: "a", roleType: "CENTRE_ADMIN", centreId: null }, { id: "t2", centreId: null, supervisorId: null })).toBe(false);
+    expect(canViewCertificate({ id: "a", roleType: "CENTRE_ADMIN", centreId: null }, { id: "t2", centreId: null, supervisorId: null, role: { type: "TRAINEE" as const } })).toBe(false);
+  });
+
+  // A head of centre could read a fellow head's certificates: same centre, but
+  // not someone they manage.
+  it("does not let a centre admin see a fellow head's", () => {
+    const peer = { id: "head2", centreId: "london", supervisorId: null, role: { type: "CENTRE_ADMIN" as const } };
+    expect(canViewCertificate({ id: "head1", roleType: "CENTRE_ADMIN", centreId: "london" }, peer)).toBe(false);
   });
 
   it("lets a supervisor see their report's, but not a stranger's", () => {

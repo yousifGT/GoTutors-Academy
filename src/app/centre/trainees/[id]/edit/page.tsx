@@ -1,16 +1,26 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { canManageUser } from "@/lib/scope";
 import { UserEditForm } from "@/components/user-edit-form";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreTraineeEditPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
-  const user = await prisma.user.findUnique({ where: { id: params.id } });
+  const user = await prisma.user.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!user) notFound();
-  if (session.user.roleType === "CENTRE_ADMIN" && user.centreId !== session.user.centreId) notFound();
+  // The admin view of a person is for the people you manage: a super admin
+  // sees anyone, a centre admin only their own centre's trainees — the same
+  // rule PATCH/DELETE /api/users/[id] enforce. It used to check the centre
+  // alone, so a head of centre opening a notification about themselves landed
+  // on their own admin profile, Edit button included (every save of which the
+  // API then refused). Your own progress lives under My courses.
+  if (session.user.roleType !== "SUPER_ADMIN") {
+    if (user.id === session.user.id) redirect("/trainee/courses");
+    if (!canManageUser(session.user, { roleType: user.role.type, centreId: user.centreId })) notFound();
+  }
 
   const [roles, supervisors, subPositions] = await Promise.all([
     prisma.role.findMany({ orderBy: { name: "asc" } }),

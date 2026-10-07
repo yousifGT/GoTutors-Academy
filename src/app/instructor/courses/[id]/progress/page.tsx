@@ -14,7 +14,7 @@ export default async function CourseProgressPage({ params }: { params: { id: str
   if (session.user.roleType !== "SUPER_ADMIN" && course.authorId !== session.user.id) notFound();
 
   const enrollments = await prisma.enrollment.findMany({
-    where: { courseId: course.id },
+    where: { courseId: course.id, userId: { not: session.user.id } },
     include: { user: { include: { centre: true } } },
     orderBy: { enrolledAt: "desc" },
   });

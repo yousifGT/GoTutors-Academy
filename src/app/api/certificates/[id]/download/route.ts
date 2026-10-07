@@ -11,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   const cert = await prisma.certificate.findUnique({
     where: { id: params.id },
-    include: { user: { include: { centre: true, supervisor: true } }, course: true },
+    include: { user: { include: { centre: true, supervisor: true, role: { select: { type: true } } } }, course: true },
   });
   if (!cert) return NextResponse.json({ error: "not found" }, { status: 404 });
 

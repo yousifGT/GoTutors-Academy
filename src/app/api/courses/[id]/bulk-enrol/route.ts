@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
-import { centreUserScope } from "@/lib/scope";
+import { centreTraineeScope } from "@/lib/scope";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -33,12 +33,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!parsed.ok) return parsed.response;
   const { userIds } = parsed.data;
 
-  // Centre admins may only enrol users from their own centre (a null centre
-  // matches nobody — never every centre). Super admins / authors are unscoped.
+  // Centre admins may only enrol their own centre's trainees (a null centre
+  // matches nobody — never every centre); a fellow head is not theirs to
+  // enrol. Super admins / authors are unscoped.
   const targets = await prisma.user.findMany({
     where: {
       id: { in: userIds },
-      ...(isCentreAdmin ? centreUserScope(session.user) : {}),
+      ...(isCentreAdmin ? centreTraineeScope(session.user) : {}),
     },
     select: { id: true, name: true, centreId: true },
   });

@@ -81,6 +81,13 @@ particular course is decided by enrolment, never by role.
   (`notify.ts`, `reviewQueueWhere`).
 - Promotion only ever touches trainee/instructor roles; a head finishing a
   course gets a certificate and nothing else.
+- **The admin view of a person is for the people you manage — `canManageUser`.**
+  A super admin: anyone. A centre admin: their own centre's trainees, never
+  themselves or a fellow head. Every person-level gate uses it — the
+  `/centre/trainees/[id]` page and its edit page, the profile overview,
+  promote, bulk-enrol, certificate downloads. Checking "same centre" instead is
+  the bug that put a head on their own admin profile from a notification. Your
+  own page redirects to My courses; no report lists the viewer.
 
 ## Config
 
@@ -98,7 +105,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 313 tests
+npx vitest run                # 314 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

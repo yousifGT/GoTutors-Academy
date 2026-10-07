@@ -6,7 +6,12 @@ import { InstructorProgressBoard, ProgressRow } from "@/components/instructor-pr
 
 export default async function InstructorProgressPage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
-  const where = session.user.roleType === "SUPER_ADMIN" ? {} : { course: { authorId: session.user.id } };
+  // Reports are about other people: an instructor enrolled in a course (anyone
+  // can take one now) never appears in their own progress board.
+  const where = {
+    userId: { not: session.user.id },
+    ...(session.user.roleType === "SUPER_ADMIN" ? {} : { course: { authorId: session.user.id } }),
+  };
   const enrollments = await prisma.enrollment.findMany({
     where,
     include: { user: { select: { id: true, name: true, email: true, isTrained: true } }, course: { select: { id: true, title: true } } },
