@@ -151,7 +151,7 @@ export default async function CourseReviewPage({ params }: { params: { id: strin
           <p className="text-xs text-[var(--muted)]">
             Heads up: {missingVideo > 0 ? `${missingVideo} lesson${missingVideo === 1 ? "" : "s"} without a video` : ""}
             {missingVideo > 0 && missingQuiz > 0 ? " · " : ""}
-            {missingQuiz > 0 ? `${missingQuiz} without a quiz` : ""}. That&apos;s allowed — a lesson with no video, or no questions to answer, completes on view. A quiz that exists but has no questions will block publishing.
+            {missingQuiz > 0 ? `${missingQuiz} without a quiz` : ""}. That&apos;s allowed — a lesson with no video, or no questions to answer, completes on view.
           </p>
         )}
       </div>

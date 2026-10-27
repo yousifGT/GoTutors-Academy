@@ -58,6 +58,26 @@ roles whose `type` is `TRAINEE`.
   every role and include tutors (who hold it as a title), because deleting also
   drops the field's course requirements — which can leave part-trained people
   reading as fully trained.
+- **Names are compared ignoring case and spacing** (`nameKey`/`duplicateOf` in
+  `names.ts`) on create AND rename of centres, roles and sub-positions; a record
+  may take a new spelling of its own name. For sub-positions the **exact** name
+  on another role is allowed — that is one field shared across roles — but a
+  variant ("maths tutor" beside "Maths Tutor") is refused, because it would be
+  matched as a separate field (`fieldNameVariant`). The tutor-title clash check
+  ignores case too.
+
+## Courses — a quiz is its questions
+
+- A quiz with **no questions is no quiz**: the progress route completes the
+  lesson on view, the learner sees no quiz panel, and the badges say "no quiz".
+- The lesson editor sends its quiz settings on every save, so the lesson save
+  **never creates a quiz without questions** — it used to, which made every
+  lesson saved for a video carry an empty quiz.
+- Publishing has **no quiz check**. It used to refuse "a quiz with no
+  questions", which (because of the above) refused courses whose author never
+  added a quiz. Older data still contains empty quizzes; they are harmless.
+- A lesson without a quiz shows "Lesson complete" and a Next lesson button once
+  done; that link used to live only inside the quiz panel.
 
 ## Learning vs reporting — who sees what
 
@@ -105,7 +125,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 314 tests
+npx vitest run                # 330 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

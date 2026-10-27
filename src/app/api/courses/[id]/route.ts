@@ -71,24 +71,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const audienceChanging = body.roleIds !== undefined;
   const fieldsBefore = publishFlipping || audienceChanging ? await courseTraineeFields(params.id) : [];
 
-  // A quiz with no questions can never be passed (the attempt route refuses it),
-  // and completion requires a pass — so publishing one strands every trainee on
-  // that lesson. Refuse at the gate rather than leaving it to be discovered as a
-  // course nobody can finish. Existing published courses still unstall, because
-  // the progress route treats "nothing to answer" as answered.
-  if (body.published === true && !existing.published) {
-    const emptyQuizzes = await prisma.quiz.count({
-      where: { lesson: { module: { courseId: params.id } }, questions: { none: {} } },
-    });
-    if (emptyQuizzes > 0) {
-      return NextResponse.json(
-        {
-          error: `${emptyQuizzes} lesson${emptyQuizzes === 1 ? " has a quiz" : "s have quizzes"} with no questions. Add questions, or remove the quiz so the lesson completes on view.`,
-        },
-        { status: 400 }
-      );
-    }
-  }
+  // No quiz check on publish. A quiz with no questions is the same as no quiz:
+  // the progress route marks a lesson with nothing to answer as answered, so it
+  // completes on view and strands nobody. This used to refuse such a course —
+  // and since saving any lesson created an empty quiz, it refused courses whose
+  // author had never added a quiz at all ("you cannot release a course without
+  // a quiz"). The lesson save no longer creates them; courses that already
+  // carry one publish anyway.
 
   const data: Record<string, unknown> = {};
   for (const k of ["title", "description", "passThreshold", "published"] as const) {

@@ -7,6 +7,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zPositionName } from "@/lib/validate";
+import { duplicateOf } from "@/lib/names";
 
 const RoleSchema = z.object({
   name: zPositionName,
@@ -24,6 +25,11 @@ export async function POST(req: Request) {
   const parsed = await parseJson(req, RoleSchema);
   if (!parsed.ok) return parsed.response;
   const { name, type, description } = parsed.data;
+
+  // The unique index only catches an exact match; "Head of Centre" and "head of
+  // centre" are the same role to anyone choosing from a list. Same rule as rename.
+  const clash = duplicateOf(name, await prisma.role.findMany({ select: { id: true, name: true } }));
+  if (clash) return NextResponse.json({ error: `A role called "${clash.name}" already exists.` }, { status: 409 });
 
   try {
     const role = await prisma.role.create({

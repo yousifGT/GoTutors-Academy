@@ -250,24 +250,40 @@ export function LessonEditor({
   );
 }
 
-/** Empty answer row — Enter adds and keeps focus for the next option. */
+/**
+ * Empty answer row with an Add button — Enter does the same and keeps focus for
+ * the next option. Enter used to be the only way, with nothing on screen to press.
+ */
 function AnswerAdd({ onAdd }: { onAdd: (text: string) => void }) {
   const [v, setV] = useState("");
+  const submit = () => {
+    const t = v.trim();
+    if (t) { onAdd(t); setV(""); }
+  };
   return (
     <div className="flex items-center gap-2 pl-6">
       <input
-        className="gt-input border-dashed"
+        className="gt-input min-w-0 flex-1 border-dashed"
         value={v}
-        placeholder="Add an answer — press Enter"
+        placeholder="Add an answer — press Enter or Add"
         onChange={(e) => setV(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            const t = v.trim();
-            if (t) { onAdd(t); setV(""); }
+            submit();
           }
         }}
       />
+      {/* Keeps focus in the input, so the next answer can be typed straight away. */}
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={submit}
+        disabled={!v.trim()}
+        className="gt-btn-ghost shrink-0 text-xs"
+      >
+        Add
+      </button>
     </div>
   );
 }

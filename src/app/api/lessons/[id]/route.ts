@@ -82,6 +82,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     if (body.quiz) {
+      // A quiz is its questions. The lesson editor sends its quiz settings on
+      // every save, questions or not, and this used to create a quiz for each
+      // one — so saving a lesson just to add a video left an empty quiz behind,
+      // and publishing then refused the course for "a quiz with no questions"
+      // that nobody had added. No quiz yet and nothing to put in one: leave it.
+      const existingQuiz = await tx.quiz.findUnique({ where: { lessonId: lesson.id }, select: { id: true } });
+      if (!existingQuiz && !body.quiz.questions?.length) return lesson;
+
       // Update only the metadata fields that were sent — don't reset
       // passThreshold/retryLimit to defaults on a partial edit.
       const quizUpdate: Prisma.QuizUpdateInput = {};

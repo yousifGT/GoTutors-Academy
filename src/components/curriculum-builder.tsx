@@ -218,7 +218,8 @@ export function CurriculumBuilder({
                             ) : (
                               <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">no video</span>
                             )}
-                            {l.quiz ? (
+                            {/* An empty quiz is no quiz — it completes on view. */}
+                            {l.quiz && l.quiz.questionsCount > 0 ? (
                               <span className="gt-badge bg-mint/15 text-mint">📝 {l.quiz.questionsCount} Qs</span>
                             ) : (
                               <span className="gt-badge bg-[var(--soft)] text-[var(--muted)]">no quiz</span>
@@ -286,10 +287,20 @@ function InlineTitle({ value, onSave, className = "" }: { value: string; onSave:
   );
 }
 
-/** Dashed "+ Add …" button that turns into an input. Enter adds and keeps focus for rapid entry. */
+/**
+ * Dashed "+ Add …" button that turns into an input with an Add button beside it.
+ * Enter does the same and keeps focus for rapid entry; Esc closes it.
+ *
+ * Enter used to be the only way to add: there was nothing to press, so someone
+ * who typed a module name and clicked away left it unsaved.
+ */
 function InlineAdd({ label, placeholder, onAdd, big = false }: { label: string; placeholder: string; onAdd: (t: string) => void; big?: boolean }) {
   const [open, setOpen] = useState(false);
   const [v, setV] = useState("");
+  const submit = () => {
+    const t = v.trim();
+    if (t) { onAdd(t); setV(""); }
+  };
 
   if (!open) {
     return (
@@ -303,23 +314,36 @@ function InlineAdd({ label, placeholder, onAdd, big = false }: { label: string; 
     );
   }
   return (
-    <div className={big ? "" : "mt-2"}>
+    <div className={`flex items-center gap-2 ${big ? "" : "mt-2"}`}>
       <input
         autoFocus
-        className="gt-input"
+        className="gt-input min-w-0 flex-1"
         placeholder={placeholder}
         value={v}
         onChange={(e) => setV(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            const t = v.trim();
-            if (t) { onAdd(t); setV(""); }
+            submit();
           }
           if (e.key === "Escape") { setV(""); setOpen(false); }
         }}
         onBlur={() => { if (!v.trim()) setOpen(false); }}
       />
+      {/*
+       * preventDefault on mousedown keeps focus in the input. Without it the
+       * input blurs before the click lands, and the next entry needs another
+       * click into the box — the rapid-entry flow Enter gives would be lost.
+       */}
+      <button
+        type="button"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={submit}
+        disabled={!v.trim()}
+        className="gt-btn-primary shrink-0"
+      >
+        Add
+      </button>
     </div>
   );
 }

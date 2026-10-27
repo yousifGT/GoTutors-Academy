@@ -13,7 +13,7 @@ export default async function CoursePage({ params }: { params: { courseId: strin
   const course = await prisma.course.findUnique({
     where: { id: params.courseId },
     include: {
-      modules: { orderBy: { order: "asc" }, include: { lessons: { orderBy: { order: "asc" }, include: { quiz: true, video: true } } } },
+      modules: { orderBy: { order: "asc" }, include: { lessons: { orderBy: { order: "asc" }, include: { quiz: { select: { _count: { select: { questions: true } } } }, video: true } } } },
     },
   });
   if (!course) notFound();
@@ -97,7 +97,7 @@ export default async function CoursePage({ params }: { params: { courseId: strin
                     <div>
                       <div className="font-medium">{mi + 1}.{li + 1}  {l.title}</div>
                       <div className="text-xs text-[var(--muted)]">
-                        {l.video ? "Video" : "—"} · {l.quiz ? "Quiz" : "No quiz"}
+                        {l.video ? "Video" : "—"} · {(l.quiz?._count.questions ?? 0) > 0 ? "Quiz" : "No quiz"}
                       </div>
                     </div>
                     <div className="flex items-center gap-3">

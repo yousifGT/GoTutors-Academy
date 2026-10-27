@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const db = vi.hoisted(() => ({
   lesson: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   video: { deleteMany: vi.fn(), upsert: vi.fn() },
-  quiz: { upsert: vi.fn() },
+  quiz: { upsert: vi.fn(), findUnique: vi.fn() },
   question: { deleteMany: vi.fn(), create: vi.fn(), findMany: vi.fn() },
   quizAttempt: { count: vi.fn() },
   $transaction: vi.fn(),
@@ -38,6 +38,8 @@ beforeEach(() => {
   db.lesson.findUnique.mockResolvedValue({ module: { course: { authorId: "author1" } } });
   db.lesson.update.mockResolvedValue({ id: "l1" });
   db.quiz.upsert.mockResolvedValue({ id: "q1" });
+  // The lesson already has a quiz unless a test says otherwise.
+  db.quiz.findUnique.mockResolvedValue({ id: "q1" });
   // No stored questions and nothing awaiting review, unless a test says otherwise.
   db.question.findMany.mockResolvedValue([]);
   db.quizAttempt.count.mockResolvedValue(0);
@@ -95,6 +97,40 @@ describe("PATCH /api/lessons/[id] preserves quiz questions", () => {
     expect(res.status).toBe(200);
     expect(db.question.deleteMany).toHaveBeenCalledWith({ where: { quizId: "q1" } });
     expect(db.question.create).not.toHaveBeenCalled();
+  });
+
+  // The editor sends its quiz settings on every save. A lesson saved just to add
+  // a video used to get an empty quiz, which then blocked publishing the course.
+  it("does not create a quiz for a lesson saved with no questions", async () => {
+    session.mockResolvedValue(author);
+    db.quiz.findUnique.mockResolvedValue(null);
+    const res = await PATCH(
+      patchReq({ title: "Intro", quiz: { passThreshold: 70, retryLimit: 3, questions: [] } }),
+      { params: { id: "l1" } }
+    );
+    expect(res.status).toBe(200);
+    expect(db.quiz.upsert).not.toHaveBeenCalled();
+    expect(db.question.create).not.toHaveBeenCalled();
+    // The rest of the save still happens.
+    expect(db.lesson.update).toHaveBeenCalledWith(expect.objectContaining({ data: { title: "Intro" } }));
+  });
+
+  it("does not create a quiz from settings alone", async () => {
+    session.mockResolvedValue(author);
+    db.quiz.findUnique.mockResolvedValue(null);
+    await PATCH(patchReq({ quiz: { passThreshold: 80 } }), { params: { id: "l1" } });
+    expect(db.quiz.upsert).not.toHaveBeenCalled();
+  });
+
+  it("creates the quiz once a question is added", async () => {
+    session.mockResolvedValue(author);
+    db.quiz.findUnique.mockResolvedValue(null);
+    await PATCH(
+      patchReq({ quiz: { questions: [{ type: "MULTIPLE_CHOICE", prompt: "Q1", answers: [{ text: "a", isCorrect: true }] }] } }),
+      { params: { id: "l1" } }
+    );
+    expect(db.quiz.upsert).toHaveBeenCalledTimes(1);
+    expect(db.question.create).toHaveBeenCalledTimes(1);
   });
 
   it("skips the rewrite when an empty list is resubmitted over no questions", async () => {

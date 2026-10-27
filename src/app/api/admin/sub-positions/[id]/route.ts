@@ -6,7 +6,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zPositionName } from "@/lib/validate";
-import { collidingFieldName, tutorTitleFor } from "@/lib/sub-positions";
+import { collidingFieldName, fieldNameVariant, tutorTitleFor } from "@/lib/sub-positions";
 import { countFieldHolders, describeFieldHolders } from "@/lib/field-holders";
 
 const RenameSchema = z.object({ name: zPositionName });
@@ -25,6 +25,20 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const existing = await prisma.subPosition.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
   if (existing.name === newName) return NextResponse.json({ ok: true });
+
+  // A different spelling of another field would split it in two — including this
+  // field's own copy on another role. Same rule as create.
+  const variant = fieldNameVariant(
+    newName,
+    await prisma.subPosition.findMany({ select: { id: true, name: true } }),
+    existing.id
+  );
+  if (variant) {
+    return NextResponse.json(
+      { error: `A sub-position called "${variant}" already exists. To use the same field, rename to exactly "${variant}".` },
+      { status: 409 }
+    );
+  }
 
   // Conflict check
   const dupe = await prisma.subPosition.findUnique({

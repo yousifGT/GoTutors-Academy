@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { effectiveSubPositions, tutorTitleFor, fieldNameForTutorTitle, tutoredFieldNames, collidingFieldName } from "./sub-positions";
+import { effectiveSubPositions, tutorTitleFor, fieldNameForTutorTitle, tutoredFieldNames, collidingFieldName, fieldNameVariant } from "./sub-positions";
 
 describe("tutorTitleFor", () => {
   it("turns a '<subject> Trainee' field into '<subject> Tutor'", () => {
@@ -98,5 +98,44 @@ describe("collidingFieldName", () => {
   // A rename passes the other fields, so the field must not clash with itself.
   it("ignores the field's own name", () => {
     expect(collidingFieldName("Maths Tutor", ["Maths Tutor"])).toBeNull();
+  });
+});
+
+// Titles that differ only in case are the same title to a person.
+describe("collidingFieldName ignores case", () => {
+  it("catches a field that differs only in case or spacing", () => {
+    expect(collidingFieldName("maths trainee", ["Maths Trainee"])).toBe("Maths Trainee");
+    expect(collidingFieldName("Maths  Tutor", ["maths trainee"])).toBe("maths trainee");
+  });
+});
+
+describe("fieldNameVariant", () => {
+  const fields = [
+    { id: "a", name: "Maths Trainee" },  // on the Trainee role
+    { id: "b", name: "Maths Trainee" },  // the same field shared with another role
+    { id: "c", name: "Science Trainee" },
+  ];
+
+  it("finds a different spelling of an existing field", () => {
+    expect(fieldNameVariant("maths trainee", fields)).toBe("Maths Trainee");
+    expect(fieldNameVariant("Maths  Trainee", fields)).toBe("Maths Trainee");
+  });
+
+  // Fields are matched by name, so the exact name on another role is one field.
+  it("allows the exact name, which shares the field across roles", () => {
+    expect(fieldNameVariant("Maths Trainee", fields)).toBeNull();
+  });
+
+  it("allows a genuinely new field", () => {
+    expect(fieldNameVariant("History Trainee", fields)).toBeNull();
+  });
+
+  // Renaming one role's copy to a new spelling would split the shared field.
+  it("refuses respelling one copy of a shared field", () => {
+    expect(fieldNameVariant("maths trainee", fields, "a")).toBe("Maths Trainee");
+  });
+
+  it("lets a field that exists once be respelled", () => {
+    expect(fieldNameVariant("SCIENCE TRAINEE", fields, "c")).toBeNull();
   });
 });

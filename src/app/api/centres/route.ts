@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { z } from "zod";
 import { parseJson, zName } from "@/lib/validate";
+import { duplicateOf } from "@/lib/names";
 
 const CentreSchema = z.object({
   name: zName,
@@ -20,6 +21,10 @@ export async function POST(req: Request) {
   const parsed = await parseJson(req, CentreSchema);
   if (!parsed.ok) return parsed.response;
   const { name, location } = parsed.data;
+
+  // Same rule as renaming (PATCH /api/centres/[id]).
+  const clash = duplicateOf(name, await prisma.centre.findMany({ select: { id: true, name: true } }));
+  if (clash) return NextResponse.json({ error: `A centre called "${clash.name}" already exists.` }, { status: 409 });
 
   const c = await prisma.centre.create({ data: { name, location: location || null } });
   return NextResponse.json(c);

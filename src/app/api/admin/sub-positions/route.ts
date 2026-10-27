@@ -6,7 +6,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zId, zPositionName } from "@/lib/validate";
-import { collidingFieldName, tutorTitleFor } from "@/lib/sub-positions";
+import { collidingFieldName, fieldNameVariant, tutorTitleFor } from "@/lib/sub-positions";
 
 const SubPositionSchema = z.object({ roleId: zId, name: zPositionName });
 
@@ -27,7 +27,17 @@ export async function POST(req: Request) {
   // Two fields must never promote to the same tutor title: teacherPositions
   // stores only the title, so it would resolve back to either field and the
   // person's requirements would be read from the wrong course set.
-  const allFields = (await prisma.subPosition.findMany({ select: { name: true } })).map((r) => r.name);
+  const fields = await prisma.subPosition.findMany({ select: { id: true, name: true } });
+  // A different spelling of an existing field would be matched as a separate
+  // field. Same rule as rename.
+  const variant = fieldNameVariant(name, fields);
+  if (variant) {
+    return NextResponse.json(
+      { error: `A sub-position called "${variant}" already exists. To give this role the same field, use exactly "${variant}".` },
+      { status: 409 }
+    );
+  }
+  const allFields = fields.map((r) => r.name);
   const clash = collidingFieldName(name, allFields);
   if (clash) {
     return NextResponse.json(

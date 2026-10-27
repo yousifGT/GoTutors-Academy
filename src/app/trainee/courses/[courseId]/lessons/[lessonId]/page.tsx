@@ -65,11 +65,16 @@ export default async function LessonPage({ params }: { params: { courseId: strin
     create: { userId, lessonId: lesson.id, createdAt: new Date() },
   });
 
+  // A quiz with no questions is no quiz: the progress route completes the
+  // lesson on view, so showing a quiz panel ("You have passed this quiz") for
+  // one would describe a test that never existed.
+  const quiz = lesson.quiz && lesson.quiz.questions.length > 0 ? lesson.quiz : null;
+
   let attempts: { id: string; score: number; passed: boolean; createdAt: Date; locked: boolean; needsReview: boolean }[] = [];
   let locked = false;
-  if (lesson.quiz) {
+  if (quiz) {
     attempts = await prisma.quizAttempt.findMany({
-      where: { userId, quizId: lesson.quiz.id },
+      where: { userId, quizId: quiz.id },
       orderBy: { createdAt: "desc" },
       select: { id: true, score: true, passed: true, createdAt: true, locked: true, needsReview: true },
     });
@@ -79,12 +84,12 @@ export default async function LessonPage({ params }: { params: { courseId: strin
   // Strip correctness from answers sent to the client, and randomise question +
   // answer order per load so answers can't be shared/eliminated by position.
   // Grading is by stable id server-side, so display order never affects scoring.
-  const safeQuiz = lesson.quiz
+  const safeQuiz = quiz
     ? {
-        id: lesson.quiz.id,
-        passThreshold: lesson.quiz.passThreshold,
-        retryLimit: lesson.quiz.retryLimit,
-        questions: shuffle(lesson.quiz.questions).map((q) => ({
+        id: quiz.id,
+        passThreshold: quiz.passThreshold,
+        retryLimit: quiz.retryLimit,
+        questions: shuffle(quiz.questions).map((q) => ({
           id: q.id,
           type: q.type,
           prompt: q.prompt,

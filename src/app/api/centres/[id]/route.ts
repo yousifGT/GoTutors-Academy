@@ -6,6 +6,7 @@ import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { parseJson, zName } from "@/lib/validate";
+import { duplicateOf } from "@/lib/names";
 
 /** Thrown inside the delete transaction when the centre still has users. */
 class CentreHasUsersError extends Error {}
@@ -24,6 +25,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const parsed = await parseJson(req, CentrePatchSchema);
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
+
+  // Same rule as creating (POST /api/centres); a centre may take a new spelling
+  // of its own name.
+  if (body.name !== undefined) {
+    const others = await prisma.centre.findMany({ select: { id: true, name: true } });
+    const clash = duplicateOf(body.name, others, params.id);
+    if (clash) return NextResponse.json({ error: `A centre called "${clash.name}" already exists.` }, { status: 409 });
+  }
 
   const data: Prisma.CentreUpdateInput = {};
   if (body.name !== undefined) data.name = body.name;

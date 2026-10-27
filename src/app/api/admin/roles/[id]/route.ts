@@ -6,6 +6,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zPositionName } from "@/lib/validate";
+import { duplicateOf } from "@/lib/names";
 
 const RoleUpdateSchema = z
   .object({
@@ -30,6 +31,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (parsed.data.name !== undefined) data.name = parsed.data.name;
   if (parsed.data.description !== undefined) data.description = parsed.data.description;
   // `type` is intentionally immutable — it's load-bearing for routing/permissions.
+
+  // Same rule as create; a role may take a new spelling of its own name.
+  if (data.name !== undefined) {
+    const clash = duplicateOf(data.name, await prisma.role.findMany({ select: { id: true, name: true } }), params.id);
+    if (clash) return NextResponse.json({ error: `A role called "${clash.name}" already exists.` }, { status: 409 });
+  }
 
   try {
     const role = await prisma.role.update({ where: { id: params.id }, data });

@@ -91,6 +91,15 @@ export function LessonPlayer({
     }
   }
 
+  // No quiz: check in at once rather than waiting for the first 10-second
+  // heartbeat (it is the same request). A lesson with nothing to watch completes
+  // on view, and one whose questions were removed after the video was watched
+  // only gets its quiz marked done when progress is next posted.
+  useEffect(() => {
+    if (!quiz && !(initialProgress.videoWatched && initialProgress.quizPassed)) postProgress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lessonId]);
+
   useEffect(() => {
     let visible = !document.hidden;
     const onVis = () => { visible = !document.hidden; };
@@ -150,11 +159,37 @@ export function LessonPlayer({
               onManualComplete={() => postProgress(true)}
             />
             <div className="mt-3 flex items-center justify-between text-sm">
-              <span className="text-[var(--muted)]">{videoWatched ? "Video complete." : "Watch the full video to unlock the quiz."}</span>
+              <span className="text-[var(--muted)]">
+                {videoWatched ? "Video complete." : quiz ? "Watch the full video to unlock the quiz." : "Watch the full video to complete this lesson."}
+              </span>
             </div>
           </div>
         )}
       </div>
+
+      {/*
+       * No quiz (or one with no questions — the page passes those as none): the
+       * lesson is complete once the video is watched, or on view if there is no
+       * video. The only "Next lesson" link used to live inside the quiz panel,
+       * so these lessons finished silently with no way forward.
+       */}
+      {/* An unwatched video already says what to do, under the player. */}
+      {!quiz && (videoWatched || !video) && (
+        <div className="gt-card p-6">
+          {videoWatched ? (
+            <div className="rounded-xl border border-mint/30 bg-mint/10 p-4 text-mint">
+              Lesson complete.
+              {nextLessonId ? (
+                <Link href={`/trainee/courses/${courseId}/lessons/${nextLessonId}`} className="gt-btn-accent ml-3">Next lesson</Link>
+              ) : (
+                <Link href={`/trainee/courses/${courseId}`} className="gt-btn-accent ml-3">Back to course</Link>
+              )}
+            </div>
+          ) : (
+            <p className="text-sm text-[var(--muted)]">Marking this lesson complete…</p>
+          )}
+        </div>
+      )}
 
       {quiz && (
         <div className="gt-card p-6">

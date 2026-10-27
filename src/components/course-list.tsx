@@ -265,18 +265,34 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
         </label>
         <div className="ml-auto flex items-center gap-2">
           {addingCategory ? (
-            <input
-              autoFocus
-              className="gt-input max-w-[12rem]"
-              placeholder="Category name…"
-              value={newCategory}
-              onChange={(e) => setNewCategory(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") addCategory();
-                if (e.key === "Escape") { setNewCategory(""); setAddingCategory(false); }
-              }}
-              onBlur={() => { if (!newCategory.trim()) setAddingCategory(false); else addCategory(); }}
-            />
+            <>
+              <input
+                autoFocus
+                className="gt-input max-w-[12rem]"
+                placeholder="Category name…"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addCategory();
+                  if (e.key === "Escape") { setNewCategory(""); setAddingCategory(false); }
+                }}
+                onBlur={() => { if (!newCategory.trim()) setAddingCategory(false); else addCategory(); }}
+              />
+              {/*
+               * Enter (or clicking away) were the only ways to add, with nothing
+               * on screen to press. preventDefault on mousedown stops the input's
+               * blur from adding first, so the click is the one that does it.
+               */}
+              <button
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={addCategory}
+                disabled={!newCategory.trim()}
+                className="gt-btn-ghost"
+              >
+                Add
+              </button>
+            </>
           ) : (
             <button onClick={() => setAddingCategory(true)} className="gt-btn-ghost">+ New category</button>
           )}

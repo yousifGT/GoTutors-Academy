@@ -1,3 +1,5 @@
+import { nameKey } from "@/lib/names";
+
 export const SUB_POSITIONS = [
   "Maths Tutor",
   "Science Tutor",
@@ -56,13 +58,35 @@ export function fieldNameForTutorTitle(title: string, knownFields: readonly stri
  * tutorTitleFor is lossy, so two differently-named fields can produce one title
  * and then compete to be resolved back from it. Rejecting the second one at
  * creation is the only place this can be prevented cheaply.
+ *
+ * Titles are compared ignoring case and spacing (nameKey): "maths trainee" next
+ * to "Maths Trainee" promotes to "maths Tutor" beside "Maths Tutor" — strings
+ * that differ, titles that nobody can tell apart.
  */
 export function collidingFieldName(
   name: string,
   existingFields: readonly string[]
 ): string | null {
-  const title = tutorTitleFor(name);
-  return existingFields.find((field) => field !== name && tutorTitleFor(field) === title) ?? null;
+  const title = nameKey(tutorTitleFor(name));
+  return existingFields.find((field) => field !== name && nameKey(tutorTitleFor(field)) === title) ?? null;
+}
+
+/**
+ * The existing field `name` is a different spelling of, if any — same name
+ * ignoring case and spacing, but not the same string.
+ *
+ * The exact same name on another role is allowed: fields are matched by name,
+ * so that is one field shared across roles. A variant is not: "maths trainee"
+ * beside "Maths Trainee" would be matched as a separate field, splitting one
+ * subject's trainees, courses and tutors in two. Pass `selfId` on a rename.
+ */
+export function fieldNameVariant(
+  name: string,
+  existing: readonly { id: string; name: string }[],
+  selfId?: string
+): string | null {
+  const key = nameKey(name);
+  return existing.find((f) => f.id !== selfId && f.name !== name && nameKey(f.name) === key)?.name ?? null;
 }
 
 /** The field names a user is qualified to tutor, from their stored titles. */
