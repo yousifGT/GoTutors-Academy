@@ -124,9 +124,19 @@ copies the path data into `src/lib/brand-mark.ts` and writes `src/app/icon.svg`
 and `src/app/apple-icon.png` from it. Replace the .svg, re-run that, and every
 surface follows. Never hand-edit the generated files.
 
-`Logo` needs `items-start`: an inline SVG has no intrinsic width, so inside a
-`flex-col` parent `align-items: stretch` blows it out to the full panel width
-and the mark drifts off-centre from "Academy".
+`Logo` centres "Academy" under the wordmark, and three classes hold that up:
+
+- `items-center` — any alignment but `stretch`. An inline SVG has no intrinsic
+  width, so a stretched one fills the panel and the mark drifts off "Academy".
+- `w-fit` — inside a flex parent the lockup is itself a flex item; the login
+  hero (a `flex-col`) stretched it to the whole panel, which made `items-center`
+  move the logo to the middle of the hero. An explicit width is never stretched.
+- `pl-[0.42em]` on "Academy" — letter-spacing trails the last letter too, so the
+  centred word sat left of centre. The certificate PDF needs the same
+  (`paddingLeft` equal to `letterSpacing`); it was 2pt off before.
+
+Check centring by measuring, not by eye: it was verified from pixels on screen
+and from glyph boxes in the PDF.
 
 ## Known gaps
 

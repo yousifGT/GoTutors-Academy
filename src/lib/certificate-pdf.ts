@@ -6,7 +6,9 @@ const styles = StyleSheet.create({
   page: { padding: 0, backgroundColor: "#ffffff" },
   outer: { margin: 24, borderWidth: 4, borderColor: "#1C1960", height: "92%", padding: 32 },
   inner: { borderWidth: 1, borderColor: "#56B9E9", height: "100%", padding: 40, alignItems: "center", justifyContent: "space-between" },
-  brand: { color: "#56B9E9", letterSpacing: 4, fontSize: 9, marginTop: 4, marginBottom: 10 },
+  // paddingLeft matches letterSpacing: the spacing trails the last letter too, so
+  // without it the centred word sat 2pt left of the wordmark's centre (measured).
+  brand: { color: "#56B9E9", letterSpacing: 4, paddingLeft: 4, fontSize: 9, marginTop: 4, marginBottom: 10 },
   title: { color: "#1C1960", fontSize: 36, fontWeight: 700, marginBottom: 10 },
   sub: { fontSize: 14, color: "#373637", marginBottom: 20 },
   name: { fontSize: 30, color: "#1C1960", fontWeight: 700, marginVertical: 12 },
