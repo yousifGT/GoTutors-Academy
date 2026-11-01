@@ -6,6 +6,7 @@ import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getFieldStatus } from "@/lib/field-training";
 import { canManageUser } from "@/lib/scope";
+import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 
 /**
  * Read-only profile snapshot for the user-overview popup. Who may view whom:
@@ -109,7 +110,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     },
     fieldStatus,
     canPromote,
-    canManage,
+    // The pop-up's password reset saves through PATCH /api/users/[id], which also
+    // requires "Edit users". Seeing the person needs only canManageUser.
+    canManage: canManage && (await userHasPermission(viewer.id, PERMISSIONS.USER_EDIT)),
     enrollments: enrollments.map((e) => {
       const p = progressByKey.get(`${e.userId}:${e.courseId}`);
       return {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getPermissions, userActionsFor } from "@/lib/permissions";
 import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
@@ -9,6 +10,7 @@ import { TraineesDirectory, TraineeRow } from "@/components/trainees-directory";
 
 export default async function CentreTraineesPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  const can = userActionsFor(await getPermissions(session.user.id));
 
   const trainees = await prisma.user.findMany({
     where: centreTraineeScope(session.user),
@@ -45,17 +47,17 @@ export default async function CentreTraineesPage() {
       <PageHeader
         title="Trainees"
         subtitle="Everyone training at your centre — click anyone for their full profile."
-        actions={<Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link>}
+        actions={can.create ? <Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link> : undefined}
       />
       {rows.length === 0 ? (
         <EmptyState
           icon="🧑‍🎓"
           title="No trainees yet"
           hint="Add your first trainee — they'll be auto-enrolled in matching courses."
-          action={<Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link>}
+          action={can.create ? <Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link> : undefined}
         />
       ) : (
-        <TraineesDirectory rows={rows} />
+        <TraineesDirectory rows={rows} can={can} />
       )}
     </div>
   );

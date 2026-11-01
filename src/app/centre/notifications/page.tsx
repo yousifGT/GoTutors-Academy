@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { NotificationsList } from "@/components/notifications-list";
 import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreNotificationsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.NOTIFICATIONS_VIEW); // same check as this page's API
   const items = await prisma.notification.findMany({
     where: { userId: session.user.id },
     orderBy: { createdAt: "desc" },

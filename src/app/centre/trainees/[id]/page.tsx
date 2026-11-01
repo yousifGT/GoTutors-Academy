@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getPermissions, userActionsFor } from "@/lib/permissions";
 import { canManageUser } from "@/lib/scope";
 import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser } from "@/lib/course-progress";
@@ -13,6 +14,7 @@ import { PageHeader, EmptyState } from "@/components/page-ui";
 
 export default async function TraineeDetailPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  const can = userActionsFor(await getPermissions(session.user.id));
 
   const user = await prisma.user.findUnique({
     where: { id: params.id },
@@ -89,7 +91,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
         backHref="/centre/trainees"
         backLabel="Trainees"
         title={user.name}
-        actions={<Link href={`/centre/trainees/${user.id}/edit`} className="gt-btn-ghost text-sm">Edit</Link>}
+        actions={can.edit ? <Link href={`/centre/trainees/${user.id}/edit`} className="gt-btn-ghost text-sm">Edit</Link> : undefined}
       />
       <div className="gt-card p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -205,7 +207,7 @@ export default async function TraineeDetailPage({ params }: { params: { id: stri
                 <tr key={a.id}>
                   <td>{a.quiz.lesson.module.course.title} · {a.quiz.lesson.title}</td>
                   <td>{a.score}%</td>
-                  <td className="text-right"><UnlockButton userId={user.id} quizId={a.quizId} /></td>
+                  <td className="text-right">{can.unlock && <UnlockButton userId={user.id} quizId={a.quizId} />}</td>
                 </tr>
               ))}
             </tbody>

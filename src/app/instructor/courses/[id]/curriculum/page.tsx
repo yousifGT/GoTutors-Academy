@@ -1,13 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PageHeader, Callout } from "@/components/page-ui";
 import { CurriculumBuilder } from "@/components/curriculum-builder";
 
 export default async function CourseCurriculumPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  const { perms } = await requirePermission(PERMISSIONS.COURSE_EDIT); // same check as this page's API
   const course = await prisma.course.findUnique({
     where: { id: params.id },
     include: {
@@ -50,7 +52,7 @@ export default async function CourseCurriculumPage({ params }: { params: { id: s
         {!course.published && " It all stays a draft — publish on the next step."}
       </p>
 
-      <CurriculumBuilder courseId={course.id} modules={course.modules.map((m) => ({
+      <CurriculumBuilder courseId={course.id} canDelete={perms.has(PERMISSIONS.COURSE_DELETE)} modules={course.modules.map((m) => ({
         id: m.id,
         title: m.title,
         lessons: m.lessons.map((l) => ({

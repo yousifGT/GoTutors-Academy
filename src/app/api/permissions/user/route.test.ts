@@ -9,6 +9,7 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/permissions", () => ({
   PERMISSIONS: { PERMISSIONS_MANAGE: "permissions.manage" },
+  ALL_PERMISSIONS: [{ key: "user.edit" }, { key: "permissions.manage" }],
   userHasPermission: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -57,5 +58,22 @@ describe("POST /api/permissions/user", () => {
     const res = await POST(req({ userId: "u2", permissionId: "p1", value: "allow" }));
     expect(res.status).toBe(200);
     expect(db.userPermissionOverride.upsert).toHaveBeenCalled();
+  });
+
+  // An unknown id used to reach the write and fail on the foreign key (500).
+  it("404s an unknown user instead of crashing", async () => {
+    session.mockResolvedValue({ user: { id: "sa", roleType: "SUPER_ADMIN" } });
+    db.user.findUnique.mockResolvedValue(null);
+    const res = await POST(req({ userId: "ghost", permissionId: "p1", value: "deny" }));
+    expect(res.status).toBe(404);
+    expect(db.userPermissionOverride.upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses a retired permission", async () => {
+    session.mockResolvedValue({ user: { id: "sa", roleType: "SUPER_ADMIN" } });
+    db.permission.findUnique.mockResolvedValue({ key: "user.view_all" });
+    const res = await POST(req({ userId: "u2", permissionId: "old", value: "allow" }));
+    expect(res.status).toBe(404);
+    expect(db.userPermissionOverride.upsert).not.toHaveBeenCalled();
   });
 });

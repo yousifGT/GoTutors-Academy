@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
@@ -8,6 +9,7 @@ import { CentreReportBoard, CourseReport, TraineeReport } from "@/components/cen
 
 export default async function CentreReportsPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.REPORTS_CENTRE); // same check as this page's API
   const userWhere = centreTraineeScope(session.user);
 
   const [trainees, enrollments, attempts] = await Promise.all([

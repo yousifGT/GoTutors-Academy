@@ -30,12 +30,15 @@ export function CentreManageBar({
   location,
   centreAdminRoleId,
   instructorRoleId,
+  can,
 }: {
   centreId: string;
   name: string;
   location: string;
   centreAdminRoleId: string | null;
   instructorRoleId: string | null;
+  /** "Manage centres" for editing the centre; "Create users" for adding people (POST /api/users). */
+  can: { manage: boolean; createUsers: boolean };
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode | null>(null);
@@ -92,9 +95,13 @@ export function CentreManageBar({
   return (
     <>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => open("edit")} className="gt-btn-ghost text-sm">✏️ Edit centre</button>
-        <button onClick={() => open("admin")} className="gt-btn-ghost text-sm">＋ Add centre admin</button>
-        <button onClick={() => open("instructor")} className="gt-btn-ghost text-sm">＋ Add instructor</button>
+        {can.manage && <button onClick={() => open("edit")} className="gt-btn-ghost text-sm">✏️ Edit centre</button>}
+        {can.createUsers && (
+          <>
+            <button onClick={() => open("admin")} className="gt-btn-ghost text-sm">＋ Add centre admin</button>
+            <button onClick={() => open("instructor")} className="gt-btn-ghost text-sm">＋ Add instructor</button>
+          </>
+        )}
       </div>
 
       {mode === "edit" && (

@@ -2,6 +2,7 @@ import { requireRole } from "@/lib/session";
 import { DashboardShell } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
 import { reviewQueueWhere } from "@/lib/review-queue";
+import { PERMISSIONS, getPermissions } from "@/lib/permissions";
 import { MY_COURSES, SUPER_ADMIN_TITLE, superAdminNav } from "@/lib/nav";
 
 export default async function InstructorLayout({ children }: { children: React.ReactNode }) {
@@ -16,12 +17,13 @@ export default async function InstructorLayout({ children }: { children: React.R
       </DashboardShell>
     );
   }
-  const [unread, reviewQueue, reports] = await Promise.all([
+  const [unread, reviewQueue, reports, perms] = await Promise.all([
     prisma.notification.count({ where: { userId: session.user.id, read: false } }),
     // Super admins returned above with their own shell, so this badge only ever
     // counts the instructor's own courses.
     prisma.quizAttempt.count({ where: reviewQueueWhere(session.user) }),
     prisma.user.count({ where: { supervisorId: session.user.id } }),
+    getPermissions(session.user.id),
   ]);
   const nav = [
     { href: "/instructor", label: "Dashboard", icon: "🏠" },
@@ -31,7 +33,10 @@ export default async function InstructorLayout({ children }: { children: React.R
     // Always present: any instructor can be assigned a course, not only a
     // promoted teacher who is still training in another field.
     MY_COURSES,
-    { href: "/instructor/notifications", label: "Notifications", badge: unread, icon: "🔔" },
+    // Same permission the notifications page requires.
+    ...(perms.has(PERMISSIONS.NOTIFICATIONS_VIEW)
+      ? [{ href: "/instructor/notifications", label: "Notifications", badge: unread, icon: "🔔" }]
+      : []),
     ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
   ];
   return (

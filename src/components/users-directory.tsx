@@ -39,11 +39,14 @@ export function UsersDirectory({
   initialField,
   initialRole,
   initialQuery,
+  can,
 }: {
   users: DirectoryUser[];
   initialField?: string;
   initialRole?: string;
   initialQuery?: string;
+  /** From the viewer's permissions; see TraineeRowActions. */
+  can: { edit: boolean; delete: boolean };
 }) {
   const [q, setQ] = useState(initialQuery ?? "");
   const [roleType, setRoleType] = useState<string>(initialRole ?? "all");
@@ -249,7 +252,7 @@ export function UsersDirectory({
                 </span>
               </div>
               <div className="mt-1.5 opacity-0 transition group-hover:opacity-100">
-                <TraineeRowActions userId={u.id} active={u.active} editHref={`/admin/users/${u.id}`} />
+                <TraineeRowActions userId={u.id} active={u.active} editHref={`/admin/users/${u.id}`} can={can} />
               </div>
             </div>
           ))}

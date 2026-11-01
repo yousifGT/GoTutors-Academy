@@ -78,12 +78,19 @@ export function CentreReviewBoard({
   ghosts,
   noPosition,
   stalled,
+  can,
 }: {
   promote: PromoteCandidate[];
   locked: LockedItem[];
   ghosts: GhostItem[];
   noPosition: NoPositionItem[];
   stalled: StalledItem[];
+  /**
+   * From the viewer's permissions: unlocking calls /api/quiz/unlock ("Unlock
+   * quiz retries"); resetting a password or assigning a position happens on
+   * the edit page ("Edit users"). Cards still show what needs doing either way.
+   */
+  can: { edit: boolean; unlock: boolean };
 }) {
   const [openUserId, setOpenUserId] = useState<string | null>(null);
   const [unlocked, setUnlocked] = useState<Set<string>>(new Set());
@@ -154,10 +161,12 @@ export function CentreReviewBoard({
                   <div className="mt-3 border-t border-[var(--border)] pt-2.5">
                     {done ? (
                       <div className="text-center text-sm font-semibold text-mint">✓ Unlocked — fresh tries granted</div>
-                    ) : (
+                    ) : can.unlock ? (
                       <button onClick={() => unlock(l)} disabled={unlocking === key} className="gt-btn-primary w-full text-xs">
                         {unlocking === key ? "Unlocking…" : "🔓 Unlock retries"}
                       </button>
+                    ) : (
+                      <div className="text-center text-xs text-[var(--muted)]">Someone with "Unlock quiz retries" can grant fresh tries.</div>
                     )}
                   </div>
                 </div>
@@ -178,7 +187,7 @@ export function CentreReviewBoard({
                   Account created {timeAgo(new Date(g.createdAt))} — no sign-in since.
                 </div>
                 <div className="mt-3 flex gap-2 border-t border-[var(--border)] pt-2.5">
-                  <Link href={`/centre/trainees/${g.id}/edit`} className="gt-btn-primary flex-1 text-center text-xs">🔑 Reset password</Link>
+                  {can.edit && <Link href={`/centre/trainees/${g.id}/edit`} className="gt-btn-primary flex-1 text-center text-xs">🔑 Reset password</Link>}
                   <button onClick={() => setOpenUserId(g.id)} className="gt-btn-ghost text-xs">View</button>
                 </div>
               </div>
@@ -197,9 +206,11 @@ export function CentreReviewBoard({
                 <div className="mt-2.5 flex-1 text-xs text-[var(--muted)]">
                   Joined {timeAgo(new Date(n.createdAt))} — not training as anything yet.
                 </div>
-                <div className="mt-3 border-t border-[var(--border)] pt-2.5">
-                  <Link href={`/centre/trainees/${n.id}/edit`} className="gt-btn-primary block text-center text-xs">🧩 Assign a position</Link>
-                </div>
+                {can.edit && (
+                  <div className="mt-3 border-t border-[var(--border)] pt-2.5">
+                    <Link href={`/centre/trainees/${n.id}/edit`} className="gt-btn-primary block text-center text-xs">🧩 Assign a position</Link>
+                  </div>
+                )}
               </div>
             ))}
           </div>

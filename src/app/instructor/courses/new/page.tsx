@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PageHeader } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
 
 export default async function NewCoursePage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.COURSE_CREATE); // same check as this page's API
   const [roles, subPositions, categoryRows] = await Promise.all([
     prisma.role.findMany({ orderBy: { name: "asc" } }),
     prisma.subPosition.findMany({ orderBy: { name: "asc" } }),

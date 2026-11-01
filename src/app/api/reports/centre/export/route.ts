@@ -5,11 +5,16 @@ import { prisma } from "@/lib/prisma";
 import { csvResponse, toCsv } from "@/lib/csv";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { centreTraineeScope } from "@/lib/scope";
+import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "unauth" }, { status: 401 });
   if (session.user.roleType !== "CENTRE_ADMIN" && session.user.roleType !== "SUPER_ADMIN")
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  // "Centre reports" in the permissions table was never checked anywhere —
+  // switching it off changed nothing. Same check as the Reports page.
+  if (!(await userHasPermission(session.user.id, PERMISSIONS.REPORTS_CENTRE)))
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const enrolments = await prisma.enrollment.findMany({

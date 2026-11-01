@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { PERMISSIONS, getPermissions } from "@/lib/permissions";
 import { getCourseProgressForUsers } from "@/lib/course-progress";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader, StatCard } from "@/components/page-ui";
@@ -8,7 +9,8 @@ import { CentreDetailBoard, CentreMember, CentreCourse } from "@/components/cent
 import { CentreManageBar } from "@/components/centre-manage-bar";
 
 export default async function CentreDetailPage({ params }: { params: { id: string } }) {
-  await requireRole("SUPER_ADMIN");
+  const session = await requireRole("SUPER_ADMIN");
+  const perms = await getPermissions(session.user.id);
   const centre = await prisma.centre.findUnique({ where: { id: params.id } });
   if (!centre) notFound();
 
@@ -110,6 +112,7 @@ export default async function CentreDetailPage({ params }: { params: { id: strin
             location={centre.location ?? ""}
             centreAdminRoleId={centreAdminRole?.id ?? null}
             instructorRoleId={instructorRole?.id ?? null}
+            can={{ manage: perms.has(PERMISSIONS.CENTRE_MANAGE), createUsers: perms.has(PERMISSIONS.USER_CREATE) }}
           />
         }
       />

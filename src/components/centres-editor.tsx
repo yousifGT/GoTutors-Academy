@@ -6,7 +6,22 @@ import { EmptyState } from "@/components/page-ui";
 
 type Centre = { id: string; name: string; location: string; users: number };
 
-export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[]; centreAdminRoleId: string | null }) {
+/**
+ * `can` comes from the viewer's permissions, matching the routes: adding,
+ * renaming and deleting centres need "Manage centres" (/api/centres), and the
+ * optional first centre-admin login is a user, so it needs "Create users"
+ * (POST /api/users) — otherwise the centre would be created and its admin
+ * refused.
+ */
+export function CentresEditor({
+  centres,
+  centreAdminRoleId,
+  can,
+}: {
+  centres: Centre[];
+  centreAdminRoleId: string | null;
+  can: { manage: boolean; createUsers: boolean };
+}) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
   const [name, setName] = useState("");
@@ -134,7 +149,7 @@ export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[
             <div key={c.id} className="gt-card group flex flex-col p-5 transition hover:border-picton/50">
               <div className="flex items-start justify-between gap-3">
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gold/15 text-xl text-gold">🏫</div>
-                {!editing && (
+                {!editing && can.manage && (
                   <div className="flex gap-1 opacity-0 transition group-hover:opacity-100">
                     <button onClick={() => startEdit(c)} className="gt-btn-ghost text-xs">Edit</button>
                     <button onClick={() => remove(c)} disabled={busy} className="px-1.5 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
@@ -188,7 +203,7 @@ export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[
         })}
 
         {/* Add-centre card */}
-        {adding ? (
+        {!can.manage ? null : adding ? (
           <div className="gt-card border-picton/50 p-5 sm:col-span-2 xl:col-span-1">
             <h3 className="font-bold">New centre</h3>
             <div className="mt-3 space-y-3">
@@ -202,16 +217,18 @@ export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[
               </div>
 
               {/* Optional first centre-admin login */}
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={withAdmin}
-                  onChange={(e) => setWithAdmin(e.target.checked)}
-                  disabled={!centreAdminRoleId}
-                />
-                Also create a centre admin login
-              </label>
-              {!centreAdminRoleId && (
+              {can.createUsers && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={withAdmin}
+                    onChange={(e) => setWithAdmin(e.target.checked)}
+                    disabled={!centreAdminRoleId}
+                  />
+                  Also create a centre admin login
+                </label>
+              )}
+              {can.createUsers && !centreAdminRoleId && (
                 <p className="text-xs text-orange">No Centre Admin role found — create one under Roles &amp; sub-positions first.</p>
               )}
               {withAdmin && (
@@ -253,7 +270,7 @@ export function CentresEditor({ centres, centreAdminRoleId }: { centres: Centre[
       </div>
 
       {centres.length === 0 && !adding && (
-        <EmptyState icon="🏫" title="No centres yet" hint="Click the card above to add your first centre." />
+        <EmptyState icon="🏫" title="No centres yet" hint={can.manage ? "Click the card above to add your first centre." : "No centres have been added yet."} />
       )}
     </div>
   );

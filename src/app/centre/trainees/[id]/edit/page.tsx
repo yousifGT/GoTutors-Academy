@@ -1,7 +1,8 @@
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { canManageUser } from "@/lib/scope";
 import { UserEditForm } from "@/components/user-edit-form";
 import { effectiveSubPositions } from "@/lib/sub-positions";
@@ -9,6 +10,7 @@ import { PageHeader } from "@/components/page-ui";
 
 export default async function CentreTraineeEditPage({ params }: { params: { id: string } }) {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.USER_EDIT); // same check as this page's API
   const user = await prisma.user.findUnique({ where: { id: params.id }, include: { role: true } });
   if (!user) notFound();
   // The admin view of a person is for the people you manage: a super admin

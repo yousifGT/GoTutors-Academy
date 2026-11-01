@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { RoleType } from "@prisma/client";
 import { authOptions, roleDashboard } from "@/lib/auth";
+import { getPermissions, type PermissionKey } from "@/lib/permissions";
 
 export async function requireSession() {
   const session = await getServerSession(authOptions);
@@ -15,6 +16,22 @@ export async function requireRole(...allowed: RoleType[]) {
     redirect(roleDashboard[session.user.roleType]);
   }
   return session;
+}
+
+/**
+ * The page's half of a permission: the same check the page's API route makes,
+ * so a page someone cannot use is not shown to them. Pages only ever checked
+ * roles, which is how a super admin whose "Manage permissions" was switched off
+ * still saw the whole table — and had every change refused.
+ *
+ * Sends them to their own dashboard, as requireRole does. Dashboards must
+ * never call this, or the redirect would loop.
+ */
+export async function requirePermission(key: PermissionKey) {
+  const session = await requireSession();
+  const perms = await getPermissions(session.user.id);
+  if (!perms.has(key)) redirect(roleDashboard[session.user.roleType]);
+  return { session, perms };
 }
 
 /**

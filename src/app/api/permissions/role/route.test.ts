@@ -9,6 +9,7 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/permissions", () => ({
   PERMISSIONS: { PERMISSIONS_MANAGE: "permissions.manage" },
+  ALL_PERMISSIONS: [{ key: "user.edit" }, { key: "permissions.manage" }],
   userHasPermission: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
@@ -58,5 +59,15 @@ describe("POST /api/permissions/role", () => {
     const res = await POST(req({ roleId: "r2", permissionId: "p1", allowed: true }));
     expect(res.status).toBe(200);
     expect(db.rolePermission.upsert).toHaveBeenCalled();
+  });
+
+  it("404s an unknown or retired permission instead of writing it", async () => {
+    session.mockResolvedValue({ user: { id: "sa", roleType: "SUPER_ADMIN" } });
+    db.role.findUnique.mockResolvedValue({ name: "Instructor", type: "INSTRUCTOR" });
+    db.permission.findUnique.mockResolvedValue(null);
+    expect((await POST(req({ roleId: "r2", permissionId: "nope", allowed: true }))).status).toBe(404);
+    db.permission.findUnique.mockResolvedValue({ key: "course.view_all" });
+    expect((await POST(req({ roleId: "r2", permissionId: "old", allowed: true }))).status).toBe(404);
+    expect(db.rolePermission.upsert).not.toHaveBeenCalled();
   });
 });

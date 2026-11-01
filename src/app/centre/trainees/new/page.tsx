@@ -1,11 +1,13 @@
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import Link from "next/link";
 import { UserForm } from "@/components/user-form";
 import { PageHeader } from "@/components/page-ui";
 
 export default async function NewTraineePage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.USER_CREATE); // same check as this page's API
   const [roles, subPositions] = await Promise.all([
     prisma.role.findMany({ orderBy: { name: "asc" } }),
     prisma.subPosition.findMany({ orderBy: { name: "asc" } }),

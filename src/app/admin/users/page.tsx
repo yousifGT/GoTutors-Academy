@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getPermissions, userActionsFor } from "@/lib/permissions";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { PageHeader, EmptyState } from "@/components/page-ui";
 import { UsersDirectory, DirectoryUser } from "@/components/users-directory";
@@ -11,7 +12,8 @@ export default async function AdminUsersPage({
   // Set by the counts on the Roles page, so a number links to the people it counts.
   searchParams?: { field?: string; role?: string; q?: string };
 }) {
-  await requireRole("SUPER_ADMIN");
+  const session = await requireRole("SUPER_ADMIN");
+  const can = userActionsFor(await getPermissions(session.user.id));
   const users = await prisma.user.findMany({
     include: { role: true, centre: true },
     orderBy: { createdAt: "desc" },
@@ -38,12 +40,12 @@ export default async function AdminUsersPage({
       <PageHeader
         title="Users"
         subtitle="Every account across all centres — click anyone for their full profile."
-        actions={<Link href="/admin/users/new" className="gt-btn-primary">Add user</Link>}
+        actions={can.create ? <Link href="/admin/users/new" className="gt-btn-primary">Add user</Link> : undefined}
       />
       {rows.length === 0 ? (
         <EmptyState icon="👥" title="No users yet" hint="Add your first user to get started." />
       ) : (
-        <UsersDirectory users={rows} initialField={searchParams?.field} initialRole={searchParams?.role} initialQuery={searchParams?.q} />
+        <UsersDirectory users={rows} can={can} initialField={searchParams?.field} initialRole={searchParams?.role} initialQuery={searchParams?.q} />
       )}
     </div>
   );

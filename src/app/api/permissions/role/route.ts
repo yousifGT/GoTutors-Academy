@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { ALL_PERMISSIONS, PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { audit } from "@/lib/audit";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
@@ -33,18 +33,23 @@ export async function POST(req: Request) {
   // weakened (which could lock everyone out of admin functions).
   if (role.type === "SUPER_ADMIN")
     return NextResponse.json({ error: "The super admin role's permissions can't be changed" }, { status: 403 });
+  // Only permissions the app still knows. An unknown id used to reach the
+  // write and fail on the foreign key as a 500; a retired one (the "view …"
+  // toggles nothing checks) would be a switch wired to nothing.
+  const permission = await prisma.permission.findUnique({ where: { id: permissionId }, select: { key: true } });
+  if (!permission || !ALL_PERMISSIONS.some((p) => p.key === permission.key))
+    return NextResponse.json({ error: "permission not found" }, { status: 404 });
 
   await prisma.rolePermission.upsert({
     where: { roleId_permissionId: { roleId, permissionId } },
     update: { allowed },
     create: { roleId, permissionId, allowed },
   });
-  const perm = await prisma.permission.findUnique({ where: { id: permissionId }, select: { key: true } });
   await audit({
     actorId: session.user.id,
     action: allowed ? "role.permission.allow" : "role.permission.deny",
-    target: `role:${role?.name ?? roleId}`,
-    metadata: { permission: perm?.key ?? permissionId },
+    target: `role:${role.name}`,
+    metadata: { permission: permission.key },
   });
   return NextResponse.json({ ok: true });
 }

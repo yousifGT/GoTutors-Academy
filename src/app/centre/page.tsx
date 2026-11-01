@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getPermissions, userActionsFor } from "@/lib/permissions";
 import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { timeAgo } from "@/lib/utils";
@@ -9,6 +10,7 @@ import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, Avatar
 /** Action-first centre dashboard: who is stuck, who is idle, what just happened. */
 export default async function CentreDashboard() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  const can = userActionsFor(await getPermissions(session.user.id));
   const scope = centreTraineeScope(session.user);
 
   const [trainees, completedCount, certCount, lockedUsers, enrolments, attempts, completions] = await Promise.all([
@@ -123,7 +125,7 @@ export default async function CentreDashboard() {
       <PageHeader
         title={`Welcome back, ${firstName}`}
         subtitle="Here's what needs you at your centre today."
-        actions={<Link href="/centre/trainees/new" className="gt-btn-primary">+ Add trainee</Link>}
+        actions={can.create ? <Link href="/centre/trainees/new" className="gt-btn-primary">+ Add trainee</Link> : undefined}
       />
 
       <StatStrip
@@ -162,7 +164,7 @@ export default async function CentreDashboard() {
             ))}
             {trainees.length === 0 && (
               <div className="sm:col-span-2">
-                <EmptyState icon="🧑‍🎓" title="No trainees yet" hint="Add your first trainee to get started." action={<Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link>} />
+                <EmptyState icon="🧑‍🎓" title="No trainees yet" hint="Add your first trainee to get started." action={can.create ? <Link href="/centre/trainees/new" className="gt-btn-primary">Add trainee</Link> : undefined} />
               </div>
             )}
           </div>

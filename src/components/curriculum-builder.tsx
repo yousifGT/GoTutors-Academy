@@ -26,9 +26,12 @@ type Drag =
 export function CurriculumBuilder({
   courseId,
   modules: initialModules,
+  canDelete,
 }: {
   courseId: string;
   modules: Module[];
+  /** "Delete courses" — what the module and lesson DELETE routes check. */
+  canDelete: boolean;
 }) {
   const router = useRouter();
   const [modules, setModules] = useState<Module[]>(initialModules);
@@ -186,7 +189,9 @@ export function CurriculumBuilder({
               <span className="ml-auto text-xs text-[var(--muted)] shrink-0">
                 {m.lessons.length} lesson{m.lessons.length === 1 ? "" : "s"}
               </span>
-              <button onClick={() => deleteModule(m.id)} className="shrink-0 px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
+              {canDelete && (
+                <button onClick={() => deleteModule(m.id)} className="shrink-0 px-1 text-xs text-[var(--muted)] transition hover:text-orange">Delete</button>
+              )}
             </div>
 
             {!isCollapsed && (
@@ -228,9 +233,11 @@ export function CurriculumBuilder({
                           <Link href={`/instructor/courses/${courseId}/lessons/${l.id}`} className="gt-btn-ghost text-xs shrink-0">
                             Content →
                           </Link>
-                          <button onClick={() => deleteLesson(m.id, l.id)} className="px-1 text-[var(--muted)] hover:text-orange shrink-0" title="Delete lesson">
-                            ✕
-                          </button>
+                          {canDelete && (
+                            <button onClick={() => deleteLesson(m.id, l.id)} className="px-1 text-[var(--muted)] hover:text-orange shrink-0" title="Delete lesson">
+                              ✕
+                            </button>
+                          )}
                         </li>
                       );
                     })}

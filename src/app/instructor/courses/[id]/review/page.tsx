@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PublishActions } from "@/components/publish-actions";
 import { PageHeader } from "@/components/page-ui";
@@ -9,6 +10,7 @@ import { formatDate } from "@/lib/utils";
 
 export default async function CourseReviewPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.COURSE_EDIT); // same check as this page's API
   const course = await prisma.course.findUnique({
     where: { id: params.id },
     include: {

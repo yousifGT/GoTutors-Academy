@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PageHeader, Callout } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
@@ -9,6 +10,7 @@ import { CourseWizardDetails } from "@/components/course-wizard-details";
 /** Step 1 revisited for an existing course — same form, edits in place. */
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.COURSE_EDIT); // same check as this page's API
   const course = await prisma.course.findUnique({
     where: { id: params.id },
     include: { roleAssignments: true, prerequisites: { select: { prerequisiteId: true } } },

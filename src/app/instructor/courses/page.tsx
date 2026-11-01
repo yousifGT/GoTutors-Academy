@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { courseActionsFor, getPermissions } from "@/lib/permissions";
 import { CourseList } from "@/components/course-list";
 import { PageHeader } from "@/components/page-ui";
 
@@ -23,6 +24,7 @@ function compactAssignments(assignments: { role: { name: string }; subPosition: 
 
 export default async function InstructorCoursesPage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  const can = courseActionsFor(await getPermissions(session.user.id));
   const courses = await prisma.course.findMany({
     where: session.user.roleType === "SUPER_ADMIN" ? {} : { authorId: session.user.id },
     include: { _count: { select: { modules: true, enrollments: true } }, roleAssignments: { include: { role: true } } },
@@ -33,6 +35,7 @@ export default async function InstructorCoursesPage() {
     <div className="space-y-4">
       <PageHeader title="Courses" subtitle="Search, organise into categories, and publish." />
       <CourseList
+        can={can}
         courses={courses.map((c) => ({
           id: c.id,
           title: c.title,

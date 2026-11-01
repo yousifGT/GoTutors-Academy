@@ -27,7 +27,8 @@ type SortKey = "newest" | "name" | "last-login" | "progress";
 
 const PAGE_SIZE = 24;
 
-export function TraineesDirectory({ rows }: { rows: TraineeRow[] }) {
+/** `can` comes from the viewer's permissions; see TraineeRowActions. */
+export function TraineesDirectory({ rows, can }: { rows: TraineeRow[]; can: { edit: boolean; delete: boolean } }) {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [trained, setTrained] = useState<TrainedFilter>("all");
@@ -197,7 +198,7 @@ export function TraineesDirectory({ rows }: { rows: TraineeRow[] }) {
                 </span>
               </div>
               <div className="mt-1.5 opacity-0 transition group-hover:opacity-100">
-                <TraineeRowActions userId={r.id} active={r.active} editHref={`/centre/trainees/${r.id}/edit`} />
+                <TraineeRowActions userId={r.id} active={r.active} editHref={`/centre/trainees/${r.id}/edit`} can={can} />
               </div>
             </div>
           ))}

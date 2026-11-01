@@ -1,6 +1,7 @@
 import type { NavItem } from "@/components/dashboard-shell";
 import { prisma } from "@/lib/prisma";
 import { reviewQueueWhere } from "@/lib/review-queue";
+import { PERMISSIONS, getPermissions, type PermissionKey } from "@/lib/permissions";
 
 /**
  * Navigation belongs to who you are, not to which part of the app you happen to
@@ -18,14 +19,25 @@ import { reviewQueueWhere } from "@/lib/review-queue";
  * same confusion in a smaller form.
  */
 
-export const ADMIN_NAV: NavItem[] = [
+/**
+ * A link that only appears for people holding a permission — the same one the
+ * page behind it requires (requirePermission). A link to a page that would
+ * turn you away is the sidebar half of the bug where switching a permission
+ * off hid nothing.
+ */
+type GatedLink = NavItem & { needs?: PermissionKey };
+
+const visible = (links: readonly GatedLink[], perms: ReadonlySet<PermissionKey>): NavItem[] =>
+  links.filter((l) => !l.needs || perms.has(l.needs)).map(({ needs: _needs, ...item }) => item);
+
+export const ADMIN_NAV: GatedLink[] = [
   { href: "/admin", label: "Dashboard", icon: "🏠" },
   { href: "/admin/centres", label: "Centres", icon: "🏫" },
   { href: "/admin/users", label: "Users", icon: "👥" },
   { href: "/admin/courses", label: "Courses", icon: "📚" },
   { href: "/admin/roles", label: "Roles & Sub-positions", icon: "🧩" },
-  { href: "/admin/reports", label: "Reports", icon: "📊" },
-  { href: "/admin/permissions", label: "Permissions", icon: "🔐" },
+  { href: "/admin/reports", label: "Reports", icon: "📊", needs: PERMISSIONS.REPORTS_GLOBAL },
+  { href: "/admin/permissions", label: "Permissions", icon: "🔐", needs: PERMISSIONS.PERMISSIONS_MANAGE },
   { href: "/admin/audit", label: "Audit log", icon: "📜" },
 ];
 
@@ -44,8 +56,11 @@ export const MY_COURSES: NavItem = { href: "/trainee/courses", label: "My course
  * needs regularly that has no equivalent under /admin.
  */
 export async function superAdminNav(viewerId: string): Promise<NavItem[]> {
-  const reviewQueue = await prisma.quizAttempt.count({ where: reviewQueueWhere({ id: viewerId, roleType: "SUPER_ADMIN" }) });
-  return [...ADMIN_NAV, { href: "/instructor/review", label: "Review queue", icon: "📝", badge: reviewQueue }, MY_COURSES];
+  const [reviewQueue, perms] = await Promise.all([
+    prisma.quizAttempt.count({ where: reviewQueueWhere({ id: viewerId, roleType: "SUPER_ADMIN" }) }),
+    getPermissions(viewerId),
+  ]);
+  return [...visible(ADMIN_NAV, perms), { href: "/instructor/review", label: "Review queue", icon: "📝", badge: reviewQueue }, MY_COURSES];
 }
 
 export const CENTRE_ADMIN_TITLE = "Centre admin";
@@ -56,17 +71,21 @@ export const CENTRE_ADMIN_TITLE = "Centre admin";
  * for a trainee's.
  */
 export async function centreAdminNav(userId: string): Promise<NavItem[]> {
-  const [unread, reports] = await Promise.all([
+  const [unread, reports, perms] = await Promise.all([
     prisma.notification.count({ where: { userId, read: false } }),
     prisma.user.count({ where: { supervisorId: userId } }),
+    getPermissions(userId),
   ]);
-  return [
-    { href: "/centre", label: "Dashboard", icon: "🏠" },
-    { href: "/centre/trainees", label: "Trainees", icon: "👥" },
-    { href: "/centre/review", label: "Review", icon: "🛎️" },
-    { href: "/centre/reports", label: "Reports", icon: "📊" },
-    MY_COURSES,
-    { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔" },
-    ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
-  ];
+  return visible(
+    [
+      { href: "/centre", label: "Dashboard", icon: "🏠" },
+      { href: "/centre/trainees", label: "Trainees", icon: "👥" },
+      { href: "/centre/review", label: "Review", icon: "🛎️" },
+      { href: "/centre/reports", label: "Reports", icon: "📊", needs: PERMISSIONS.REPORTS_CENTRE },
+      MY_COURSES,
+      { href: "/centre/notifications", label: "Notifications", badge: unread, icon: "🔔", needs: PERMISSIONS.NOTIFICATIONS_VIEW },
+      ...(reports > 0 ? [{ href: "/my-team", label: "My team", icon: "🤝" }] : []),
+    ],
+    perms
+  );
 }

@@ -1,13 +1,15 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { UserEditForm } from "@/components/user-edit-form";
 import { PageHeader } from "@/components/page-ui";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 
 export default async function AdminUserEditPage({ params }: { params: { id: string } }) {
   await requireRole("SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.USER_EDIT); // same check as this page's API
   const [user, roles, centres, supervisors, subPositions] = await Promise.all([
     prisma.user.findUnique({ where: { id: params.id } }),
     prisma.role.findMany({ orderBy: { name: "asc" } }),

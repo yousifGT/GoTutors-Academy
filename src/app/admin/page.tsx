@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { courseActionsFor, getPermissions } from "@/lib/permissions";
 import { reviewQueueWhere } from "@/lib/review-queue";
 import { timeAgo } from "@/lib/utils";
 import { actionLabel, auditDetail, describeTarget, looksLikeUserId, userIdTargets } from "@/lib/audit-view";
@@ -9,6 +10,7 @@ import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, EmptyState, type A
 /** Action-first super-admin dashboard: platform-wide blockers, broken courses and live activity. */
 export default async function AdminDashboard() {
   const session = await requireRole("SUPER_ADMIN");
+  const can = courseActionsFor(await getPermissions(session.user.id));
 
   const [centres, userCount, courses, certCount, pendingReview, lockedUsers, emptyCentres, enrolments, attempts, completions, auditEntries] =
     await Promise.all([
@@ -75,7 +77,9 @@ export default async function AdminDashboard() {
       action: "See users",
       tone: "orange",
     });
-  for (const c of courses.filter((c) => c.roleAssignments.length === 0)) {
+  // Course fixes link to the edit pages, so they are only "attention" for
+  // someone who can edit courses.
+  for (const c of can.edit ? courses.filter((c) => c.roleAssignments.length === 0) : []) {
     attention.push({
       icon: "📣",
       text: `“${c.title}” is published but has no audience`,
@@ -85,7 +89,7 @@ export default async function AdminDashboard() {
       tone: "gold",
     });
   }
-  for (const c of courses.filter((c) => c.modules.every((m) => m._count.lessons === 0))) {
+  for (const c of can.edit ? courses.filter((c) => c.modules.every((m) => m._count.lessons === 0)) : []) {
     attention.push({
       icon: "🕳️",
       text: `“${c.title}” is published with no lessons`,

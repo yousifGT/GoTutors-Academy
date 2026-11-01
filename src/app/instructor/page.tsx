@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { courseActionsFor, getPermissions } from "@/lib/permissions";
 import { reviewQueueWhere } from "@/lib/review-queue";
 import { PageHeader, StatStrip, AttentionPanel, ActivityFeed, type AttentionItem, type FeedItem } from "@/components/page-ui";
 import { timeAgo } from "@/lib/utils";
@@ -14,6 +15,7 @@ import { timeAgo } from "@/lib/utils";
 export default async function InstructorDashboard() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
   const isSuper = session.user.roleType === "SUPER_ADMIN";
+  const can = courseActionsFor(await getPermissions(session.user.id));
   const courseScope = isSuper ? {} : { authorId: session.user.id };
   const attemptScope = isSuper ? {} : { quiz: { lesson: { module: { course: { authorId: session.user.id } } } } };
 
@@ -78,7 +80,9 @@ export default async function InstructorDashboard() {
       action: "See who",
       tone: "orange",
     });
-  for (const c of courses.filter((c) => c.published && c.roleAssignments.length === 0)) {
+  // Course fixes link to the edit pages, so they are only "attention" for
+  // someone who can edit courses.
+  for (const c of can.edit ? courses.filter((c) => c.published && c.roleAssignments.length === 0) : []) {
     attention.push({
       icon: "📣",
       text: `“${c.title}” is published but has no audience`,
@@ -88,7 +92,7 @@ export default async function InstructorDashboard() {
       tone: "gold",
     });
   }
-  for (const c of courses.filter((c) => c.published && c.modules.every((m) => m._count.lessons === 0))) {
+  for (const c of can.edit ? courses.filter((c) => c.published && c.modules.every((m) => m._count.lessons === 0)) : []) {
     attention.push({
       icon: "🕳️",
       text: `“${c.title}” is published with no lessons`,
@@ -138,7 +142,7 @@ export default async function InstructorDashboard() {
       <PageHeader
         title={`Welcome back, ${firstName}`}
         subtitle="Here's what needs you today."
-        actions={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
+        actions={can.create ? <Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link> : undefined}
       />
 
       <StatStrip
@@ -160,7 +164,12 @@ export default async function InstructorDashboard() {
           <h3 className="pt-4 text-lg font-bold">Recently updated</h3>
           <div className="grid gap-3 sm:grid-cols-2">
             {courses.slice(0, 4).map((c) => (
-              <Link key={c.id} href={`/instructor/courses/${c.id}/curriculum`} className="gt-card p-4 transition hover:shadow-soft">
+              // Editing needs "Edit courses"; anyone else gets the read-only progress view.
+              <Link
+                key={c.id}
+                href={can.edit ? `/instructor/courses/${c.id}/curriculum` : `/instructor/courses/${c.id}/progress`}
+                className="gt-card p-4 transition hover:shadow-soft"
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div className="truncate font-semibold">{c.title}</div>
                   <span className={`gt-badge shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>

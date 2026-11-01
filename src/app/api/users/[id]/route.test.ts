@@ -17,15 +17,16 @@ const db = vi.hoisted(() => ({
 vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/permissions", () => ({
-  PERMISSIONS: { USER_EDIT: "user.edit", USER_DELETE: "user.delete" },
+  PERMISSIONS: { USER_EDIT: "user.edit", USER_DELETE: "user.delete", PERMISSIONS_MANAGE: "permissions.manage" },
   userHasPermission: vi.fn(),
+  otherPermissionManagers: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/training", () => ({ recomputeIsTrained: vi.fn() }));
 vi.mock("@/lib/auto-enrol", () => ({ syncUserEnrollments: vi.fn() }));
 
 import { getServerSession } from "next-auth";
-import { userHasPermission } from "@/lib/permissions";
+import { otherPermissionManagers, userHasPermission } from "@/lib/permissions";
 import { recomputeIsTrained } from "@/lib/training";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
 import { Prisma } from "@prisma/client";
@@ -33,6 +34,7 @@ import { DELETE, PATCH } from "./route";
 
 const session = getServerSession as unknown as ReturnType<typeof vi.fn>;
 const hasPerm = userHasPermission as unknown as ReturnType<typeof vi.fn>;
+const otherManagers = otherPermissionManagers as unknown as ReturnType<typeof vi.fn>;
 const recompute = recomputeIsTrained as unknown as ReturnType<typeof vi.fn>;
 const syncEnrol = syncUserEnrollments as unknown as ReturnType<typeof vi.fn>;
 
@@ -50,6 +52,8 @@ function patchReq(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   hasPerm.mockResolvedValue(true);
+  // Another super admin can manage permissions unless a test says otherwise.
+  otherManagers.mockResolvedValue(1);
   // Default: run the transaction callback against the same mocked client.
   db.$transaction.mockImplementation(async (cb: any) => cb(db));
 });
@@ -80,6 +84,16 @@ describe("DELETE /api/users/[id]", () => {
     const res = await DELETE(delReq(), { params: { id: "u1" } });
     expect(res.status).toBe(200);
     expect(db.user.delete).toHaveBeenCalledWith({ where: { id: "u1" } });
+  });
+
+  it("refuses deleting the only super admin who can manage permissions", async () => {
+    session.mockResolvedValue({ user: { id: "me", roleType: "SUPER_ADMIN", centreId: null } });
+    db.user.findUnique.mockResolvedValue({ id: "u1", centreId: null, role: { type: "SUPER_ADMIN" } });
+    db.user.count.mockResolvedValue(2);
+    otherManagers.mockResolvedValue(0);
+    const res = await DELETE(delReq(), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
+    expect(db.user.delete).not.toHaveBeenCalled();
   });
 
   it("deletes a non-admin without the admin-count check", async () => {
@@ -275,6 +289,31 @@ describe("PATCH /api/users/[id] protects the last super admin", () => {
     session.mockResolvedValue(superAdmin);
     db.user.findUnique.mockResolvedValue(superTarget);
     db.user.count.mockResolvedValue(1);
+    db.user.update.mockResolvedValue({ id: "u1" });
+    const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
+    expect(res.status).toBe(200);
+  });
+
+  // The gap: another super admin existed, but none of them could manage
+  // permissions — so the Permissions page closed to everyone.
+  it("refuses to deactivate the only super admin who can manage permissions", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue(superTarget);
+    db.user.count.mockResolvedValue(1); // another super admin exists…
+    otherManagers.mockResolvedValue(0); // …but cannot manage permissions
+    const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/manage permissions/);
+    expect(db.user.update).not.toHaveBeenCalled();
+  });
+
+  it("allows deactivating a super admin who can't manage permissions anyway", async () => {
+    session.mockResolvedValue(superAdmin);
+    db.user.findUnique.mockResolvedValue(superTarget);
+    db.user.count.mockResolvedValue(1);
+    otherManagers.mockResolvedValue(0);
+    // The actor may edit users; the target does not hold "Manage permissions".
+    hasPerm.mockImplementation(async (userId: string, key: string) => !(userId === "u1" && key === "permissions.manage"));
     db.user.update.mockResolvedValue({ id: "u1" });
     const res = await PATCH(patchReq({ active: false }), { params: { id: "u1" } });
     expect(res.status).toBe(200);

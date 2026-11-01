@@ -1,11 +1,13 @@
 import Link from "next/link";
-import { requireRole } from "@/lib/session";
+import { requirePermission, requireRole } from "@/lib/session";
+import { PERMISSIONS } from "@/lib/permissions";
 import { centreReportRows } from "@/lib/centre-report";
 import { PageHeader, StatStrip, EmptyState } from "@/components/page-ui";
 import { ProgressBar } from "@/components/progress-bar";
 
 export default async function AdminReportsPage() {
   await requireRole("SUPER_ADMIN");
+  await requirePermission(PERMISSIONS.REPORTS_GLOBAL); // same check as this page's API
   const rows = await centreReportRows();
 
   return (

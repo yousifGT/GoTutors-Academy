@@ -31,7 +31,15 @@ const SORT_STORAGE_KEY = "gt-courses-sort";
  * category sections that work like folders — create one here and drag
  * course cards (by their ⠿ handle) between sections to re-categorise.
  */
-export function CourseList({ courses }: { courses: CourseCard[] }) {
+/**
+ * What the viewer may do here, from their permissions — the same ones the
+ * course API routes check. Every action used to be offered to everyone, so
+ * switching "Delete courses" off left the Delete button in place and only the
+ * request failed.
+ */
+export type CourseListCan = { create: boolean; edit: boolean; delete: boolean };
+
+export function CourseList({ courses, can }: { courses: CourseCard[]; can: CourseListCan }) {
   const router = useRouter();
   const [items, setItems] = useState(courses);
   const [query, setQuery] = useState("");
@@ -264,7 +272,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
           </select>
         </label>
         <div className="ml-auto flex items-center gap-2">
-          {addingCategory ? (
+          {!can.edit ? null : addingCategory ? (
             <>
               <input
                 autoFocus
@@ -296,7 +304,7 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
           ) : (
             <button onClick={() => setAddingCategory(true)} className="gt-btn-ghost">+ New category</button>
           )}
-          <Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>
+          {can.create && <Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
         </div>
       </div>
 
@@ -305,8 +313,8 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
           <EmptyState
             icon="📚"
             title="No courses yet"
-            hint="Create your first course — the wizard walks you through details, curriculum and publishing."
-            action={<Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link>}
+            hint={can.create ? "Create your first course — the wizard walks you through details, curriculum and publishing." : "No courses have been created yet."}
+            action={can.create ? <Link href="/instructor/courses/new" className="gt-btn-primary">+ New course</Link> : undefined}
           />
         ) : (
           <EmptyState icon="🔍" title="Nothing matches your search" hint="Try a different title, description or category." />
@@ -365,18 +373,25 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                     className={`gt-card p-5 flex flex-col hover:shadow-soft transition ${dragId === c.id ? "opacity-50 ring-2 ring-picton" : ""}`}
                   >
                     <div className="flex items-start gap-2">
-                      <span
-                        draggable
-                        onDragStart={() => setDragId(c.id)}
-                        onDragEnd={() => { setDragId(null); setDropTarget(null); }}
-                        title="Drag to reorder (custom sort) or move to another category"
-                        className="cursor-grab select-none text-[var(--muted)] hover:text-[var(--fg)] pt-1"
-                      >
-                        ⠿
-                      </span>
-                      <Link href={`/instructor/courses/${c.id}/details`} className="text-lg font-bold hover:text-picton transition">
-                        {c.title}
-                      </Link>
+                      {can.edit && (
+                        <span
+                          draggable
+                          onDragStart={() => setDragId(c.id)}
+                          onDragEnd={() => { setDragId(null); setDropTarget(null); }}
+                          title="Drag to reorder (custom sort) or move to another category"
+                          className="cursor-grab select-none text-[var(--muted)] hover:text-[var(--fg)] pt-1"
+                        >
+                          ⠿
+                        </span>
+                      )}
+                      {/* The title opens the edit page, which needs "Edit courses". */}
+                      {can.edit ? (
+                        <Link href={`/instructor/courses/${c.id}/details`} className="text-lg font-bold hover:text-picton transition">
+                          {c.title}
+                        </Link>
+                      ) : (
+                        <span className="text-lg font-bold">{c.title}</span>
+                      )}
                       <span className={`gt-badge ml-auto shrink-0 ${c.published ? "bg-mint/15 text-mint" : "bg-[var(--soft)] text-[var(--muted)]"}`}>
                         {c.published ? "Published" : "Draft"}
                       </span>
@@ -396,27 +411,39 @@ export function CourseList({ courses }: { courses: CourseCard[] }) {
                     <div className="mt-3 text-xs text-[var(--muted)]">
                       {c.author ? `by ${c.author} · ` : ""}{c.modules} module{c.modules === 1 ? "" : "s"} · {c.enrollments} enrolment{c.enrollments === 1 ? "" : "s"}
                     </div>
-                    <div className="mt-4 flex items-center gap-2 border-t border-[var(--border)] pt-3">
-                      <Link href={`/instructor/courses/${c.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
-                      <button
-                        onClick={() => togglePublish(c)}
-                        disabled={busyId === c.id}
-                        className={`text-xs ${c.published ? "gt-btn-ghost" : "gt-btn-primary"}`}
-                      >
-                        {busyId === c.id ? "…" : c.published ? "Unpublish" : "Publish"}
-                      </button>
-                      <button onClick={() => duplicate(c)} disabled={busyId === c.id} className="gt-btn-ghost text-xs ml-auto">
-                        Duplicate
-                      </button>
-                      <button
-                        onClick={() => remove(c)}
-                        disabled={busyId === c.id}
-                        className="text-xs text-[var(--muted)] hover:text-orange transition px-1"
-                        title="Delete course"
-                      >
-                        Delete
-                      </button>
-                    </div>
+                    {(can.edit || can.create || can.delete) && (
+                      // flex-wrap: four actions overflowed a narrow card, pushing
+                      // Delete past its right edge.
+                      <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-3">
+                        {can.edit && (
+                          <>
+                            <Link href={`/instructor/courses/${c.id}/curriculum`} className="gt-btn-ghost text-xs">Edit</Link>
+                            <button
+                              onClick={() => togglePublish(c)}
+                              disabled={busyId === c.id}
+                              className={`text-xs ${c.published ? "gt-btn-ghost" : "gt-btn-primary"}`}
+                            >
+                              {busyId === c.id ? "…" : c.published ? "Unpublish" : "Publish"}
+                            </button>
+                          </>
+                        )}
+                        {can.create && (
+                          <button onClick={() => duplicate(c)} disabled={busyId === c.id} className="gt-btn-ghost text-xs ml-auto">
+                            Duplicate
+                          </button>
+                        )}
+                        {can.delete && (
+                          <button
+                            onClick={() => remove(c)}
+                            disabled={busyId === c.id}
+                            className={`text-xs text-[var(--muted)] hover:text-orange transition px-1 ${can.create ? "" : "ml-auto"}`}
+                            title="Delete course"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

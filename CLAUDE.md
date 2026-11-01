@@ -109,6 +109,31 @@ particular course is decided by enrolment, never by role.
   the bug that put a head on their own admin profile from a notification. Your
   own page redirects to My courses; no report lists the viewer.
 
+## Permissions — a switch that is off hides the thing
+
+The API routes always enforced permissions; the pages never looked, so turning
+one off hid nothing and the person found out only when a save failed. Now both
+sides ask the same question.
+
+- `getPermissions(userId)` (one query) resolves a user override over the role
+  grant and **drops keys not in `ALL_PERMISSIONS`**. `userHasPermission` is it.
+- Pages: `requirePermission(key)` after `requireRole` — redirects to the role
+  dashboard. Never put it on a dashboard (redirect loop).
+- Sidebar links carry `needs:` in `nav.ts`; buttons get a `can` prop built by
+  `courseActionsFor` / `userActionsFor`. When adding a button that calls an
+  API, read which permission that route checks and gate the button on it.
+- `canManageUser` still decides *who* an action may be used on; permissions
+  decide *which* actions exist.
+- The three "view …" toggles (all courses, all users, centre users) were
+  retired: nothing ever checked them. Their rows are left in the database,
+  inert and filtered out of the matrix; the permission APIs refuse them (404).
+- The matrix locks the Super Admin column (the API refuses it) and the viewer's
+  own row (no self-edit).
+- **At least one active super admin must keep "Manage permissions".**
+  Deactivate, demote and delete check `otherPermissionManagers` and return 409;
+  delete checks inside its serializable transaction.
+- Known gap: promote (`/api/users/[id]/promote`) has no permission check.
+
 ## Config
 
 `.env` is **local only** — it is gitignored and excluded by `.dockerignore`, so it
@@ -125,7 +150,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 330 tests
+npx vitest run                # 341 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

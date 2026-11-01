@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
+import { getPermissions, userActionsFor } from "@/lib/permissions";
 import { centreTraineeScope } from "@/lib/scope";
 import { effectiveSubPositions } from "@/lib/sub-positions";
 import { getFieldStatusForUsers } from "@/lib/field-training";
@@ -17,6 +18,7 @@ import {
 /** Everything at the centre that needs a human decision, in one place. */
 export default async function CentreReviewPage() {
   const session = await requireRole("CENTRE_ADMIN", "SUPER_ADMIN");
+  const can = userActionsFor(await getPermissions(session.user.id));
   const scope = centreTraineeScope(session.user);
   const now = Date.now();
   const threeDays = 3 * 24 * 60 * 60 * 1000;
@@ -118,7 +120,7 @@ export default async function CentreReviewPage() {
         <StatCard label="Locked out" value={locked.length} icon="🔒" tone="gold" />
         <StatCard label="Need a nudge" value={ghosts.length + stalled.length} icon="📣" tone="picton" hint="Never signed in or gone quiet" />
       </div>
-      <CentreReviewBoard promote={promote} locked={locked} ghosts={ghosts} noPosition={noPosition} stalled={stalled} />
+      <CentreReviewBoard promote={promote} locked={locked} ghosts={ghosts} noPosition={noPosition} stalled={stalled} can={can} />
     </div>
   );
 }

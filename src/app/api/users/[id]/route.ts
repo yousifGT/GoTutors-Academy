@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
+import { PERMISSIONS, otherPermissionManagers, userHasPermission } from "@/lib/permissions";
 import { Prisma, RoleType } from "@prisma/client";
 import { z } from "zod";
 import { parseJson, zId, zName, zEmail, zPassword } from "@/lib/validate";
@@ -14,6 +14,10 @@ import { unknownFieldsError, unknownTrainingFields } from "@/lib/training-fields
 
 /** Thrown inside the delete transaction to roll back when no other admin remains. */
 class LastSuperAdminError extends Error {}
+class LastPermissionManagerError extends Error {}
+
+const LAST_MANAGER_MESSAGE =
+  "This is the only active super admin who can manage permissions — give that permission to another super admin first";
 
 const UpdateUserSchema = z.object({
   name: zName.optional(),
@@ -123,6 +127,11 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         { status: 409 }
       );
     }
+    // Another super admin is not enough if none of them can manage permissions:
+    // the Permissions page would then be closed to everyone.
+    if ((await userHasPermission(params.id, PERMISSIONS.PERMISSIONS_MANAGE)) && (await otherPermissionManagers(params.id)) === 0) {
+      return NextResponse.json({ error: LAST_MANAGER_MESSAGE }, { status: 409 });
+    }
   }
 
   // Reject a duplicate email up front so the form can show a field error
@@ -209,6 +218,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
   // in one serializable transaction so a concurrent delete can't race past the
   // check and leave the system with zero admins.
   if (target.role.type === RoleType.SUPER_ADMIN) {
+    const targetManages = await userHasPermission(params.id, PERMISSIONS.PERMISSIONS_MANAGE);
     try {
       await prisma.$transaction(
         async (tx) => {
@@ -216,6 +226,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
             where: { role: { type: RoleType.SUPER_ADMIN }, id: { not: params.id } },
           });
           if (otherSuperAdmins === 0) throw new LastSuperAdminError();
+          if (targetManages && (await otherPermissionManagers(params.id, tx)) === 0) throw new LastPermissionManagerError();
           await tx.user.delete({ where: { id: params.id } });
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable }
@@ -223,6 +234,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     } catch (e) {
       if (e instanceof LastSuperAdminError)
         return NextResponse.json({ error: "Cannot delete the last super admin" }, { status: 409 });
+      if (e instanceof LastPermissionManagerError) return NextResponse.json({ error: LAST_MANAGER_MESSAGE }, { status: 409 });
       // A serializable conflict means a concurrent delete touched the admin set.
       if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034")
         return NextResponse.json({ error: "Concurrent update, please retry" }, { status: 409 });
