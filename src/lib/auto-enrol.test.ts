@@ -5,6 +5,7 @@ const db = vi.hoisted(() => ({
   user: { findUnique: vi.fn(), findMany: vi.fn() },
   subPosition: { findMany: vi.fn() },
   enrollment: { createMany: vi.fn() },
+  coursePrerequisite: { findMany: vi.fn() },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
@@ -12,6 +13,7 @@ import { syncCourseEnrollments, syncUserEnrollments } from "./auto-enrol";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  db.coursePrerequisite.findMany.mockResolvedValue([]);
   db.enrollment.createMany.mockImplementation(async ({ data }: any) => ({ count: data.length }));
   // The fields that exist, used to map stored tutor titles back to field names.
   db.subPosition.findMany.mockResolvedValue([

@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { effectiveSubPositions, tutorTitleFor, tutoredFieldNames } from "@/lib/sub-positions";
+import type { Prisma } from "@prisma/client";
+import { tutorTitleFor } from "@/lib/sub-positions";
+import { LEARNER_SELECT, assignmentFilter, prerequisiteClosure } from "@/lib/learner-access";
 
 /**
  * Assignment-driven enrolment: a published course assigned to a role is
@@ -31,6 +33,47 @@ function isWholeRole(ra: { subPosition: string | null; role: { type: string } })
   return ra.subPosition === null || ra.role.type !== "TRAINEE";
 }
 
+/**
+ * The people a course's assignments reach, as a user filter — null when the
+ * course is assigned to nobody. Shared by assignment sync and the bulk-enrol
+ * page so both mean the same people (canLearn is the final word on access).
+ */
+export function audienceFilter(
+  roleAssignments: readonly { roleId: string; subPosition: string | null; role: { type: string } }[]
+): Prisma.UserWhereInput | null {
+  const byRole = new Map<string, { wholeRole: boolean; subs: string[] }>();
+  for (const ra of roleAssignments) {
+    const group = byRole.get(ra.roleId) ?? { wholeRole: false, subs: [] };
+    if (isWholeRole(ra)) group.wholeRole = true;
+    else group.subs.push(ra.subPosition as string);
+    byRole.set(ra.roleId, group);
+  }
+  if (byRole.size === 0) return null;
+
+  // Sub-position matches deliberately ignore the user's own role: a trainee
+  // promoted to teacher of one field moves to an instructor role but keeps
+  // their unfinished fields in subPositions and must keep receiving those
+  // courses. Whole-role assignments still require the exact role.
+  return {
+    OR: [...byRole.entries()].map(([roleId, g]) =>
+      g.wholeRole
+        ? { roleId }
+        : {
+            role: { type: { in: ["TRAINEE", "INSTRUCTOR"] as const } },
+            OR: [
+              { subPositions: { hasSome: g.subs } },
+              { subPosition: { in: g.subs } },
+              // Someone already qualified to tutor the field must receive a
+              // newly published course in it as well: their title stays, but
+              // the field counts as retraining until they certify this one.
+              // Matched on the stored TITLE, which is what teacherPositions holds.
+              { teacherPositions: { hasSome: g.subs.map(tutorTitleFor) } },
+            ],
+          }
+    ),
+  };
+}
+
 /** Enrol everyone an assignment matches into a published course. Returns how many were added. */
 export async function syncCourseEnrollments(courseId: string): Promise<number> {
   const course = await prisma.course.findUnique({
@@ -39,40 +82,11 @@ export async function syncCourseEnrollments(courseId: string): Promise<number> {
   });
   if (!course || !course.published) return 0;
 
-  const byRole = new Map<string, { wholeRole: boolean; subs: string[] }>();
-  for (const ra of course.roleAssignments) {
-    const group = byRole.get(ra.roleId) ?? { wholeRole: false, subs: [] };
-    if (isWholeRole(ra)) group.wholeRole = true;
-    else group.subs.push(ra.subPosition as string);
-    byRole.set(ra.roleId, group);
-  }
-  if (byRole.size === 0) return 0;
+  const audience = audienceFilter(course.roleAssignments);
+  if (!audience) return 0;
 
-  // Sub-position matches deliberately ignore the user's own role: a trainee
-  // promoted to teacher of one field moves to an instructor role but keeps
-  // their unfinished fields in subPositions and must keep receiving those
-  // courses. Whole-role assignments still require the exact role.
   const users = await prisma.user.findMany({
-    where: {
-      active: true,
-      enrollments: { none: { courseId } },
-      OR: [...byRole.entries()].map(([roleId, g]) =>
-        g.wholeRole
-          ? { roleId }
-          : {
-              role: { type: { in: ["TRAINEE", "INSTRUCTOR"] as const } },
-              OR: [
-                { subPositions: { hasSome: g.subs } },
-                { subPosition: { in: g.subs } },
-                // Someone already qualified to tutor the field must receive a
-                // newly published course in it as well: their title stays, but
-                // the field counts as retraining until they certify this one.
-                // Matched on the stored TITLE, which is what teacherPositions holds.
-                { teacherPositions: { hasSome: g.subs.map(tutorTitleFor) } },
-              ],
-            }
-      ),
-    },
+    where: { active: true, enrollments: { none: { courseId } }, ...audience },
     select: { id: true },
   });
   if (users.length === 0) return 0;
@@ -91,42 +105,37 @@ export async function syncCourseEnrollments(courseId: string): Promise<number> {
  * through any trainee role, since their own role is no longer one).
  */
 export async function syncUserEnrollments(userId: string): Promise<number> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: { role: { select: { type: true } } },
-  });
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: LEARNER_SELECT });
   if (!user || !user.active) return 0;
 
-  // Only trainees and instructors hold training fields. Training fields plus the
-  // fields they already tutor — a tutor keeps picking up new courses in their own
-  // field, which is what makes a lapse recoverable.
-  let names: string[] = [];
-  if (user.role.type === "TRAINEE" || user.role.type === "INSTRUCTOR") {
-    const knownFields = (await prisma.subPosition.findMany({ select: { name: true } })).map((r) => r.name);
-    names = [
-      ...new Set([...effectiveSubPositions(user), ...tutoredFieldNames(user.teacherPositions ?? [], knownFields)]),
-    ];
-  }
-
-  // Their own role's whole-role courses (see isWholeRole: on a trainee role that
-  // is the rows without a field; on any other role it is every row). Field
-  // courses match by name across trainee-type roles, so a Tutor (a different
-  // trainee-type role) keeps receiving their remaining fields' courses.
-  const ownRole =
-    user.role.type === "TRAINEE" ? { roleId: user.roleId, subPosition: null } : { roleId: user.roleId };
-  const subMatch = names.length ? [{ role: { type: "TRAINEE" as const }, subPosition: { in: names } }] : [];
+  // The same assignment match canLearn uses, so sync never enrols someone into
+  // a course they could not then open.
+  const match = await assignmentFilter(user);
   const courses = await prisma.course.findMany({
     where: {
       published: true,
       enrollments: { none: { userId } },
-      roleAssignments: { some: { OR: [ownRole, ...subMatch] } },
+      roleAssignments: { some: match },
     },
     select: { id: true },
   });
-  if (courses.length === 0) return 0;
+
+  // Prerequisites of everything assigned to them, assigned or not: self-enrolment
+  // is gone, so this is the only way into a prerequisite nobody assigned.
+  const assigned = await prisma.course.findMany({ where: { roleAssignments: { some: match } }, select: { id: true } });
+  const prereqIds = await prerequisiteClosure(assigned.map((c) => c.id));
+  const prereqs = prereqIds.length
+    ? await prisma.course.findMany({
+        where: { id: { in: prereqIds }, published: true, enrollments: { none: { userId } } },
+        select: { id: true },
+      })
+    : [];
+
+  const ids = [...new Set([...courses, ...prereqs].map((c) => c.id))];
+  if (ids.length === 0) return 0;
 
   const result = await prisma.enrollment.createMany({
-    data: courses.map((c) => ({ userId, courseId: c.id })),
+    data: ids.map((courseId) => ({ userId, courseId })),
     skipDuplicates: true,
   });
   return result.count;

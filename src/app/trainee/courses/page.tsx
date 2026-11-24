@@ -4,6 +4,7 @@ import { LEARNER_ROLES, requireRole } from "@/lib/session";
 import { getCourseProgressForUser } from "@/lib/course-progress";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
+import { entitledCourseIds } from "@/lib/learner-access";
 import { formatDate } from "@/lib/utils";
 import { ProgressBar } from "@/components/progress-bar";
 import { PageHeader, EmptyState } from "@/components/page-ui";
@@ -18,9 +19,12 @@ export default async function MyCoursesPage() {
   // don't, so their certificates live here, under the courses that earned them.
   const showCertificates = session.user.roleType === "CENTRE_ADMIN" || session.user.roleType === "SUPER_ADMIN";
 
+  // Only courses still assigned to them. Enrolments for a role or field they
+  // no longer hold are kept (with their progress) but not shown or opened.
+  const entitled = await entitledCourseIds(session.user.id);
   const [enrollments, certs] = await Promise.all([
     prisma.enrollment.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, courseId: { in: [...entitled] } },
       include: { course: true },
       orderBy: { enrolledAt: "desc" },
     }),

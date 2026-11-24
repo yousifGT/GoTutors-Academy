@@ -1,8 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+const db = vi.hoisted(() => ({ role: { count: vi.fn() }, course: { count: vi.fn() } }));
+vi.mock("@/lib/prisma", () => ({ prisma: db }));
 
-import { assignmentRows } from "./course-assignments";
+import { assignmentRows, audienceEditRefusal } from "./course-assignments";
 
 const trainee = new Set(["trainee-role"]);
 
@@ -25,5 +26,31 @@ describe("assignmentRows", () => {
       { roleId: "trainee-role", subPosition: "Maths Trainee" },
       { roleId: "admin-role", subPosition: null },
     ]);
+  });
+});
+
+describe("audienceEditRefusal", () => {
+  const instructor = { id: "i1", roleType: "INSTRUCTOR" };
+
+  // Assigning the Super Admin role enrolled every super admin, and an
+  // instructor may open the profile of anyone in their course.
+  it("refuses an instructor adding an admin role", async () => {
+    db.role.count.mockResolvedValue(1);
+    expect(await audienceEditRefusal(instructor, { roleIds: ["super-role"] })).toMatch(/super admin/);
+  });
+
+  it("lets an instructor keep an admin role a super admin already chose", async () => {
+    db.role.count.mockClear();
+    expect(await audienceEditRefusal(instructor, { roleIds: ["admin-role"], existingRoleIds: ["admin-role"] })).toBeNull();
+    expect(db.role.count).not.toHaveBeenCalled();
+  });
+
+  it("refuses someone else's course as a prerequisite", async () => {
+    db.course.count.mockResolvedValue(1);
+    expect(await audienceEditRefusal(instructor, { prerequisiteIds: ["their-course"] })).toMatch(/own courses/);
+  });
+
+  it("never refuses a super admin", async () => {
+    expect(await audienceEditRefusal({ id: "sa", roleType: "SUPER_ADMIN" }, { roleIds: ["x"], prerequisiteIds: ["y"] })).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import { assertSameOrigin } from "@/lib/csrf";
 import { rateLimit, tooMany } from "@/lib/rate-limit";
 import { maybeAwardCertificate } from "@/lib/certificate";
 import { isLessonUnlocked } from "@/lib/course-progress";
+import { canLearn } from "@/lib/learner-access";
 import { z } from "zod";
 import { parseJson } from "@/lib/validate";
 
@@ -45,14 +46,9 @@ export async function POST(req: Request, { params }: { params: { quizId: string 
   // out-of-order lesson.
   const courseId = quiz.lesson.module.courseId;
   // Super admins may preview any course (mirrors the lesson page); everyone else
-  // must be enrolled to attempt its quizzes.
-  if (session.user.roleType !== "SUPER_ADMIN") {
-    const enrolled = await prisma.enrollment.findUnique({
-      where: { userId_courseId: { userId, courseId } },
-      select: { userId: true },
-    });
-    if (!enrolled) return NextResponse.json({ error: "not enrolled" }, { status: 403 });
-  }
+  // must be enrolled AND still assigned the course (canLearn).
+  if (!(await canLearn(session.user, courseId)))
+    return NextResponse.json({ error: "not enrolled" }, { status: 403 });
   if (!(await isLessonUnlocked(userId, quiz.lessonId)))
     return NextResponse.json({ error: "Previous lessons must be completed first." }, { status: 403 });
 

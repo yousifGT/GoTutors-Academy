@@ -10,7 +10,19 @@ export default withAuth(
     // routes (/api/auth/*) ship their own CSRF protection, so skip them.
     if (pathname.startsWith("/api/")) {
       if (pathname.startsWith("/api/auth/")) return NextResponse.next();
-      return checkOrigin(req) ?? NextResponse.next();
+      const refused = checkOrigin(req);
+      if (refused) return refused;
+      // Hold the API closed too while an admin-set password is in force: the
+      // admin who set it knows it, and the page hold alone left every route
+      // usable as that person. Only changing the password (and reading your
+      // own account) stays open.
+      if (
+        req.nextauth.token?.mustChangePassword &&
+        !(pathname === "/api/me" || pathname === "/api/me/password" || pathname === "/api/health")
+      ) {
+        return NextResponse.json({ error: "Choose a new password first." }, { status: 403 });
+      }
+      return NextResponse.next();
     }
 
     const token = req.nextauth.token;

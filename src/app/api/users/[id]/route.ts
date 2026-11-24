@@ -149,6 +149,25 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
+  // A supervisor can open the person's profile and certificates (and /my-team),
+  // so it is a grant of access: only someone who could supervise them — an
+  // instructor or admin, and for a centre admin one in the person's own centre.
+  if (body.supervisorId && body.supervisorId !== target.supervisorId) {
+    const sup = await prisma.user.findUnique({
+      where: { id: body.supervisorId },
+      select: { id: true, active: true, centreId: true, role: { select: { type: true } } },
+    });
+    const centreId = body.centreId !== undefined ? body.centreId ?? null : target.centreId;
+    const ok =
+      !!sup &&
+      sup.active &&
+      sup.id !== params.id &&
+      (isSuper
+        ? ["CENTRE_ADMIN", "INSTRUCTOR", "SUPER_ADMIN"].includes(sup.role.type)
+        : ["CENTRE_ADMIN", "INSTRUCTOR"].includes(sup.role.type) && centreId !== null && sup.centreId === centreId);
+    if (!ok) return NextResponse.json({ error: "That person can't be this user's supervisor" }, { status: 400 });
+  }
+
   const data: Record<string, unknown> = {};
   for (const k of ["name", "email", "phone", "position", "isTrained", "active", "roleId", "centreId", "supervisorId"] as const) {
     if (body[k] !== undefined) data[k] = body[k];

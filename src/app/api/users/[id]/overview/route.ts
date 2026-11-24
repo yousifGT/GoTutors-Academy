@@ -40,7 +40,9 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     viewer.roleType === "SUPER_ADMIN" ||
     (viewer.id !== target.id && target.supervisorId === viewer.id) ||
     (viewer.roleType === "CENTRE_ADMIN" && canManage);
-  if (!allowed && viewer.roleType === "INSTRUCTOR" && viewer.id !== target.id) {
+  // An instructor sees the trainees taking their courses — never an admin or a
+  // fellow instructor, even one enrolled in a course of theirs.
+  if (!allowed && viewer.roleType === "INSTRUCTOR" && viewer.id !== target.id && target.role.type === "TRAINEE") {
     const shared = await prisma.enrollment.count({
       where: { userId: target.id, course: { authorId: viewer.id } },
     });
@@ -50,6 +52,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
   // Mirrors POST /api/users/[id]/promote: a super admin may promote a trainee or
   // an instructor still training; a centre admin only their own trainees.
+  const canEdit = await userHasPermission(viewer.id, PERMISSIONS.USER_EDIT);
   const canPromote =
     viewer.roleType === "SUPER_ADMIN"
       ? target.role.type === "TRAINEE" || target.role.type === "INSTRUCTOR"
@@ -109,10 +112,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       createdAt: target.createdAt.toISOString(),
     },
     fieldStatus,
-    canPromote,
-    // The pop-up's password reset saves through PATCH /api/users/[id], which also
-    // requires "Edit users". Seeing the person needs only canManageUser.
-    canManage: canManage && (await userHasPermission(viewer.id, PERMISSIONS.USER_EDIT)),
+    // Promote and the pop-up's password reset both require "Edit users" in their
+    // routes. Seeing the person needs only canManageUser.
+    canPromote: canPromote && canEdit,
+    canManage: canManage && canEdit,
     enrollments: enrollments.map((e) => {
       const p = progressByKey.get(`${e.userId}:${e.courseId}`);
       return {

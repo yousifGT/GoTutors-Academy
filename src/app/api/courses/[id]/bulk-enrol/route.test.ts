@@ -9,6 +9,13 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/notify", () => ({ notifyCentreAndInstructor: vi.fn() }));
+// Who the course is assigned to: by default everyone in these tests.
+const assigned = vi.hoisted(() => ({ users: null as string[] | null }));
+vi.mock("@/lib/learner-access", () => ({
+  entitledCourseIds: vi.fn(async (userId: string) =>
+    !assigned.users || assigned.users.includes(userId) ? new Set(["c1"]) : new Set()
+  ),
+}));
 
 import { getServerSession } from "next-auth";
 import { POST } from "./route";
@@ -25,6 +32,7 @@ function req(userIds: string[]) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  assigned.users = null;
   db.course.findUnique.mockResolvedValue({ id: "c1", title: "Course", authorId: "author1", published: true });
   db.user.findMany.mockResolvedValue([
     { id: "u1", name: "A", centreId: "london" },
@@ -58,6 +66,19 @@ describe("POST /api/courses/[id]/bulk-enrol", () => {
     const res = await POST(req(["u1"]), { params: { id: "c1" } });
     expect(res.status).toBe(200);
     expect(db.enrollment.createMany).toHaveBeenCalled();
+  });
+
+  // An enrolment outside the course's assignment would not open the course, so
+  // it is never created: the hand-enrol page is no way round a removed role.
+  it("skips people the course isn't assigned to", async () => {
+    session.mockResolvedValue({ user: { id: "sa", roleType: "SUPER_ADMIN", centreId: null } });
+    assigned.users = ["u1"];
+    db.enrollment.createMany.mockResolvedValue({ count: 1 });
+    await POST(req(["u1", "u2"]), { params: { id: "c1" } });
+    expect(db.enrollment.createMany).toHaveBeenCalledWith({
+      data: [{ userId: "u1", courseId: "c1" }],
+      skipDuplicates: true,
+    });
   });
 
   it("enrols new users in one createMany and reports the count", async () => {

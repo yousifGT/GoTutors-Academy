@@ -3,7 +3,10 @@ export function toCsv(rows: Record<string, unknown>[], headers?: string[]): stri
   const cols = headers ?? Object.keys(rows[0] ?? {});
   const esc = (v: unknown) => {
     if (v === null || v === undefined) return "";
-    const s = typeof v === "string" ? v : String(v);
+    let s = typeof v === "string" ? v : String(v);
+    // A cell starting = + - @ (or tab/CR) is run as a formula by Excel/Sheets;
+    // titles and names are user-written, so neutralise it with a leading quote.
+    if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
     return s;
   };

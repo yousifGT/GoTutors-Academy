@@ -20,4 +20,11 @@ describe("toCsv", () => {
   it("returns empty string for no rows when no headers", () => {
     expect(toCsv([])).toBe("");
   });
+
+  // A course title like =HYPERLINK(...) would run when a centre admin opened
+  // the export in Excel.
+  it("neutralises cells that a spreadsheet would run as a formula", () => {
+    const out = toCsv([{ a: "=1+1", b: "+x", c: "-y", d: "@z", e: "plain", f: -5 }]);
+    expect(out.split("\n")[1]).toBe("'=1+1,'+x,'-y,'@z,plain,-5");
+  });
 });

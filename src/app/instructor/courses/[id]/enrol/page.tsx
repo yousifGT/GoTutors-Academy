@@ -1,37 +1,44 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/session";
 import { BulkEnrol } from "@/components/bulk-enrol";
 import { PageHeader } from "@/components/page-ui";
 import { effectiveSubPositions } from "@/lib/sub-positions";
+import { audienceFilter } from "@/lib/auto-enrol";
+import { ownsCourse } from "@/lib/course-access";
 
 export default async function BulkEnrolPage({ params }: { params: { id: string } }) {
-  await requireRole("INSTRUCTOR", "SUPER_ADMIN");
+  const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
   const course = await prisma.course.findUnique({
     where: { id: params.id },
-    include: { roleAssignments: true, enrollments: { select: { userId: true } } },
+    include: {
+      roleAssignments: { include: { role: { select: { type: true } } } },
+      enrollments: { select: { userId: true } },
+    },
   });
   if (!course) notFound();
+  // Same rule as the route: the author or a super admin. Any instructor could
+  // open this for any course and read its whole audience's names and emails.
+  if (!ownsCourse(session.user, course.authorId)) redirect("/instructor/courses");
 
   const enrolledIds = new Set(course.enrollments.map((e) => e.userId));
 
-  // Build candidate set: any user whose role matches the course role assignments
-  const trainees = await prisma.user.findMany({
-    where: {
-      active: true,
-      OR: course.roleAssignments.length === 0
-        ? [{ role: { type: "TRAINEE" } }]
-        : course.roleAssignments.map((ra) => ({
-            roleId: ra.roleId,
-            ...(ra.subPosition
-              ? { OR: [{ subPosition: ra.subPosition }, { subPositions: { has: ra.subPosition } }] }
-              : {}),
-          })),
-    },
-    include: { centre: true, role: true },
-    orderBy: { name: "asc" },
-  });
+  // Candidates: exactly the people the course is assigned to (the same match
+  // auto-enrolment uses). A course assigned to nobody has no candidates — it
+  // used to offer every trainee, and an enrolment outside the assignment no
+  // longer opens the course anyway (learner-access.ts).
+  const audience = audienceFilter(course.roleAssignments);
+  const trainees = audience
+    ? await prisma.user.findMany({
+        where: { active: true, ...audience },
+        select: {
+          id: true, name: true, email: true, position: true, subPosition: true, subPositions: true,
+          centre: { select: { name: true } },
+        },
+        orderBy: { name: "asc" },
+      })
+    : [];
 
   const candidates = trainees.map((t) => ({
     id: t.id,

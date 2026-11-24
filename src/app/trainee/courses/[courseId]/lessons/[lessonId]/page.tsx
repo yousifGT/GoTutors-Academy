@@ -7,6 +7,7 @@ import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { EmptyState } from "@/components/page-ui";
 import { shuffle } from "@/lib/shuffle";
 import { LessonPlayer } from "@/components/lesson-player";
+import { canLearn } from "@/lib/learner-access";
 
 export default async function LessonPage({ params }: { params: { courseId: string; lessonId: string } }) {
   const session = await requireRole(...LEARNER_ROLES);
@@ -22,13 +23,9 @@ export default async function LessonPage({ params }: { params: { courseId: strin
   });
   if (!lesson || lesson.module.courseId !== params.courseId) notFound();
 
-  // Must be enrolled to open a lesson (super admins may preview any course).
+  // Enrolled and still assigned (super admins may preview any course).
+  if (!(await canLearn(session.user, lesson.module.courseId))) notFound();
   if (session.user.roleType !== "SUPER_ADMIN") {
-    const enrolled = await prisma.enrollment.findUnique({
-      where: { userId_courseId: { userId, courseId: lesson.module.courseId } },
-      select: { userId: true },
-    });
-    if (!enrolled) notFound();
     // Course-level prerequisite gate — lessons stay closed until required courses are done.
     const missing = await getMissingPrerequisites(userId, lesson.module.courseId);
     if (missing.length > 0) {

@@ -22,10 +22,14 @@ describe("jwt callback — session freshness", () => {
     expect(db.user.findUnique).not.toHaveBeenCalled();
   });
 
-  it("does not hit the DB within the staleness window", async () => {
-    const token: any = { uid: "u1", roleType: "TRAINEE", checkedAt: Date.now() };
-    await jwt({ token } as any);
-    expect(db.user.findUnique).not.toHaveBeenCalled();
+  // A role removed a second ago must already be gone: there is no window in
+  // which the token's old role is trusted.
+  it("re-reads the role on every request, even one just checked", async () => {
+    db.user.findUnique.mockResolvedValue({ active: true, roleId: "r2", centreId: null, position: null, mustChangePassword: false, role: { type: "TRAINEE" } });
+    const token: any = { uid: "u1", roleType: "SUPER_ADMIN", roleId: "r1", checkedAt: Date.now() };
+    const out: any = await jwt({ token } as any);
+    expect(db.user.findUnique).toHaveBeenCalled();
+    expect(out.roleType).toBe("TRAINEE");
   });
 
   it("marks the token invalid when the user is deactivated", async () => {

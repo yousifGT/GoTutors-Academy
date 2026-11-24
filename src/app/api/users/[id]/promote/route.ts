@@ -6,6 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { parseJson } from "@/lib/validate";
 import { promoteToTutor } from "@/lib/promotion";
+import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 
 const PromoteSchema = z.object({ subPosition: z.string().min(1).max(200) });
 
@@ -33,6 +34,9 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     viewer.roleType === "SUPER_ADMIN" ||
     (viewer.roleType === "CENTRE_ADMIN" && canManageUser(viewer, { roleType: target.role.type, centreId: target.centreId }));
   if (!allowed) return NextResponse.json({ error: "You can't promote this user" }, { status: 403 });
+  // Promotion edits the person (role, fields, titles) — same switch as editing them.
+  if (!(await userHasPermission(viewer.id, PERMISSIONS.USER_EDIT)))
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
   const parsed = await parseJson(req, PromoteSchema);
   if (!parsed.ok) return parsed.response;

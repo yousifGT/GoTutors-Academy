@@ -59,18 +59,10 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
 
-      // On subsequent requests, re-validate against the DB at most once per
-      // minute so deactivation and role/centre changes take effect promptly
-      // without a query on every request (and never on static assets, which
-      // don't reach NextAuth). The 7-day token is no longer trusted blindly.
-      const STALE_MS = 60_000;
-      // While a password change is being forced, re-read on every request: the
-      // middleware decides from this token, so throttling here would bounce the
-      // user back to the change screen for up to a minute after they had
-      // already chosen a new password.
-      const throttled = !token.mustChangePassword && token.checkedAt && Date.now() - token.checkedAt < STALE_MS;
-      if (throttled) return token;
-
+      // Re-validate against the DB on EVERY request. Access follows the role
+      // stored now: a removed role, a deactivation or a centre move must stop
+      // working on the very next click, not up to a minute later (one indexed
+      // lookup per request). The 7-day token is never trusted on its own.
       const dbUser = await prisma.user.findUnique({
         where: { id: token.uid },
         include: { role: true },

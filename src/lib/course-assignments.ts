@@ -40,3 +40,43 @@ export async function buildAssignmentRows(
   });
   return assignmentRows(roleIds, subPositions, new Set(trainee.map((r) => r.id)));
 }
+
+/** Role types whose people only a super admin may target with a course. */
+export const ADMIN_ROLE_TYPES = ["SUPER_ADMIN", "CENTRE_ADMIN"] as const;
+
+/**
+ * Why a non-super-admin may not save this audience / prerequisite list, or
+ * null if they may. Rows already on the course (put there by a super admin)
+ * may be kept; only additions are checked.
+ *
+ * Assigning a course to an admin role enrols every admin on it, and an
+ * instructor may open the profile of anyone enrolled in their course — so an
+ * instructor who could assign the Super Admin role could read every super
+ * admin's profile. A prerequisite opens with the course it unlocks
+ * (learner-access.ts), so naming someone else's course as one would hand it to
+ * this course's audience.
+ */
+export async function audienceEditRefusal(
+  actor: { id: string; roleType: string },
+  change: {
+    roleIds?: readonly string[];
+    prerequisiteIds?: readonly string[];
+    existingRoleIds?: readonly string[];
+    existingPrerequisiteIds?: readonly string[];
+  }
+): Promise<string | null> {
+  if (actor.roleType === "SUPER_ADMIN") return null;
+  const addedRoles = (change.roleIds ?? []).filter((id) => !(change.existingRoleIds ?? []).includes(id));
+  if (addedRoles.length > 0) {
+    const admin = await prisma.role.count({ where: { id: { in: addedRoles }, type: { in: [...ADMIN_ROLE_TYPES] } } });
+    if (admin > 0) return "Only a super admin can assign a course to an admin role";
+  }
+  const addedPrereqs = (change.prerequisiteIds ?? []).filter(
+    (id) => !(change.existingPrerequisiteIds ?? []).includes(id)
+  );
+  if (addedPrereqs.length > 0) {
+    const foreign = await prisma.course.count({ where: { id: { in: addedPrereqs }, authorId: { not: actor.id } } });
+    if (foreign > 0) return "You can only require your own courses as prerequisites";
+  }
+  return null;
+}

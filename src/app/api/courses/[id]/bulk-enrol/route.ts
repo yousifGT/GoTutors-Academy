@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { notifyCentreAndInstructor } from "@/lib/notify";
 import { centreTraineeScope } from "@/lib/scope";
+import { entitledCourseIds } from "@/lib/learner-access";
 import { z } from "zod";
 import { parseJson, zId } from "@/lib/validate";
 
@@ -36,13 +37,18 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   // Centre admins may only enrol their own centre's trainees (a null centre
   // matches nobody — never every centre); a fellow head is not theirs to
   // enrol. Super admins / authors are unscoped.
-  const targets = await prisma.user.findMany({
+  const scoped = await prisma.user.findMany({
     where: {
       id: { in: userIds },
+      active: true,
       ...(isCentreAdmin ? centreTraineeScope(session.user) : {}),
     },
     select: { id: true, name: true, centreId: true },
   });
+  // Only people the course is assigned to: an enrolment outside the assignment
+  // would not open the course (learner-access.ts), so it is refused here too.
+  const entitled = await Promise.all(scoped.map(async (t) => (await entitledCourseIds(t.id)).has(course.id)));
+  const targets = scoped.filter((_, i) => entitled[i]);
 
   // Skip users already enrolled (for an accurate count + notifications); the DB
   // unique constraint + skipDuplicates backstops the race with a concurrent enrol.

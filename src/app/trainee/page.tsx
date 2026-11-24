@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/session";
 import { ProgressBar } from "@/components/progress-bar";
 import { getCourseProgressForUser, nextUnlockedLesson } from "@/lib/course-progress";
 import { syncUserEnrollments } from "@/lib/auto-enrol";
+import { entitledCourseIds } from "@/lib/learner-access";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { PageHeader, StatStrip, AttentionPanel, EmptyState, type AttentionItem } from "@/components/page-ui";
 
@@ -15,10 +16,12 @@ export default async function TraineeDashboard() {
   // sub-positions that a sync hook missed (e.g. accounts predating
   // auto-enrolment). Idempotent and only ever adds.
   await syncUserEnrollments(userId);
+  // Only courses still assigned to them — see learner-access.ts.
+  const entitled = await entitledCourseIds(userId);
 
   const [enrollments, certificates, lockedAttempts, pendingReview] = await Promise.all([
     prisma.enrollment.findMany({
-      where: { userId },
+      where: { userId, courseId: { in: [...entitled] } },
       include: { course: { include: { modules: { include: { lessons: true } } } } },
       orderBy: { enrolledAt: "desc" },
     }),

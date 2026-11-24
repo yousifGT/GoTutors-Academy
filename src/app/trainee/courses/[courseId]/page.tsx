@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { LEARNER_ROLES, requireRole } from "@/lib/session";
 import { getCourseProgressForUser, nextUnlockedLesson } from "@/lib/course-progress";
 import { ProgressBar } from "@/components/progress-bar";
-import { EnrolButton } from "@/components/enrol-button";
+import { canLearn } from "@/lib/learner-access";
 import { getMissingPrerequisites } from "@/lib/course-prereqs";
 import { EmptyState, PageHeader } from "@/components/page-ui";
 
@@ -18,16 +18,15 @@ export default async function CoursePage({ params }: { params: { courseId: strin
   });
   if (!course) notFound();
 
-  const enrollment = await prisma.enrollment.findUnique({
-    where: { userId_courseId: { userId: session.user.id, courseId: course.id } },
-  });
-  if (!enrollment && session.user.roleType !== "SUPER_ADMIN") {
+  // Enrolled AND still assigned — an enrolment outlives a removed role (it
+  // keeps their progress), so it is never enough on its own.
+  if (!(await canLearn(session.user, course.id))) {
     return (
       <EmptyState
         icon="🔐"
-        title="Not enrolled"
-        hint="This course isn't assigned to your position — you can still enrol yourself."
-        action={<div className="w-40"><EnrolButton courseId={course.id} label="Enrol now" /></div>}
+        title="Not available"
+        hint="This course isn't assigned to your role or training field."
+        action={<Link href="/trainee/courses" className="gt-btn-primary">My courses</Link>}
       />
     );
   }

@@ -34,7 +34,7 @@ function patchReq(body: unknown) {
 beforeEach(() => {
   vi.clearAllMocks();
   hasPerm.mockResolvedValue(true);
-  db.course.findUnique.mockResolvedValue({ authorId: "author1" });
+  db.course.findUnique.mockResolvedValue({ authorId: "author1", published: false, roleAssignments: [], prerequisites: [] });
   db.course.update.mockResolvedValue({ id: "c1", title: "x" });
   db.course.delete.mockResolvedValue({ id: "c1" });
 });

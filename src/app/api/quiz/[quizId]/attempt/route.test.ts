@@ -19,6 +19,16 @@ vi.mock("@/lib/rate-limit", () => ({
 vi.mock("@/lib/notify", () => ({ notifyCentreAndInstructor: vi.fn() }));
 vi.mock("@/lib/certificate", () => ({ maybeAwardCertificate: vi.fn() }));
 vi.mock("@/lib/course-progress", () => ({ isLessonUnlocked: vi.fn() }));
+// canLearn's real rule, over the mocked enrolment: enrolled AND still assigned
+// (access.assigned stands in for the person's current role/fields).
+const access = vi.hoisted(() => ({ assigned: true }));
+vi.mock("@/lib/learner-access", () => ({
+  canLearn: vi.fn(async (viewer: { id: string; roleType: string }, courseId: string) => {
+    if (viewer.roleType === "SUPER_ADMIN") return true;
+    const e = await db.enrollment.findUnique({ where: { userId_courseId: { userId: viewer.id, courseId } } });
+    return !!e && access.assigned;
+  }),
+}));
 
 import { getServerSession } from "next-auth";
 import { maybeAwardCertificate } from "@/lib/certificate";
@@ -58,10 +68,19 @@ beforeEach(() => {
   db.user.findUnique.mockResolvedValue({ name: "T", centreId: null });
   db.enrollment.findUnique.mockResolvedValue({ userId: "u1" });
   unlocked.mockResolvedValue(true);
+  access.assigned = true;
   db.$transaction.mockImplementation(async (cb: any) => cb(db));
 });
 
 describe("POST quiz attempt — access gates", () => {
+  it("403s someone still enrolled whose role no longer has the course", async () => {
+    access.assigned = false;
+    db.quizAttempt.findMany.mockResolvedValue([]);
+    const res = await POST(req({ qq1: "a1" }), { params: { quizId: "q1" } });
+    expect(res.status).toBe(403);
+    expect(db.quizAttempt.create).not.toHaveBeenCalled();
+  });
+
   it("403s when the trainee isn't enrolled in the course", async () => {
     db.enrollment.findUnique.mockResolvedValue(null);
     db.quizAttempt.findMany.mockResolvedValue([]);

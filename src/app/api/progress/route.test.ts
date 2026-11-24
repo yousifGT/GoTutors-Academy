@@ -10,6 +10,16 @@ vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 vi.mock("@/lib/prisma", () => ({ prisma: db }));
 vi.mock("@/lib/course-progress", () => ({ isLessonUnlocked: vi.fn() }));
 vi.mock("@/lib/certificate", () => ({ maybeAwardCertificate: vi.fn() }));
+// canLearn's real rule, over the mocked enrolment: enrolled AND still assigned
+// (access.assigned stands in for the person's current role/fields).
+const access = vi.hoisted(() => ({ assigned: true }));
+vi.mock("@/lib/learner-access", () => ({
+  canLearn: vi.fn(async (viewer: { id: string; roleType: string }, courseId: string) => {
+    if (viewer.roleType === "SUPER_ADMIN") return true;
+    const e = await db.enrollment.findUnique({ where: { userId_courseId: { userId: viewer.id, courseId } } });
+    return !!e && access.assigned;
+  }),
+}));
 
 import { getServerSession } from "next-auth";
 import { isLessonUnlocked } from "@/lib/course-progress";
@@ -37,12 +47,22 @@ beforeEach(() => {
     quiz: { _count: { questions: 3 } },
   });
   db.enrollment.findUnique.mockResolvedValue({ userId: "u1" });
+  access.assigned = true;
   unlocked.mockResolvedValue(true);
   // Echo the decided fields back so the response reflects computeWatchState.
   db.progress.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: "p1", ...data }));
 });
 
 describe("POST /api/progress — access + watch gating", () => {
+  // The bug: a role removed, the enrolment (and its progress) kept — and the
+  // course still played on.
+  it("403s someone still enrolled whose role no longer has the course", async () => {
+    access.assigned = false;
+    const res = await POST(req({ lessonId: "l1", watchedSeconds: 10, duration: 100 }), {} as never);
+    expect(res.status).toBe(403);
+    expect(db.progress.upsert).not.toHaveBeenCalled();
+  });
+
   it("403s when a trainee isn't enrolled", async () => {
     db.enrollment.findUnique.mockResolvedValue(null);
     const res = await POST(req({ lessonId: "l1", watchedSeconds: 90, duration: 95 }), {} as never);

@@ -5,12 +5,17 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PageHeader } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
+import { ADMIN_ROLE_TYPES } from "@/lib/course-assignments";
 
 export default async function NewCoursePage() {
   const session = await requireRole("INSTRUCTOR", "SUPER_ADMIN");
   await requirePermission(PERMISSIONS.COURSE_CREATE); // same check as this page's API
   const [roles, subPositions, categoryRows] = await Promise.all([
-    prisma.role.findMany({ orderBy: { name: "asc" } }),
+    // Only a super admin may aim a course at an admin role (audienceEditRefusal).
+    prisma.role.findMany({
+      where: session.user.roleType === "SUPER_ADMIN" ? {} : { type: { notIn: [...ADMIN_ROLE_TYPES] } },
+      orderBy: { name: "asc" },
+    }),
     prisma.subPosition.findMany({ orderBy: { name: "asc" } }),
     prisma.course.findMany({
       where: {

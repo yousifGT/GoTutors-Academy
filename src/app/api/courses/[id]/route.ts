@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
 import { requireCourseAccess } from "@/lib/course-access";
-import { buildAssignmentRows } from "@/lib/course-assignments";
+import { audienceEditRefusal, buildAssignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
@@ -44,8 +44,22 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!parsed.ok) return parsed.response;
   const body = parsed.data;
 
-  const existing = await prisma.course.findUnique({ where: { id: params.id }, select: { published: true } });
+  const existing = await prisma.course.findUnique({
+    where: { id: params.id },
+    select: {
+      published: true,
+      roleAssignments: { select: { roleId: true } },
+      prerequisites: { select: { prerequisiteId: true } },
+    },
+  });
   if (!existing) return NextResponse.json({ error: "not found" }, { status: 404 });
+  const refusal = await audienceEditRefusal(session.user, {
+    roleIds: body.roleIds,
+    prerequisiteIds: body.prerequisiteIds,
+    existingRoleIds: existing.roleAssignments.map((r) => r.roleId),
+    existingPrerequisiteIds: existing.prerequisites.map((p) => p.prerequisiteId),
+  });
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
 
   if (body.prerequisiteIds !== undefined) {
     const ids = [...new Set(body.prerequisiteIds)];

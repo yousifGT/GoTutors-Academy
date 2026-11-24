@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, userHasPermission } from "@/lib/permissions";
-import { buildAssignmentRows } from "@/lib/course-assignments";
+import { audienceEditRefusal, buildAssignmentRows } from "@/lib/course-assignments";
 import { syncCourseEnrollments } from "@/lib/auto-enrol";
 import { courseTraineeFields, recomputeIsTrainedForFields } from "@/lib/training";
 import { snapshotCourse } from "@/lib/course-version";
@@ -32,6 +32,8 @@ export async function POST(req: Request) {
   const { title, description, passThreshold, published, roleIds = [], subPositions = [] } = parsed.data;
 
   const prerequisiteIds = [...new Set(parsed.data.prerequisiteIds ?? [])];
+  const refusal = await audienceEditRefusal(session.user, { roleIds, prerequisiteIds });
+  if (refusal) return NextResponse.json({ error: refusal }, { status: 403 });
   if (prerequisiteIds.length > 0) {
     const found = await prisma.course.count({ where: { id: { in: prerequisiteIds } } });
     if (found !== prerequisiteIds.length)

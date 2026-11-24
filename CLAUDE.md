@@ -84,7 +84,20 @@ roles whose `type` is `TRAINEE`.
 **Anyone can take a course.** The learner pages (`/trainee/courses/**`) admit
 `LEARNER_ROLES` — every role — and each person keeps their own sidebar there,
 with **My courses** in it (`MY_COURSES` in `nav.ts`). Whether they can open a
-particular course is decided by enrolment, never by role.
+particular course is decided by `canLearn` (below), never by which pages they can reach.
+
+**A course opens only while it is assigned to you now** (`learner-access.ts`).
+`canLearn` = enrolled AND the course matches your *current* role or training
+field (or is a prerequisite of one that does). Enrolments and progress are
+**kept** when a role or field is removed — they come back intact if it is given
+back — so an enrolment alone must never open anything; that is the bug that left
+a demoted admin inside every admin course. The course page, lesson page,
+`/api/progress` and quiz attempts all call `canLearn`; My courses and the
+learner home filter by `entitledCourseIds`. There is **no self-enrolment** (the
+old `/api/enrollments` + "Enrol now" let anyone into any published course);
+bulk-enrol only accepts people the course is assigned to. Only a super admin may
+assign a course to an admin role or name someone else's course as a
+prerequisite (`audienceEditRefusal`) — either would hand that audience access.
 
 - A course assignment on a **non-trainee role means the whole role**: assign a
   course to Centre Admin and every centre admin is auto-enrolled. Sub-positions
@@ -132,7 +145,21 @@ sides ask the same question.
 - **At least one active super admin must keep "Manage permissions".**
   Deactivate, demote and delete check `otherPermissionManagers` and return 409;
   delete checks inside its serializable transaction.
-- Known gap: promote (`/api/users/[id]/promote`) has no permission check.
+- Promote requires "Edit users" like every other person edit.
+
+## Sessions
+
+- The NextAuth `jwt` callback re-reads the user **on every request** — no
+  staleness window — so a removed role, a deactivation or a centre move stops
+  working on the next click. Middleware reads the cookie copy; pages and APIs
+  read the fresh one, so never authorise from middleware alone.
+- While `mustChangePassword` is set, middleware holds pages AND APIs (except
+  `/api/me`, `/api/me/password`, `/api/health`): the admin who set the password
+  knows it.
+- A supervisor can see the person's profile and certificates, so
+  `supervisorId` is validated: an active instructor/admin, and for a centre
+  admin one in the person's own centre.
+- CSV cells starting `= + - @` are prefixed with `'` (formula injection).
 
 ## Config
 
@@ -150,7 +177,7 @@ Production: RDS, database `postgres`, schema `academy`.
 docker compose up -d          # local database
 npm run dev                   # localhost:3000
 npx prisma db push            # apply schema.prisma (no migrations dir — see below)
-npx vitest run                # 341 tests
+npx vitest run                # 357 tests
 ./node_modules/.bin/tsc --noEmit
 npm run build
 npm run image                 # build the image with the commit SHA baked in

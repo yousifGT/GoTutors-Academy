@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/permissions";
 import { WizardSteps } from "@/components/wizard-steps";
 import { PageHeader, Callout } from "@/components/page-ui";
 import { CourseWizardDetails } from "@/components/course-wizard-details";
+import { ADMIN_ROLE_TYPES } from "@/lib/course-assignments";
 
 /** Step 1 revisited for an existing course — same form, edits in place. */
 export default async function CourseDetailsPage({ params }: { params: { id: string } }) {
@@ -19,7 +20,20 @@ export default async function CourseDetailsPage({ params }: { params: { id: stri
   if (session.user.roleType !== "SUPER_ADMIN" && course.authorId !== session.user.id) notFound();
 
   const [roles, subPositions, categoryRows] = await Promise.all([
-    prisma.role.findMany({ orderBy: { name: "asc" } }),
+    // Only a super admin may aim a course at an admin role (audienceEditRefusal);
+    // one a super admin already chose stays listed so saving keeps it.
+    prisma.role.findMany({
+      where:
+        session.user.roleType === "SUPER_ADMIN"
+          ? {}
+          : {
+              OR: [
+                { type: { notIn: [...ADMIN_ROLE_TYPES] } },
+                { id: { in: course.roleAssignments.map((r) => r.roleId) } },
+              ],
+            },
+      orderBy: { name: "asc" },
+    }),
     prisma.subPosition.findMany({ orderBy: { name: "asc" } }),
     prisma.course.findMany({
       where: {
